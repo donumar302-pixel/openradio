@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { isAdminEmail } from "../lib/admin";
 
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
@@ -9,11 +10,11 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
   }
 
   const [user] = await db
-    .select({ isAdmin: usersTable.isAdmin })
+    .select({ isAdmin: usersTable.isAdmin, email: usersTable.email })
     .from(usersTable)
     .where(eq(usersTable.id, req.session.userId));
 
-  if (!user || !user.isAdmin) {
+  if (!user || !(user.isAdmin || isAdminEmail(user.email))) {
     res.status(403).json({ error: "Admin access required" });
     return;
   }

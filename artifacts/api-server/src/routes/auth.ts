@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { RegisterBody, LoginBody } from "@workspace/api-zod";
+import { isAdminEmail } from "../lib/admin";
 
 const router = Router();
 
@@ -31,7 +32,7 @@ router.post("/register", async (req, res) => {
     id: user.id,
     name: user.name,
     email: user.email,
-    isAdmin: user.isAdmin,
+    isAdmin: user.isAdmin || isAdminEmail(user.email),
     createdAt: user.createdAt.toISOString(),
   });
 });
@@ -63,7 +64,7 @@ router.post("/login", async (req, res) => {
     id: user.id,
     name: user.name,
     email: user.email,
-    isAdmin: user.isAdmin,
+    isAdmin: user.isAdmin || isAdminEmail(user.email),
     createdAt: user.createdAt.toISOString(),
   });
 });
@@ -91,7 +92,7 @@ router.get("/me", async (req, res) => {
     id: user.id,
     name: user.name,
     email: user.email,
-    isAdmin: user.isAdmin,
+    isAdmin: user.isAdmin || isAdminEmail(user.email),
     createdAt: user.createdAt.toISOString(),
   });
 });
