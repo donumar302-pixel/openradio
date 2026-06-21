@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   useListVoices,
   getListVoicesQueryKey,
@@ -7,8 +7,10 @@ import {
   getListGenerationsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Play, Download, PlayCircle, StopCircle, Mic2, History, Settings2, ChevronRight, RotateCcw, Smile, PauseCircle, Tag, Upload, Zap } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Play, Download, PlayCircle, StopCircle, Mic2, History, Settings2, ChevronRight, RotateCcw, Smile, PauseCircle, Tag, Upload, Zap, ChevronsUpDown, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -165,12 +167,10 @@ export default function StudioPage() {
     return acc;
   }, {} as Record<string, MiniMaxVoice[]>);
 
-  // Composite select values: "el:<voiceId>" or "mm:<voiceId>"
-  const compositeVoiceValue = voiceId ? `${voiceProvider}:${voiceId}` : "";
-
   const selectedElVoice = voiceProvider === "el" ? voices?.find((v) => v.voiceId === voiceId) : undefined;
   const selectedMmVoice = voiceProvider === "minimax" ? mmVoices.find((v) => v.id === voiceId) : undefined;
   const selectedModel = MODELS.find((m) => m.id === modelId);
+  const [voiceOpen, setVoiceOpen] = useState(false);
 
   const handleVoiceSelect = (composite: string) => {
     const colonIdx = composite.indexOf(":");
@@ -178,7 +178,16 @@ export default function StudioPage() {
     const id = composite.slice(colonIdx + 1);
     setVoiceProvider(provider);
     setVoiceId(id);
+    setVoiceOpen(false);
   };
+
+  const selectedVoiceLabel = useMemo(() => {
+    if (!voiceId) return null;
+    if (voiceProvider === "el" && selectedElVoice) return selectedElVoice.name;
+    if (voiceProvider === "minimax" && selectedMmVoice)
+      return selectedMmVoice.name + (selectedMmVoice.style ? ` · ${selectedMmVoice.style}` : "");
+    return null;
+  }, [voiceId, voiceProvider, selectedElVoice, selectedMmVoice]);
 
   const resetSettings = () => {
     setStability(0.5);
@@ -361,12 +370,10 @@ export default function StudioPage() {
                 {(selectedElVoice || selectedMmVoice) && (
                   <div className={cn(
                     "flex items-center gap-3 p-2.5 border rounded-xl mb-3",
-                    voiceProvider === "minimax"
-                      ? "border-violet-200 bg-violet-50"
-                      : "border-[#e5e7eb]"
+                    voiceProvider === "minimax" ? "border-violet-200 bg-violet-50" : "border-[#e5e7eb]"
                   )}>
                     <div className={cn(
-                      "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 font-bold text-base",
+                      "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 font-bold text-lg",
                       voiceProvider === "minimax"
                         ? "bg-violet-100 text-violet-600"
                         : "bg-gradient-to-br from-primary/30 to-orange-200 text-primary"
@@ -374,15 +381,13 @@ export default function StudioPage() {
                       {(selectedElVoice?.name ?? selectedMmVoice?.name ?? "V")[0]}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">
+                      <p className="text-sm font-bold truncate">
                         {selectedElVoice?.name ?? selectedMmVoice?.name}
                       </p>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className={cn(
                           "inline-block text-[10px] px-1.5 py-0.5 rounded font-semibold",
-                          voiceProvider === "minimax"
-                            ? "bg-violet-100 text-violet-600"
-                            : "bg-[#f3f4f6] text-[#6b7280]"
+                          voiceProvider === "minimax" ? "bg-violet-100 text-violet-600" : "bg-[#f3f4f6] text-[#6b7280]"
                         )}>
                           {voiceProvider === "minimax"
                             ? (selectedMmVoice?.isClone ? "Clone" : selectedMmVoice?.lang ?? "AI")
@@ -393,67 +398,110 @@ export default function StudioPage() {
                             <Zap size={9} className="fill-violet-500" /> Fire TTS
                           </span>
                         )}
+                        {voiceProvider === "minimax" && selectedMmVoice?.style && (
+                          <span className="text-[10px] text-[#9ca3af]">{selectedMmVoice.style}</span>
+                        )}
                       </div>
                     </div>
                     {voiceProvider === "el" && <VoicePreviewBtn url={selectedElVoice?.previewUrl} />}
                   </div>
                 )}
 
-                <Select value={compositeVoiceValue} onValueChange={handleVoiceSelect} disabled={loadingVoices}>
-                  <SelectTrigger className="border-[#e5e7eb] text-sm h-10 w-full" data-testid="select-voice">
-                    <SelectValue placeholder={loadingVoices ? "Loading voices..." : "Choose a voice"} />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-80">
-                    {/* ── ElevenLabs voices ── */}
-                    {voicesByCategory && Object.keys(voicesByCategory).length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 border-b border-[#f3f4f6] mb-1">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-orange-500">Text to Speech Voices</p>
-                        </div>
-                        {Object.entries(voicesByCategory).map(([cat, items]) => (
-                          <SelectGroup key={`el-${cat}`}>
-                            <SelectLabel className="text-primary/70 text-xs capitalize">{cat}</SelectLabel>
-                            {items.map((v) => (
-                              <SelectItem key={`el:${v.voiceId}`} value={`el:${v.voiceId}`} textValue={v.name} className="text-sm py-2">
-                                {v.name}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        ))}
-                      </>
-                    )}
+                {/* ── Searchable voice picker ── */}
+                <Popover open={voiceOpen} onOpenChange={setVoiceOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      data-testid="select-voice"
+                      className={cn(
+                        "w-full flex items-center justify-between h-10 px-3 border rounded-lg text-sm transition-colors",
+                        "border-[#e5e7eb] bg-white hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20",
+                        !selectedVoiceLabel && "text-[#9ca3af]"
+                      )}
+                    >
+                      <span className="truncate font-medium">
+                        {loadingVoices ? "Loading voices..." : (selectedVoiceLabel ?? "Choose a voice")}
+                      </span>
+                      <ChevronsUpDown size={14} className="shrink-0 text-[#9ca3af] ml-2" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[240px] p-0" align="start" side="bottom">
+                    <Command>
+                      <CommandInput placeholder="Search voices..." className="h-9 text-sm" />
+                      <CommandList className="max-h-72">
+                        <CommandEmpty className="py-6 text-center text-sm text-[#9ca3af]">No voice found.</CommandEmpty>
 
-                    {/* ── MiniMax voices ── */}
-                    {mmVoices.length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 border-t border-b border-[#f3f4f6] my-1">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-violet-500 flex items-center gap-1">
-                            <Zap size={9} className="fill-violet-500" /> Fire TTS Voices (35+ languages)
-                          </p>
-                        </div>
-                        {Object.entries(mmByLang).map(([lang, langVoices]) => (
-                          <SelectGroup key={`mm-${lang}`}>
-                            <SelectLabel className="text-violet-500/70 text-xs">{lang}</SelectLabel>
-                            {langVoices.map(v => (
-                              <SelectItem
-                                key={`mm:${v.id}`}
-                                value={`mm:${v.id}`}
-                                textValue={v.isClone ? v.name : `${v.name}${v.style ? ` · ${v.style}` : ""}`}
-                                className="text-sm py-2"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span>{v.name}</span>
-                                  {v.style && <span className="text-[10px] text-[#9ca3af]">{v.style}</span>}
-                                  {v.isClone && <span className="text-[10px] text-violet-500 font-bold">Clone</span>}
-                                </div>
-                              </SelectItem>
+                        {/* ── ElevenLabs voices ── */}
+                        {voicesByCategory && Object.keys(voicesByCategory).length > 0 && (
+                          <>
+                            <div className="px-3 pt-2.5 pb-1">
+                              <p className="text-[10px] font-black uppercase tracking-wider text-orange-500">Text to Speech</p>
+                            </div>
+                            {Object.entries(voicesByCategory).map(([cat, items]) => (
+                              <CommandGroup key={`el-${cat}`} heading={cat.charAt(0).toUpperCase() + cat.slice(1)}>
+                                {items.map((v) => (
+                                  <CommandItem
+                                    key={`el:${v.voiceId}`}
+                                    value={`el:${v.voiceId}:${v.name} ${cat}`}
+                                    onSelect={() => handleVoiceSelect(`el:${v.voiceId}`)}
+                                    className="flex items-center gap-2 py-2 cursor-pointer"
+                                  >
+                                    <div className="w-7 h-7 rounded-md bg-orange-50 flex items-center justify-center shrink-0 text-primary font-bold text-xs">
+                                      {v.name[0]}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
+                                      <p className="text-[10px] text-[#9ca3af] capitalize">{cat}</p>
+                                    </div>
+                                    {voiceProvider === "el" && voiceId === v.voiceId && (
+                                      <Check size={13} className="text-primary shrink-0" />
+                                    )}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
                             ))}
-                          </SelectGroup>
-                        ))}
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
+                          </>
+                        )}
+
+                        {/* ── MiniMax (Fire TTS) voices ── */}
+                        {mmVoices.length > 0 && (
+                          <>
+                            {voicesByCategory && Object.keys(voicesByCategory).length > 0 && <CommandSeparator />}
+                            <div className="px-3 pt-2.5 pb-1">
+                              <p className="text-[10px] font-black uppercase tracking-wider text-violet-500 flex items-center gap-1">
+                                <Zap size={9} className="fill-violet-500" /> Fire TTS (35+ langs)
+                              </p>
+                            </div>
+                            {Object.entries(mmByLang).map(([lang, langVoices]) => (
+                              <CommandGroup key={`mm-${lang}`} heading={lang}>
+                                {langVoices.map(v => (
+                                  <CommandItem
+                                    key={`mm:${v.id}`}
+                                    value={`mm:${v.id}:${v.name} ${v.style ?? ""} ${lang}`}
+                                    onSelect={() => handleVoiceSelect(`mm:${v.id}`)}
+                                    className="flex items-center gap-2 py-2 cursor-pointer"
+                                  >
+                                    <div className="w-7 h-7 rounded-md bg-violet-50 flex items-center justify-center shrink-0 text-violet-600 font-bold text-xs">
+                                      {v.name[0]}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
+                                      <p className="text-[10px] text-[#9ca3af]">
+                                        {v.isClone ? "Clone" : (v.style ?? lang)}
+                                      </p>
+                                    </div>
+                                    {voiceProvider === "minimax" && voiceId === v.id && (
+                                      <Check size={13} className="text-violet-600 shrink-0" />
+                                    )}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            ))}
+                          </>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Model (also in right panel for quick access) */}
