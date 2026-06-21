@@ -1,0 +1,1 @@
+- [Session cookies & connect-pg-simple](session-cookies.md) — refresh-logout bug: session table never created under esbuild bundle + missing `trust proxy` for secure cookies.

@@ -9,7 +9,16 @@ import { logger } from "./lib/logger";
 
 const PgSession = connectPgSimple(session);
 
+const SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("SESSION_SECRET must be set in production");
+}
+
 const app: Express = express();
+
+// Behind the Replit reverse proxy: required so express-session trusts
+// X-Forwarded-Proto and will set the `secure` session cookie.
+app.set("trust proxy", 1);
 
 app.use(
   pinoHttp({
@@ -39,9 +48,9 @@ app.use(
     store: new PgSession({
       conString: process.env.DATABASE_URL,
       tableName: "user_sessions",
-      createTableIfMissing: true,
+      createTableIfMissing: false,
     }),
-    secret: process.env.SESSION_SECRET || "dev-secret-change-in-prod",
+    secret: SESSION_SECRET || "dev-secret-change-in-prod",
     resave: false,
     saveUninitialized: false,
     cookie: {

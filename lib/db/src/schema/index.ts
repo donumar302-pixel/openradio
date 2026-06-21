@@ -1,6 +1,15 @@
-import { pgTable, serial, text, boolean, integer, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, integer, timestamp, uniqueIndex, varchar, json, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+
+// Session store table for connect-pg-simple. Managed here (instead of the
+// library's createTableIfMissing) because the bundled server cannot resolve
+// the library's table.sql, so the table must be created via `db push`.
+export const userSessionsTable = pgTable("user_sessions", {
+  sid: varchar("sid").primaryKey(),
+  sess: json("sess").notNull(),
+  expire: timestamp("expire", { precision: 6 }).notNull(),
+}, (t) => [index("IDX_user_sessions_expire").on(t.expire)]);
 
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -8,6 +17,7 @@ export const usersTable = pgTable("users", {
   email: text("email").notNull(),
   passwordHash: text("password_hash").notNull(),
   plan: text("plan").notNull().default("free"),
+  isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [uniqueIndex("users_email_idx").on(t.email)]);
 

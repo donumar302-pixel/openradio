@@ -57,7 +57,7 @@ function AdminRoutes() {
 }
 
 function AppRoutes() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isAdmin, isLoading } = useAuth();
   const [location] = useLocation();
 
   if (isLoading) {
@@ -81,6 +81,9 @@ function AppRoutes() {
   }
 
   if (location.startsWith("/admin")) {
+    if (!isAdmin) {
+      return <Redirect to="/" />;
+    }
     return <AdminRoutes />;
   }
 

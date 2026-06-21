@@ -3,7 +3,7 @@ import { useLogin, useRegister, useLogout } from "@workspace/api-client-react";
 
 const AUTH_KEY = ["auth", "me"] as const;
 
-async function fetchMe(): Promise<{ id: number; name: string; email: string; createdAt: string }> {
+async function fetchMe(): Promise<{ id: number; name: string; email: string; isAdmin: boolean; createdAt: string }> {
   const res = await fetch("/api/auth/me", { credentials: "include" });
   if (!res.ok) throw new Error("Unauthenticated");
   return res.json();
@@ -37,6 +37,7 @@ export function useAuth() {
       {
         onSuccess: (userData) => {
           queryClient.setQueryData(AUTH_KEY, userData);
+          queryClient.invalidateQueries({ queryKey: AUTH_KEY });
           callbacks?.onSuccess?.();
         },
         onError: callbacks?.onError,
@@ -53,6 +54,7 @@ export function useAuth() {
       {
         onSuccess: (userData) => {
           queryClient.setQueryData(AUTH_KEY, userData);
+          queryClient.invalidateQueries({ queryKey: AUTH_KEY });
           callbacks?.onSuccess?.();
         },
         onError: callbacks?.onError,
@@ -74,6 +76,7 @@ export function useAuth() {
     user: user ?? null,
     isLoading,
     isAuthenticated: !!user && !isError,
+    isAdmin: !!user?.isAdmin,
     login,
     register,
     loginPending: loginMutationRaw.isPending,

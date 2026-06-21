@@ -31,6 +31,7 @@ router.post("/register", async (req, res) => {
     id: user.id,
     name: user.name,
     email: user.email,
+    isAdmin: user.isAdmin,
     createdAt: user.createdAt.toISOString(),
   });
 });
@@ -62,6 +63,7 @@ router.post("/login", async (req, res) => {
     id: user.id,
     name: user.name,
     email: user.email,
+    isAdmin: user.isAdmin,
     createdAt: user.createdAt.toISOString(),
   });
 });
@@ -89,6 +91,7 @@ router.get("/me", async (req, res) => {
     id: user.id,
     name: user.name,
     email: user.email,
+    isAdmin: user.isAdmin,
     createdAt: user.createdAt.toISOString(),
   });
 });
