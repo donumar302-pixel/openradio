@@ -196,26 +196,26 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen flex bg-white text-foreground">
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col bg-white border-r border-[#f3f4f6] w-64 shrink-0">
+    <div className="h-screen flex bg-white text-foreground overflow-hidden">
+      {/* Desktop sidebar — fixed height, no page scroll */}
+      <aside className="hidden lg:flex flex-col bg-white border-r border-[#f3f4f6] w-64 shrink-0 h-full">
         <SidebarContent />
       </aside>
 
       {/* Mobile overlay */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div className="w-64 bg-white border-r border-[#f3f4f6] flex flex-col shadow-xl">
+          <div className="w-64 bg-white border-r border-[#f3f4f6] flex flex-col h-full shadow-xl">
             <SidebarContent />
           </div>
           <div className="flex-1 bg-black/30" onClick={() => setMobileOpen(false)} />
         </div>
       )}
 
-      {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white">
+      {/* Main — only this scrolls */}
+      <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
         {/* Mobile header */}
-        <header className="lg:hidden flex items-center gap-3 px-4 h-14 border-b border-[#f3f4f6]">
+        <header className="lg:hidden flex items-center gap-3 px-4 h-14 border-b border-[#f3f4f6] shrink-0">
           <button onClick={() => setMobileOpen(true)} className="text-[#6b7280]">
             <Menu size={20} />
           </button>
@@ -230,7 +230,7 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
           )}
         </header>
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-y-auto">
           {children}
         </main>
       </div>
