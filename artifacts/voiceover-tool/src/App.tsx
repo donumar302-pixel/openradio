@@ -12,9 +12,7 @@ import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import SpeechToSpeechPage from "@/pages/speech-to-speech";
 import SpeechToTextPage from "@/pages/speech-to-text";
-import SoundEffectsPage from "@/pages/sound-effects";
 import AudioIsolationPage from "@/pages/audio-isolation";
-import MusicPage from "@/pages/music";
 import DubbingPage from "@/pages/dubbing";
 import SettingsPage from "@/pages/settings";
 import { SidebarLayout } from "@/components/sidebar-layout";
@@ -61,9 +59,7 @@ function AppRoutes() {
         <Route path="/studio" component={StudioPage} />
         <Route path="/speech-to-speech" component={SpeechToSpeechPage} />
         <Route path="/speech-to-text" component={SpeechToTextPage} />
-        <Route path="/sound-effects" component={SoundEffectsPage} />
         <Route path="/audio-isolation" component={AudioIsolationPage} />
-        <Route path="/music" component={MusicPage} />
         <Route path="/dubbing" component={DubbingPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/admin" component={AdminDashboard} />

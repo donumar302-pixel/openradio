@@ -11,12 +11,9 @@ import {
   X,
   ChevronDown,
   ChevronRight,
-  Volume2,
   AudioWaveform,
-  Music2,
   MessageSquareText,
   Languages,
-  Mic,
   Radio,
   Settings,
 } from "lucide-react";
@@ -33,9 +30,7 @@ const pinnedTools: Tool[] = [
   { label: "Text to Speech",    href: "/studio",            icon: <Mic2 size={15} />,              badge: "AI" },
   { label: "Speech to Speech",  href: "/speech-to-speech",  icon: <AudioWaveform size={15} /> },
   { label: "Speech to Text",    href: "/speech-to-text",    icon: <MessageSquareText size={15} /> },
-  { label: "Sound Effects",     href: "/sound-effects",     icon: <Volume2 size={15} /> },
   { label: "Audio Isolation",   href: "/audio-isolation",   icon: <Radio size={15} /> },
-  { label: "Music Generation",  href: "/music",             icon: <Music2 size={15} /> },
   { label: "Dubbing",           href: "/dubbing",           icon: <Languages size={15} />,         badge: "New" },
 ];
 
