@@ -1,140 +1,300 @@
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { Button } from "@/components/ui/button";
+import { useQuery } from "@tanstack/react-query";
 import {
-  Mic2,
-  Sparkles,
-  ArrowRight,
-  AudioWaveform,
-  MessageSquareText,
-  Radio,
-  Languages,
+  Mic2, AudioWaveform, MessageSquareText, Radio,
+  Languages, Zap, Copy, Clock, ChevronRight,
+  Play, Plus, Volume2,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-const tools = [
+/* ── Tool cards (top strip) ──────────────────────────────────── */
+const TOOLS = [
   {
     href: "/studio",
-    icon: <Mic2 className="h-7 w-7" />,
-    color: "bg-orange-500",
-    lightColor: "bg-orange-50",
-    textColor: "text-orange-500",
-    borderColor: "hover:border-orange-300",
-    badge: "AI",
+    icon: <Mic2 size={22} />,
     name: "Text to Speech",
-    desc: "Type your script and generate lifelike AI voices instantly. Supports 29 languages with multiple voice styles.",
-    cta: "Open Studio",
+    desc: "Convert any text to natural-sounding speech in seconds",
+    iconBg: "bg-orange-50", iconColor: "text-orange-500",
+  },
+  {
+    href: "/minimax",
+    icon: <Zap size={22} />,
+    name: "Fire TTS",
+    desc: "High-quality AI voices with 35+ languages support",
+    iconBg: "bg-violet-50", iconColor: "text-violet-500",
+    badge: "Hot",
+  },
+  {
+    href: "/voice-cloning",
+    icon: <Copy size={22} />,
+    name: "Voice Cloning",
+    desc: "Create a digital copy of any voice for free",
+    iconBg: "bg-green-50", iconColor: "text-green-500",
+    badge: "Free",
   },
   {
     href: "/speech-to-speech",
-    icon: <AudioWaveform className="h-7 w-7" />,
-    color: "bg-violet-500",
-    lightColor: "bg-violet-50",
-    textColor: "text-violet-500",
-    borderColor: "hover:border-violet-300",
-    badge: null,
+    icon: <AudioWaveform size={22} />,
     name: "Speech to Speech",
-    desc: "Upload any audio file and convert it into a completely different voice using AI — in seconds.",
-    cta: "Try Now",
-  },
-  {
-    href: "/speech-to-text",
-    icon: <MessageSquareText className="h-7 w-7" />,
-    color: "bg-blue-500",
-    lightColor: "bg-blue-50",
-    textColor: "text-blue-500",
-    borderColor: "hover:border-blue-300",
-    badge: null,
-    name: "Speech to Text",
-    desc: "Upload any audio or video file and get an accurate text transcript automatically, in any language.",
-    cta: "Transcribe",
+    desc: "Transform any voice into a completely different one",
+    iconBg: "bg-blue-50", iconColor: "text-blue-500",
   },
   {
     href: "/audio-isolation",
-    icon: <Radio className="h-7 w-7" />,
-    color: "bg-emerald-500",
-    lightColor: "bg-emerald-50",
-    textColor: "text-emerald-500",
-    borderColor: "hover:border-emerald-300",
-    badge: null,
+    icon: <Radio size={22} />,
     name: "Audio Isolation",
-    desc: "Remove background noise and music — keep only the crystal clear voice. Perfect for podcasts and voiceovers.",
-    cta: "Clean Audio",
+    desc: "Remove background noise and keep crystal clear voice",
+    iconBg: "bg-emerald-50", iconColor: "text-emerald-500",
   },
   {
     href: "/dubbing",
-    icon: <Languages className="h-7 w-7" />,
-    color: "bg-rose-500",
-    lightColor: "bg-rose-50",
-    textColor: "text-rose-500",
-    borderColor: "hover:border-rose-300",
-    badge: "New",
+    icon: <Languages size={22} />,
     name: "Dubbing",
-    desc: "Automatically dub any video or audio into 29+ languages. Original timing and emotion are preserved perfectly.",
-    cta: "Start Dubbing",
+    desc: "Dub any video into 29+ languages automatically",
+    iconBg: "bg-rose-50", iconColor: "text-rose-500",
+  },
+  {
+    href: "/speech-to-text",
+    icon: <MessageSquareText size={22} />,
+    name: "Speech to Text",
+    desc: "Transcribe audio and video files in any language",
+    iconBg: "bg-sky-50", iconColor: "text-sky-500",
   },
 ];
+
+/* ── Generation item ─────────────────────────────────────────── */
+interface Generation {
+  id: number;
+  text: string;
+  voiceName: string;
+  audioUrl: string;
+  modelId: string | null;
+  characterCount: number;
+  createdAt: string;
+}
+
+interface VoiceClone {
+  id: string; name: string; isClone?: boolean; lang?: string;
+}
+
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  const h = Math.floor(m / 60);
+  const d = Math.floor(h / 24);
+  if (d > 0) return `${d}d ago`;
+  if (h > 0) return `${h}h ago`;
+  if (m > 0) return `${m}m ago`;
+  return "Just now";
+}
 
 export default function Home() {
   const { user } = useAuth();
 
+  const { data: genData } = useQuery<{ items: Generation[]; total: number }>({
+    queryKey: ["generations"],
+    queryFn: () => fetch("/api/generations?limit=5").then(r => r.json()),
+    staleTime: 30_000,
+  });
+
+  const { data: voiceData } = useQuery<{ builtin: VoiceClone[]; clones: VoiceClone[] }>({
+    queryKey: ["minimax-voices"],
+    queryFn: () => fetch("/api/minimax/voices").then(r => r.json()),
+    staleTime: 60_000,
+  });
+
+  const recentGenerations = genData?.items ?? [];
+  const myClones = voiceData?.clones ?? [];
+
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      {/* Welcome */}
-      <div className="mb-10">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-5">
-          <Sparkles size={12} />
-          Welcome to Bunny TTS
+    <div className="min-h-full bg-[#fafafa]">
+      <div className="max-w-5xl mx-auto px-7 py-8 space-y-10">
+
+        {/* ── Greeting ── */}
+        <div>
+          <h1 className="text-[28px] font-black tracking-tight text-foreground mb-1">
+            Home
+          </h1>
+          <p className="text-[#9ca3af] text-[14px]">
+            Welcome back, <span className="font-semibold text-foreground">{user?.name ?? "there"}</span>. What would you like to create today?
+          </p>
         </div>
-        <h1 className="text-4xl font-black tracking-tight mb-2 text-foreground">
-          Hello, <span className="text-primary">{user?.name || "there"}</span>
-        </h1>
-        <p className="text-[#6b7280] text-lg">What would you like to create today?</p>
-      </div>
 
-      {/* Tools grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
-        {tools.map((tool) => (
-          <Link key={tool.href} href={tool.href}>
-            <div className={`group bg-white border border-[#f3f4f6] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 ${tool.borderColor}`}>
-              {/* Icon */}
-              <div className={`w-14 h-14 rounded-2xl ${tool.lightColor} ${tool.textColor} flex items-center justify-center mb-5 transition-all group-hover:scale-105`}>
-                {tool.icon}
+        {/* ── Tool cards strip ── */}
+        <div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {TOOLS.map(tool => (
+              <Link key={tool.href} href={tool.href}>
+                <div className="group bg-white border border-[#f0f0f0] rounded-2xl p-5 cursor-pointer hover:border-[#e0e0e0] hover:shadow-md transition-all">
+                  {/* Icon */}
+                  <div className={cn(
+                    "w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-105",
+                    tool.iconBg, tool.iconColor
+                  )}>
+                    {tool.icon}
+                  </div>
+                  {/* Name + badge */}
+                  <div className="flex items-start gap-1.5 mb-1.5 flex-wrap">
+                    <p className="text-[14px] font-bold text-foreground leading-snug">{tool.name}</p>
+                    {tool.badge && (
+                      <span className={cn(
+                        "text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 mt-0.5",
+                        tool.badge === "Free" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-500"
+                      )}>
+                        {tool.badge}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[12px] text-[#9ca3af] leading-snug">{tool.desc}</p>
+                </div>
+              </Link>
+            ))}
+
+            {/* New project card */}
+            <Link href="/studio">
+              <div className="group bg-white border-2 border-dashed border-[#e5e7eb] rounded-2xl p-5 cursor-pointer hover:border-orange-300 hover:bg-orange-50/30 transition-all flex flex-col items-center justify-center min-h-[130px] text-center">
+                <div className="w-11 h-11 rounded-xl bg-[#f9fafb] group-hover:bg-orange-100 flex items-center justify-center mb-3 transition-colors">
+                  <Plus size={20} className="text-[#9ca3af] group-hover:text-orange-500 transition-colors" />
+                </div>
+                <p className="text-[13px] font-bold text-[#6b7280] group-hover:text-foreground transition-colors">New Project</p>
+                <p className="text-[11px] text-[#9ca3af] mt-1">Start generating audio</p>
               </div>
+            </Link>
+          </div>
+        </div>
 
-              {/* Badge + Name */}
-              <div className="flex items-center gap-2 mb-2">
-                <h3 className="font-bold text-[17px] text-foreground">{tool.name}</h3>
-                {tool.badge && (
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tool.lightColor} ${tool.textColor}`}>
-                    {tool.badge}
-                  </span>
-                )}
-              </div>
-
-              {/* Description */}
-              <p className="text-sm text-[#6b7280] leading-relaxed mb-5">{tool.desc}</p>
-
-              {/* CTA */}
-              <div className={`flex items-center gap-1.5 text-sm font-semibold ${tool.textColor}`}>
-                {tool.cta}
-                <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
-              </div>
+        {/* ── Generation History ── */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Clock size={16} className="text-[#9ca3af]" />
+              <h2 className="text-[16px] font-bold text-foreground">Generation History</h2>
+              {genData?.total != null && genData.total > 0 && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#f3f4f6] text-[#6b7280]">
+                  {genData.total}
+                </span>
+              )}
             </div>
-          </Link>
-        ))}
-      </div>
+            {recentGenerations.length > 0 && (
+              <Link href="/studio">
+                <button className="flex items-center gap-1 text-[12px] font-semibold text-[#6b7280] hover:text-foreground transition-colors">
+                  View all <ChevronRight size={13} />
+                </button>
+              </Link>
+            )}
+          </div>
 
-      {/* CTA banner */}
-      <div className="bg-gradient-to-r from-primary to-orange-400 rounded-2xl p-7 text-white flex flex-col sm:flex-row items-start sm:items-center gap-5">
-        <div className="flex-1">
-          <h2 className="text-2xl font-black mb-1">Ready to generate?</h2>
-          <p className="text-white/80 text-sm">Open the Text to Speech studio and create your first voiceover now.</p>
+          {recentGenerations.length === 0 ? (
+            <div className="bg-white border border-[#f0f0f0] rounded-2xl p-12 flex flex-col items-center text-center">
+              <div className="w-14 h-14 rounded-2xl bg-[#f9fafb] flex items-center justify-center mb-4">
+                <Clock size={24} className="text-[#d1d5db]" />
+              </div>
+              <p className="text-[15px] font-bold text-foreground mb-1">No history yet</p>
+              <p className="text-[13px] text-[#9ca3af] mb-5">Generate your first audio to see it here</p>
+              <Link href="/studio">
+                <button className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-[13px] font-bold hover:bg-primary/90 transition-colors shadow-sm">
+                  <Mic2 size={14} /> Open Studio
+                </button>
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {recentGenerations.map(gen => (
+                <div key={gen.id} className="bg-white border border-[#f0f0f0] rounded-xl px-5 py-4 flex items-center gap-4 hover:border-[#e0e0e0] hover:shadow-sm transition-all">
+                  {/* Play icon */}
+                  <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                    <Play size={14} className="text-primary fill-primary" />
+                  </div>
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-semibold text-foreground truncate">
+                      {gen.text.length > 80 ? gen.text.slice(0, 80) + "…" : gen.text}
+                    </p>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      <span className="text-[12px] text-[#9ca3af]">{gen.voiceName}</span>
+                      <span className="text-[12px] text-[#d1d5db]">·</span>
+                      <span className="text-[12px] text-[#9ca3af]">{gen.characterCount} chars</span>
+                      {gen.modelId && (
+                        <>
+                          <span className="text-[12px] text-[#d1d5db]">·</span>
+                          <span className="text-[12px] text-[#9ca3af]">{gen.modelId}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {/* Time + audio */}
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-[11px] text-[#9ca3af] font-medium">{timeAgo(gen.createdAt)}</span>
+                    {gen.audioUrl && (
+                      <audio controls className="h-7 w-36" src={gen.audioUrl} />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <Link href="/studio">
-          <Button className="bg-white text-primary hover:bg-white/90 font-bold shadow-md shrink-0 px-6">
-            <Mic2 className="mr-2 h-4 w-4" /> Open Studio
-          </Button>
-        </Link>
+
+        {/* ── My Voices ── */}
+        <div className="pb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Volume2 size={16} className="text-[#9ca3af]" />
+              <h2 className="text-[16px] font-bold text-foreground">My Voices</h2>
+              {myClones.length > 0 && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#f3f4f6] text-[#6b7280]">
+                  {myClones.length}
+                </span>
+              )}
+            </div>
+            <Link href="/voice-cloning">
+              <button className="flex items-center gap-1.5 text-[12px] font-semibold text-[#6b7280] hover:text-foreground transition-colors">
+                <Plus size={13} /> Add Voice
+              </button>
+            </Link>
+          </div>
+
+          {myClones.length === 0 ? (
+            <div className="bg-white border border-[#f0f0f0] rounded-2xl p-10 flex flex-col items-center text-center">
+              <div className="w-14 h-14 rounded-2xl bg-[#f9fafb] flex items-center justify-center mb-4">
+                <Volume2 size={24} className="text-[#d1d5db]" />
+              </div>
+              <p className="text-[15px] font-bold text-foreground mb-1">No voices yet</p>
+              <p className="text-[13px] text-[#9ca3af] mb-5">Clone a voice for free — upload a 10-second sample</p>
+              <Link href="/voice-cloning">
+                <button className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 text-white rounded-xl text-[13px] font-bold hover:bg-violet-700 transition-colors shadow-sm">
+                  <Copy size={14} /> Clone a Voice
+                </button>
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {myClones.map((voice) => (
+                <Link key={voice.id} href="/voice-cloning">
+                  <div className="bg-white border border-[#f0f0f0] rounded-2xl p-4 cursor-pointer hover:border-violet-200 hover:shadow-md transition-all group">
+                    <div className="w-12 h-12 rounded-xl bg-violet-100 flex items-center justify-center mb-3 text-violet-600 font-black text-[18px] group-hover:bg-violet-200 transition-colors">
+                      {voice.name[0].toUpperCase()}
+                    </div>
+                    <p className="text-[13px] font-bold text-foreground truncate">{voice.name}</p>
+                    <p className="text-[11px] text-[#9ca3af] mt-0.5">Custom Clone</p>
+                  </div>
+                </Link>
+              ))}
+
+              {/* Add new voice card */}
+              <Link href="/voice-cloning">
+                <div className="bg-white border-2 border-dashed border-[#e5e7eb] rounded-2xl p-4 cursor-pointer hover:border-violet-300 hover:bg-violet-50/30 transition-all flex flex-col items-center justify-center min-h-[100px] text-center group">
+                  <div className="w-10 h-10 rounded-xl bg-[#f9fafb] group-hover:bg-violet-100 flex items-center justify-center mb-2 transition-colors">
+                    <Plus size={18} className="text-[#9ca3af] group-hover:text-violet-500 transition-colors" />
+                  </div>
+                  <p className="text-[12px] font-bold text-[#9ca3af] group-hover:text-foreground transition-colors">Add Voice</p>
+                </div>
+              </Link>
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
