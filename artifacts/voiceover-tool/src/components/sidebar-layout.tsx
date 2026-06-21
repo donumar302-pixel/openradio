@@ -112,24 +112,24 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
         </Link>
 
         {/* AI Generation */}
-        <div className="pt-4 pb-1">
-          <p className="px-3 text-xs text-[#9ca3af] font-medium">AI Generation</p>
+        <div className="pt-5 pb-1.5">
+          <p className="px-3 text-[11px] text-[#6b7280] font-bold uppercase tracking-wider">AI Generation</p>
         </div>
         {aiGenerationTools.map((item) => (
           <NavLink key={item.href} {...item} />
         ))}
 
         {/* AI Tools */}
-        <div className="pt-4 pb-1">
-          <p className="px-3 text-xs text-[#9ca3af] font-medium">AI Tools</p>
+        <div className="pt-5 pb-1.5">
+          <p className="px-3 text-[11px] text-[#6b7280] font-bold uppercase tracking-wider">AI Tools</p>
         </div>
         {aiTools.map((item) => (
           <NavLink key={item.href} {...item} />
         ))}
 
         {/* Manage */}
-        <div className="pt-4 pb-1">
-          <p className="px-3 text-xs text-[#9ca3af] font-medium">Manage</p>
+        <div className="pt-5 pb-1.5">
+          <p className="px-3 text-[11px] text-[#6b7280] font-bold uppercase tracking-wider">Manage</p>
         </div>
 
         <Link href="/settings">
