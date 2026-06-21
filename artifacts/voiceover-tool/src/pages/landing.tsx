@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
 import {
-  Wand2, Mic, Copy, AudioWaveform, Play, ArrowRight, Check, Sparkles,
+  Wand2, Mic, Copy, AudioWaveform, Play, Pause, ArrowRight, Check, Sparkles,
   Globe, BookOpen, Clapperboard, GraduationCap, Megaphone,
 } from "lucide-react";
+
+const asset = (p: string) => `${import.meta.env.BASE_URL}${p}`.replace(/([^:]\/)\/+/g, "$1");
 
 const DEMO_TABS = [
   { icon: Wand2, label: "Voice Design" },
@@ -13,12 +15,22 @@ const DEMO_TABS = [
   { icon: AudioWaveform, label: "Sound Design" },
 ];
 
-const DEMO_VOICES = [
-  { name: "Educational Narrator", tags: ["English", "Adult", "Male", "Neutral"], color: "bg-blue-500" },
-  { name: "The Healer (Serena)", tags: ["English", "Young", "Female", "Calm"], color: "bg-rose-500" },
-  { name: "The Naturalist (Soren)", tags: ["English", "Middle Aged", "Male"], color: "bg-amber-500" },
-  { name: "The Mentor (Kai)", tags: ["English", "Young", "Male", "Joyful"], color: "bg-emerald-500" },
+type Voice = {
+  id: string;
+  name: string;
+  tags: string[];
+  color: string;
+  src: string;
+};
+
+const VOICES: Voice[] = [
+  { id: "narrator", name: "Educational Narrator", tags: ["English", "Adult", "Male", "Neutral"], color: "bg-blue-500", src: asset("voices/narrator.mp3") },
+  { id: "serena", name: "The Healer (Serena)", tags: ["English", "Young", "Female", "Calm"], color: "bg-rose-500", src: asset("voices/serena.mp3") },
+  { id: "soren", name: "The Naturalist (Soren)", tags: ["English", "Middle Aged", "Male"], color: "bg-amber-500", src: asset("voices/soren.mp3") },
+  { id: "kai", name: "The Mentor (Kai)", tags: ["English", "Young", "Male", "Joyful"], color: "bg-emerald-500", src: asset("voices/kai.mp3") },
 ];
+
+const ROTATING = ["Truly Alive", "Truly Human", "Truly Yours", "Full of Emotion", "Simply Unreal"];
 
 const SCENARIOS = [
   {
@@ -55,10 +67,78 @@ const FEATURES = [
   { icon: Mic, title: "Studio-Grade Output", desc: "Crisp, broadcast-ready audio you can drop straight into your timeline." },
 ];
 
+/* ── Rotating headline word ─────────────────────────────────────────── */
+function RotatingWord() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((v) => (v + 1) % ROTATING.length), 2400);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span className="relative inline-block align-top overflow-hidden">
+      {ROTATING.map((w, idx) => (
+        <span
+          key={idx}
+          className={
+            "block bg-gradient-to-r from-[#f97316] to-amber-500 bg-clip-text text-transparent transition-all duration-500 " +
+            (idx === i
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 -translate-y-full absolute inset-0")
+          }
+        >
+          {w}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/* ── Animated equalizer bars ────────────────────────────────────────── */
+function EqBars() {
+  return (
+    <div className="flex items-center gap-[3px] h-5">
+      {[0, 1, 2, 3].map((n) => (
+        <span
+          key={n}
+          className="w-[3px] rounded-full bg-[#f97316] animate-pulse"
+          style={{ height: `${[60, 100, 45, 80][n]}%`, animationDelay: `${n * 120}ms`, animationDuration: "700ms" }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const [activeTab, setActiveTab] = useState(1);
   const [activeScenario, setActiveScenario] = useState(0);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [errorId, setErrorId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const ScenarioIcon = SCENARIOS[activeScenario].icon;
+
+  useEffect(() => {
+    return () => { audioRef.current?.pause(); };
+  }, []);
+
+  function toggleVoice(v: Voice) {
+    setErrorId(null);
+    let audio = audioRef.current;
+    if (!audio) {
+      audio = new Audio();
+      audioRef.current = audio;
+      audio.addEventListener("ended", () => setPlayingId(null));
+    }
+    if (playingId === v.id) {
+      audio.pause();
+      setPlayingId(null);
+      return;
+    }
+    audio.src = v.src;
+    audio.currentTime = 0;
+    audio.play()
+      .then(() => setPlayingId(v.id))
+      .catch(() => { setPlayingId(null); setErrorId(v.id); });
+  }
 
   return (
     <div className="min-h-screen bg-[#fafaf9] text-gray-900">
@@ -66,23 +146,23 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="relative overflow-hidden">
-        {/* Aurora gradient */}
         <div className="pointer-events-none absolute inset-0 -z-10">
           <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[900px] h-[600px] rounded-full bg-gradient-to-tr from-orange-200/50 via-amber-100/40 to-rose-200/40 blur-3xl" />
           <div className="absolute top-[20%] left-[5%] w-[400px] h-[400px] rounded-full bg-orange-300/20 blur-3xl" />
           <div className="absolute top-[10%] right-[5%] w-[400px] h-[400px] rounded-full bg-amber-200/30 blur-3xl" />
         </div>
 
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-20 sm:pt-28 pb-16 text-center">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-20 sm:pt-28 pb-16 text-center">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/70 border border-black/[0.06] text-[12.5px] font-semibold text-gray-600 mb-7 shadow-sm">
             <Sparkles size={13} className="text-[#f97316]" />
             AI-native voices, cloning & design
           </div>
-          <h1 className="text-[40px] sm:text-[64px] leading-[1.05] font-black tracking-tight text-gray-900">
+          <h1 className="text-[48px] sm:text-[84px] leading-[0.98] font-black tracking-[-0.03em] text-gray-900">
             Voices That Feel
-            <br className="hidden sm:block" /> Truly Alive
+            <br />
+            <RotatingWord />
           </h1>
-          <p className="mt-6 text-[16px] sm:text-[18px] text-gray-500 max-w-2xl mx-auto leading-relaxed">
+          <p className="mt-7 text-[16px] sm:text-[19px] text-gray-500 max-w-2xl mx-auto leading-relaxed">
             Unlock AI-native emotional voices, cloning, and design. Create audiobooks,
             podcasts, videos, and beyond — exactly as you imagine.
           </p>
@@ -105,7 +185,6 @@ export default function LandingPage() {
 
         {/* Product preview mockup */}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 pb-20">
-          {/* Tabs */}
           <div className="flex justify-center mb-5">
             <div className="inline-flex flex-wrap justify-center gap-1 p-1.5 rounded-2xl bg-white/80 border border-black/[0.06] shadow-sm backdrop-blur">
               {DEMO_TABS.map((t, i) => {
@@ -116,9 +195,7 @@ export default function LandingPage() {
                     onClick={() => setActiveTab(i)}
                     className={
                       "flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all " +
-                      (activeTab === i
-                        ? "bg-white shadow text-gray-900"
-                        : "text-gray-500 hover:text-gray-800")
+                      (activeTab === i ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-800")
                     }
                   >
                     <Icon size={14} /> {t.label}
@@ -128,7 +205,6 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Mockup card */}
           <div className="rounded-3xl border border-black/[0.07] bg-white shadow-2xl shadow-orange-100/50 overflow-hidden">
             <div className="grid md:grid-cols-2">
               {/* Left: text input */}
@@ -144,47 +220,58 @@ export default function LandingPage() {
                 </p>
                 <div className="mt-6 flex items-center justify-between">
                   <span className="text-[12px] text-gray-400">186 / 400</span>
-                  <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-900 text-white text-[13px] font-bold">
+                  <Link
+                    href="/register"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-900 text-white text-[13px] font-bold"
+                  >
                     <Play size={13} /> Generate Voice
-                  </button>
+                  </Link>
                 </div>
               </div>
 
-              {/* Right: voice list */}
+              {/* Right: playable voice list */}
               <div className="p-6 sm:p-8 bg-[#fafaf9]/60">
-                <p className="text-[12px] font-bold uppercase tracking-widest text-gray-400 mb-3">
-                  Select a voice
-                </p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[12px] font-bold uppercase tracking-widest text-gray-400">
+                    Select a voice — tap to play
+                  </p>
+                </div>
                 <div className="space-y-2.5">
-                  {DEMO_VOICES.map((v, i) => (
-                    <div
-                      key={i}
-                      className={
-                        "flex items-center gap-3 p-3 rounded-2xl border transition-all " +
-                        (i === 0
-                          ? "border-[#f97316]/40 bg-orange-50/60 shadow-sm"
-                          : "border-black/[0.05] bg-white")
-                      }
-                    >
-                      <div className={"w-9 h-9 rounded-full shrink-0 " + v.color} />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13.5px] font-bold text-gray-900 truncate">{v.name}</p>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {v.tags.slice(0, 4).map((t, j) => (
-                            <span
-                              key={j}
-                              className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-black/[0.05] text-gray-500"
-                            >
-                              {t}
-                            </span>
-                          ))}
+                  {VOICES.map((v) => {
+                    const isPlaying = playingId === v.id;
+                    return (
+                      <button
+                        key={v.id}
+                        onClick={() => toggleVoice(v)}
+                        className={
+                          "w-full flex items-center gap-3 p-3 rounded-2xl border text-left transition-all " +
+                          (isPlaying
+                            ? "border-[#f97316]/50 bg-orange-50/80 shadow-sm"
+                            : "border-black/[0.05] bg-white hover:border-[#f97316]/30 hover:shadow-sm")
+                        }
+                      >
+                        {/* Play/pause avatar */}
+                        <span className={"relative w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white " + v.color}>
+                          {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13.5px] font-bold text-gray-900 truncate">{v.name}</p>
+                          {errorId === v.id ? (
+                            <p className="text-[10.5px] font-semibold text-rose-500 mt-1">Sample coming soon</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {v.tags.slice(0, 4).map((t, j) => (
+                                <span key={j} className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-black/[0.05] text-gray-500">
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      {i === 0 && (
-                        <Check size={16} className="text-[#f97316] shrink-0" />
-                      )}
-                    </div>
-                  ))}
+                        {isPlaying && <EqBars />}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -200,7 +287,6 @@ export default function LandingPage() {
         </h2>
 
         <div className="grid md:grid-cols-[280px_1fr] gap-6 lg:gap-10">
-          {/* Tabs */}
           <div className="flex md:flex-col gap-2 overflow-x-auto md:overflow-visible pb-2 md:pb-0">
             {SCENARIOS.map((s, i) => (
               <button
@@ -218,7 +304,6 @@ export default function LandingPage() {
             ))}
           </div>
 
-          {/* Display panel */}
           <div className="relative rounded-3xl bg-gray-900 text-white overflow-hidden min-h-[340px] p-7 sm:p-10 flex flex-col justify-between">
             <div className="pointer-events-none absolute inset-0 opacity-30">
               <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-[#f97316]/30 to-transparent" />
@@ -232,7 +317,6 @@ export default function LandingPage() {
                 {SCENARIOS[activeScenario].desc}
               </p>
             </div>
-            {/* Fake waveform */}
             <div className="relative mt-8 flex items-end gap-1 h-16">
               {Array.from({ length: 48 }).map((_, i) => (
                 <div
@@ -252,10 +336,7 @@ export default function LandingPage() {
           {FEATURES.map((f, i) => {
             const Icon = f.icon;
             return (
-              <div
-                key={i}
-                className="p-6 rounded-3xl bg-white border border-black/[0.06] hover:shadow-lg hover:shadow-orange-100/50 transition-all"
-              >
+              <div key={i} className="p-6 rounded-3xl bg-white border border-black/[0.06] hover:shadow-lg hover:shadow-orange-100/50 transition-all">
                 <div className="w-11 h-11 rounded-2xl bg-orange-50 flex items-center justify-center mb-4">
                   <Icon size={20} className="text-[#f97316]" />
                 </div>
