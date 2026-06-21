@@ -75,7 +75,7 @@ export default function VoiceCloningPage() {
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-10">
+    <div className="p-4 sm:p-8 max-w-4xl mx-auto space-y-8 sm:space-y-10">
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">

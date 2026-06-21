@@ -38,7 +38,7 @@ export default function BillingPage() {
   const { user } = useAuth();
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-6">
+    <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-6">
       {/* Header */}
       <div>
         <div className="flex items-center gap-3 mb-1">
@@ -47,11 +47,11 @@ export default function BillingPage() {
           </div>
           <h1 className="text-2xl font-extrabold text-foreground">Billing</h1>
         </div>
-        <p className="text-muted-foreground text-sm ml-12">Manage your plan and usage</p>
+        <p className="text-muted-foreground text-sm sm:ml-12">Manage your plan and usage</p>
       </div>
 
       {/* Current usage card */}
-      <div className="bg-gradient-to-br from-orange-50 to-white rounded-2xl border border-orange-100 p-5 flex items-center gap-5">
+      <div className="bg-gradient-to-br from-orange-50 to-white rounded-2xl border border-orange-100 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5">
         <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shrink-0 shadow-sm">
           <Zap size={22} className="text-white fill-white" />
         </div>
@@ -60,7 +60,7 @@ export default function BillingPage() {
           <p className="text-xl font-extrabold text-foreground">Free Plan</p>
           <p className="text-xs text-[#9ca3af] mt-0.5">0 credits remaining — upgrade to get more</p>
         </div>
-        <div className="text-right shrink-0">
+        <div className="sm:text-right shrink-0">
           <p className="text-2xl font-black text-foreground">0</p>
           <p className="text-xs text-[#9ca3af]">Credits left</p>
         </div>

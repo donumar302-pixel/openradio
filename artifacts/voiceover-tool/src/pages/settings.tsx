@@ -83,7 +83,7 @@ export default function SettingsPage() {
   const emailChanged = email.trim() !== "" && email !== user?.email;
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
+    <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6">
       {/* Header */}
       <div>
         <div className="flex items-center gap-3 mb-1">
@@ -92,7 +92,7 @@ export default function SettingsPage() {
           </div>
           <h1 className="text-2xl font-extrabold text-foreground">Account Settings</h1>
         </div>
-        <p className="text-muted-foreground text-sm ml-12">Manage your profile and security</p>
+        <p className="text-muted-foreground text-sm sm:ml-12">Manage your profile and security</p>
       </div>
 
       {/* Profile info */}

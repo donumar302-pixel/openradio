@@ -109,7 +109,7 @@ export default function Home() {
 
   return (
     <div className="min-h-full bg-[#fafafa]">
-      <div className="max-w-5xl mx-auto px-7 py-8 space-y-10">
+      <div className="max-w-5xl mx-auto px-4 sm:px-7 py-6 sm:py-8 space-y-8 sm:space-y-10">
 
         {/* ── Greeting ── */}
         <div>
@@ -201,35 +201,29 @@ export default function Home() {
           ) : (
             <div className="space-y-2">
               {recentGenerations.map(gen => (
-                <div key={gen.id} className="bg-white border border-[#f0f0f0] rounded-xl px-5 py-4 flex items-center gap-4 hover:border-[#e0e0e0] hover:shadow-sm transition-all">
-                  {/* Play icon */}
-                  <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
-                    <Play size={14} className="text-primary fill-primary" />
-                  </div>
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[14px] font-semibold text-foreground truncate">
-                      {gen.text.length > 80 ? gen.text.slice(0, 80) + "…" : gen.text}
-                    </p>
-                    <div className="flex items-center gap-3 mt-0.5">
-                      <span className="text-[12px] text-[#9ca3af]">{gen.voiceName}</span>
-                      <span className="text-[12px] text-[#d1d5db]">·</span>
-                      <span className="text-[12px] text-[#9ca3af]">{gen.characterCount} chars</span>
-                      {gen.modelId && (
-                        <>
-                          <span className="text-[12px] text-[#d1d5db]">·</span>
-                          <span className="text-[12px] text-[#9ca3af]">{gen.modelId}</span>
-                        </>
-                      )}
+                <div key={gen.id} className="bg-white border border-[#f0f0f0] rounded-xl px-4 sm:px-5 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 hover:border-[#e0e0e0] hover:shadow-sm transition-all">
+                  {/* Top row: icon + info + time */}
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                      <Play size={14} className="text-primary fill-primary" />
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[14px] font-semibold text-foreground truncate">
+                        {gen.text.length > 80 ? gen.text.slice(0, 80) + "…" : gen.text}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="text-[12px] text-[#9ca3af]">{gen.voiceName}</span>
+                        <span className="text-[12px] text-[#d1d5db]">·</span>
+                        <span className="text-[12px] text-[#9ca3af]">{gen.characterCount} chars</span>
+                        <span className="text-[11px] text-[#9ca3af] font-medium sm:hidden">{timeAgo(gen.createdAt)}</span>
+                      </div>
+                    </div>
+                    <span className="hidden sm:block text-[11px] text-[#9ca3af] font-medium shrink-0">{timeAgo(gen.createdAt)}</span>
                   </div>
-                  {/* Time + audio */}
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-[11px] text-[#9ca3af] font-medium">{timeAgo(gen.createdAt)}</span>
-                    {gen.audioUrl && (
-                      <audio controls className="h-7 w-36" src={gen.audioUrl} />
-                    )}
-                  </div>
+                  {/* Audio player */}
+                  {gen.audioUrl && (
+                    <audio controls className="h-7 w-full sm:w-36 shrink-0" src={gen.audioUrl} />
+                  )}
                 </div>
               ))}
             </div>

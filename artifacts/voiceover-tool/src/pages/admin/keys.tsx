@@ -86,7 +86,7 @@ export default function AdminKeys() {
   };
 
   return (
-    <div className="px-6 py-6 space-y-5">
+    <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -113,7 +113,7 @@ export default function AdminKeys() {
       {showAdd && (
         <div className="bg-[#161b22] border border-primary/20 rounded-2xl p-5 space-y-4">
           <p className="text-[13px] font-bold text-white">Add New API Key</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Provider */}
             <div className="space-y-1.5 col-span-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-white/30">Provider</label>

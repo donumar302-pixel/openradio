@@ -70,7 +70,7 @@ export default function DubbingPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-8">
+    <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-8">
       <div>
         <div className="flex items-center gap-3 mb-1">
           <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -79,10 +79,10 @@ export default function DubbingPage() {
           <h1 className="text-2xl font-extrabold text-foreground">Dubbing</h1>
           <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">New</span>
         </div>
-        <p className="text-muted-foreground text-sm ml-12">Automatically dub videos and audio into 29+ languages</p>
+        <p className="text-muted-foreground text-sm sm:ml-12">Automatically dub videos and audio into 29+ languages</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 text-center text-sm">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center text-sm">
         {["92 Languages", "Sync-aware", "Voice Cloning"].map((f) => (
           <div key={f} className="bg-white rounded-xl border border-border px-3 py-3 font-semibold text-foreground">
             {f}
@@ -108,7 +108,7 @@ export default function DubbingPage() {
           <input ref={fileRef} type="file" accept="video/*,audio/*" onChange={handleFile} className="hidden" />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label className="font-semibold">Source Language</Label>
             <Select value={sourceLang} onValueChange={setSourceLang}>

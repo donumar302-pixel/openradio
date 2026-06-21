@@ -67,7 +67,7 @@ export default function AdminUsers() {
   }));
 
   return (
-    <div className="px-6 py-6 space-y-5">
+    <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -84,7 +84,7 @@ export default function AdminUsers() {
       </div>
 
       {/* Plan summary */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {planCounts.map(p => (
           <div key={p.value} className="bg-[#161b22] border border-white/5 rounded-xl p-4">
             <p className={cn("text-[10px] font-black uppercase tracking-widest mb-1", p.color)}>{p.label}</p>
@@ -107,6 +107,8 @@ export default function AdminUsers() {
 
       {/* Table */}
       <div className="bg-[#161b22] border border-white/5 rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto">
+        <div className="min-w-[600px]">
         <div className="grid grid-cols-[40px_1fr_1fr_110px_130px] px-5 py-3 border-b border-white/5 text-[10px] font-bold uppercase tracking-widest text-white/20">
           <span>#</span>
           <span>Name</span>
@@ -224,6 +226,8 @@ export default function AdminUsers() {
             );
           })
         )}
+        </div>
+        </div>
       </div>
     </div>
   );

@@ -97,7 +97,7 @@ export default function AdminOrders() {
   };
 
   return (
-    <div className="px-6 py-6 space-y-5">
+    <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -121,7 +121,7 @@ export default function AdminOrders() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {["pending", "approved", "rejected"].map(s => {
           const st = STATUS_MAP[s];
           const Icon = st.icon;
@@ -141,14 +141,14 @@ export default function AdminOrders() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
-        <div className="relative">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <div className="relative w-full sm:w-auto">
           <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/20" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search user or plan..."
-            className="pl-9 pr-4 py-2.5 bg-[#161b22] border border-white/5 rounded-xl text-[13px] text-white placeholder:text-white/20 focus:outline-none focus:border-primary/50 w-56"
+            className="pl-9 pr-4 py-2.5 bg-[#161b22] border border-white/5 rounded-xl text-[13px] text-white placeholder:text-white/20 focus:outline-none focus:border-primary/50 w-full sm:w-56"
           />
         </div>
         <div className="flex items-center gap-1.5 bg-[#161b22] border border-white/5 rounded-xl p-1">
@@ -169,6 +169,8 @@ export default function AdminOrders() {
 
       {/* Orders table */}
       <div className="bg-[#161b22] border border-white/5 rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto">
+        <div className="min-w-[560px]">
         <div className="grid grid-cols-[1fr_100px_100px_auto] px-5 py-3 border-b border-white/5 text-[10px] font-bold uppercase tracking-widest text-white/20">
           <span>User</span>
           <span>Plan</span>
@@ -281,6 +283,8 @@ export default function AdminOrders() {
             );
           })
         )}
+        </div>
+        </div>
       </div>
     </div>
   );

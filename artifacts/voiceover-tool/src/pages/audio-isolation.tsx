@@ -43,7 +43,7 @@ export default function AudioIsolationPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-8">
+    <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-8">
       <div>
         <div className="flex items-center gap-3 mb-1">
           <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -51,7 +51,7 @@ export default function AudioIsolationPage() {
           </div>
           <h1 className="text-2xl font-extrabold text-foreground">Audio Isolation</h1>
         </div>
-        <p className="text-muted-foreground text-sm ml-12">Remove background noise and isolate voice from audio</p>
+        <p className="text-muted-foreground text-sm sm:ml-12">Remove background noise and isolate voice from audio</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 text-center">
