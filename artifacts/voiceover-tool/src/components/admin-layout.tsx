@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Users, Key, Mic2, Copy, BarChart2,
-  Settings, LogOut, ChevronRight, Menu, X, Zap,
+  LogOut, ChevronRight, Menu, ShoppingCart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -10,13 +10,13 @@ import { useAuth } from "@/hooks/use-auth";
 interface AdminNavItem { label: string; href: string; icon: React.ReactNode; }
 
 const navItems: AdminNavItem[] = [
-  { label: "Overview",      href: "/admin",             icon: <LayoutDashboard size={16} /> },
-  { label: "Analytics",     href: "/admin/analytics",   icon: <BarChart2 size={16} /> },
-  { label: "Users",         href: "/admin/users",       icon: <Users size={16} /> },
-  { label: "API Keys",      href: "/admin/keys",        icon: <Key size={16} /> },
-  { label: "Generations",   href: "/admin/generations", icon: <Mic2 size={16} /> },
-  { label: "Voice Clones",  href: "/admin/clones",      icon: <Copy size={16} /> },
-  { label: "Settings",      href: "/admin/settings",    icon: <Settings size={16} /> },
+  { label: "Overview",      href: "/admin",              icon: <LayoutDashboard size={16} /> },
+  { label: "Users",         href: "/admin/users",        icon: <Users size={16} /> },
+  { label: "Orders",        href: "/admin/orders",       icon: <ShoppingCart size={16} /> },
+  { label: "API Keys",      href: "/admin/keys",         icon: <Key size={16} /> },
+  { label: "Generations",   href: "/admin/generations",  icon: <Mic2 size={16} /> },
+  { label: "Voice Clones",  href: "/admin/clones",       icon: <Copy size={16} /> },
+  { label: "Analytics",     href: "/admin/analytics",    icon: <BarChart2 size={16} /> },
 ];
 
 function AdminNav({ onClose }: { onClose?: () => void }) {

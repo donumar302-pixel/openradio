@@ -7,6 +7,7 @@ export const usersTable = pgTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull(),
   passwordHash: text("password_hash").notNull(),
+  plan: text("plan").notNull().default("free"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [uniqueIndex("users_email_idx").on(t.email)]);
 
@@ -19,6 +20,8 @@ export const apiKeysTable = pgTable("api_keys", {
   provider: text("provider").notNull().default("elevenlabs"),
   isActive: boolean("is_active").notNull().default(true),
   usageCount: integer("usage_count").notNull().default(0),
+  creditLimit: integer("credit_limit"),
+  creditsUsed: integer("credits_used").notNull().default(0),
   lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -31,18 +34,20 @@ export const voiceClonesTable = pgTable("voice_clones", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertApiKeySchema = createInsertSchema(apiKeysTable).omit({ id: true, usageCount: true, lastUsedAt: true, createdAt: true });
+export const insertApiKeySchema = createInsertSchema(apiKeysTable).omit({ id: true, usageCount: true, creditsUsed: true, lastUsedAt: true, createdAt: true });
 export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 export type ApiKeyRecord = typeof apiKeysTable.$inferSelect;
 
 export const generationsTable = pgTable("generations", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id"),
   text: text("text").notNull(),
   voiceId: text("voice_id").notNull(),
   voiceName: text("voice_name").notNull(),
   characterCount: integer("character_count").notNull(),
   audioUrl: text("audio_url").notNull(),
   modelId: text("model_id"),
+  provider: text("provider").notNull().default("elevenlabs"),
   apiKeyId: integer("api_key_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -50,3 +55,16 @@ export const generationsTable = pgTable("generations", {
 export const insertGenerationSchema = createInsertSchema(generationsTable).omit({ id: true, createdAt: true });
 export type InsertGeneration = z.infer<typeof insertGenerationSchema>;
 export type Generation = typeof generationsTable.$inferSelect;
+
+export const ordersTable = pgTable("orders", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  plan: text("plan").notNull(),
+  status: text("status").notNull().default("pending"),
+  notes: text("notes"),
+  adminNote: text("admin_note"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type Order = typeof ordersTable.$inferSelect;

@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +13,7 @@ import AdminKeys from "@/pages/admin/keys";
 import AdminGenerations from "@/pages/admin/generations";
 import AdminClones from "@/pages/admin/clones";
 import AdminAnalytics from "@/pages/admin/analytics";
+import AdminOrders from "@/pages/admin/orders";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import SpeechToSpeechPage from "@/pages/speech-to-speech";
@@ -35,8 +36,27 @@ const queryClient = new QueryClient({
   },
 });
 
+function AdminRoutes() {
+  return (
+    <AdminLayout>
+      <Switch>
+        <Route path="/admin" component={AdminDashboard} />
+        <Route path="/admin/users" component={AdminUsers} />
+        <Route path="/admin/orders" component={AdminOrders} />
+        <Route path="/admin/keys" component={AdminKeys} />
+        <Route path="/admin/keys/new" component={AdminKeysNew} />
+        <Route path="/admin/generations" component={AdminGenerations} />
+        <Route path="/admin/clones" component={AdminClones} />
+        <Route path="/admin/analytics" component={AdminAnalytics} />
+        <Route><Redirect to="/admin" /></Route>
+      </Switch>
+    </AdminLayout>
+  );
+}
+
 function AppRoutes() {
   const { isAuthenticated, isLoading } = useAuth();
+  const [location] = useLocation();
 
   if (isLoading) {
     return (
@@ -56,45 +76,29 @@ function AppRoutes() {
     );
   }
 
-  return (
-    <Switch>
-      {/* ── Admin routes — own dark layout ── */}
-      <Route path="/admin">
-        <AdminLayout>
-          <Switch>
-            <Route path="/admin" component={AdminDashboard} />
-            <Route path="/admin/users" component={AdminUsers} />
-            <Route path="/admin/keys" component={AdminKeys} />
-            <Route path="/admin/keys/new" component={AdminKeysNew} />
-            <Route path="/admin/generations" component={AdminGenerations} />
-            <Route path="/admin/clones" component={AdminClones} />
-            <Route path="/admin/analytics" component={AdminAnalytics} />
-          </Switch>
-        </AdminLayout>
-      </Route>
+  if (location.startsWith("/admin")) {
+    return <AdminRoutes />;
+  }
 
-      {/* ── App routes — sidebar layout ── */}
-      <Route>
-        <SidebarLayout>
-          <Switch>
-            <Route path="/" component={Home} />
-            <Route path="/studio" component={StudioPage} />
-            <Route path="/speech-to-speech" component={SpeechToSpeechPage} />
-            <Route path="/speech-to-text" component={SpeechToTextPage} />
-            <Route path="/audio-isolation" component={AudioIsolationPage} />
-            <Route path="/dubbing" component={DubbingPage} />
-            <Route path="/settings" component={SettingsPage} />
-            <Route path="/billing" component={BillingPage} />
-            <Route path="/minimax" component={MinimaxTtsPage} />
-            <Route path="/voice-cloning" component={VoiceCloningPage} />
-            <Route path="/voices" component={VoiceLibraryPage} />
-            <Route path="/login"><Redirect to="/" /></Route>
-            <Route path="/register"><Redirect to="/" /></Route>
-            <Route component={NotFound} />
-          </Switch>
-        </SidebarLayout>
-      </Route>
-    </Switch>
+  return (
+    <SidebarLayout>
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/studio" component={StudioPage} />
+        <Route path="/speech-to-speech" component={SpeechToSpeechPage} />
+        <Route path="/speech-to-text" component={SpeechToTextPage} />
+        <Route path="/audio-isolation" component={AudioIsolationPage} />
+        <Route path="/dubbing" component={DubbingPage} />
+        <Route path="/settings" component={SettingsPage} />
+        <Route path="/billing" component={BillingPage} />
+        <Route path="/minimax" component={MinimaxTtsPage} />
+        <Route path="/voice-cloning" component={VoiceCloningPage} />
+        <Route path="/voices" component={VoiceLibraryPage} />
+        <Route path="/login"><Redirect to="/" /></Route>
+        <Route path="/register"><Redirect to="/" /></Route>
+        <Route component={NotFound} />
+      </Switch>
+    </SidebarLayout>
   );
 }
 
