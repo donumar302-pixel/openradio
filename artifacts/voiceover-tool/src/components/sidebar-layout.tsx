@@ -187,7 +187,7 @@ function TopRightUserBtn({ user, onClick }: { user: any; onClick: () => void }) 
     <button
       onClick={onClick}
       title={user?.name ?? "Account"}
-      className="fixed top-3 right-3 z-40 flex items-center gap-2 hover:opacity-90 transition-opacity"
+      className="flex items-center gap-2 hover:opacity-90 transition-opacity py-1 px-1 rounded-xl hover:bg-[#f3f4f6]"
     >
       {/* Plan badge */}
       <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#f3f4f6] text-[#6b7280] border border-[#e5e7eb] shadow-sm">
@@ -274,25 +274,27 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
-        <header className="lg:hidden flex items-center gap-3 px-4 h-14 border-b border-[#f3f4f6] shrink-0">
-          <button onClick={() => setMobileOpen(true)} className="text-[#6b7280]">
-            <Menu size={20} />
-          </button>
-          <div className="flex items-baseline gap-0.5">
-            <span className="font-black text-[15px] tracking-tight text-foreground">Bunny</span>
-            <span className="font-black text-[15px] tracking-tight text-primary">TTS</span>
-          </div>
-          {mobileOpen && (
-            <button className="ml-auto text-[#6b7280]" onClick={() => setMobileOpen(false)}>
-              <X size={20} />
+        {/* Universal top header — always visible, separated by border */}
+        <header className="flex items-center justify-between px-5 h-13 border-b border-[#f3f4f6] bg-white shrink-0 z-30">
+          {/* Mobile: hamburger + logo */}
+          <div className="flex items-center gap-3 lg:hidden">
+            <button onClick={() => setMobileOpen(true)} className="text-[#6b7280]">
+              <Menu size={20} />
             </button>
-          )}
+            <div className="flex items-baseline gap-0.5">
+              <span className="font-black text-[15px] tracking-tight text-foreground">Bunny</span>
+              <span className="font-black text-[15px] tracking-tight text-primary">TTS</span>
+            </div>
+          </div>
+          {/* Desktop: empty left side */}
+          <div className="hidden lg:block" />
+
+          {/* Right: plan badge + avatar — always in the header */}
+          <TopRightUserBtn user={user} onClick={() => setPanelOpen(v => !v)} />
         </header>
+
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
-
-      {/* Fixed top-right avatar button */}
-      <TopRightUserBtn user={user} onClick={() => setPanelOpen(v => !v)} />
 
       {/* Sliding account panel */}
       {panelOpen && <AccountPanel user={user} logout={logout} onClose={() => setPanelOpen(false)} />}
