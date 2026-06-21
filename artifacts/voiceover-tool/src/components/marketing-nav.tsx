@@ -9,16 +9,15 @@ export function MarketingNav() {
   const links = [
     { label: "Home", href: "/" },
     { label: "Pricing", href: "/pricing" },
-    { label: "Developer API", href: "/pricing" },
   ];
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/70 border-b border-black/[0.04]">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 shrink-0">
-          <img src="/logo.png" alt="Bunny TTS" className="w-8 h-8 object-contain" />
-          <span className="font-black text-[19px] tracking-tight text-gray-900">
+        <Link href="/" className="flex items-center gap-2.5 shrink-0">
+          <img src="/logo.png" alt="Bunny TTS" className="w-12 h-12 object-contain" />
+          <span className="font-black text-[26px] tracking-tight text-gray-900">
             Bunny<span className="text-[#f97316]">TTS</span>
           </span>
         </Link>
@@ -92,8 +91,8 @@ export function MarketingFooter() {
     <footer className="border-t border-black/[0.05] bg-white">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="Bunny TTS" className="w-7 h-7 object-contain" />
-          <span className="font-black text-[16px] tracking-tight text-gray-900">
+          <img src="/logo.png" alt="Bunny TTS" className="w-9 h-9 object-contain" />
+          <span className="font-black text-[20px] tracking-tight text-gray-900">
             Bunny<span className="text-[#f97316]">TTS</span>
           </span>
         </div>
