@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { Settings, User, Shield, Key, Save, Eye, EyeOff, Check } from "lucide-react";
+import { Settings, User, Shield, Save, Eye, EyeOff, Check } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -226,22 +225,6 @@ export default function SettingsPage() {
         >
           {pwSaving ? "Updating..." : "Update Password"}
         </Button>
-      </div>
-
-      {/* API Keys */}
-      <div className="bg-white rounded-2xl border border-[#e5e7eb] p-6 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Key size={16} className="text-primary" />
-            <h2 className="font-bold text-base">API Keys</h2>
-          </div>
-          <Link href="/admin">
-            <Button variant="outline" size="sm">Manage Keys</Button>
-          </Link>
-        </div>
-        <p className="text-sm text-muted-foreground mt-2">
-          Add and manage API keys from the Admin Panel. Multiple keys are supported with automatic load balancing.
-        </p>
       </div>
     </div>
   );

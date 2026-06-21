@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mic2, LayoutDashboard } from "lucide-react";
+import { Mic2 } from "lucide-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -30,18 +30,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             >
               <Mic2 size={15} />
               <span className="hidden sm:inline">Studio</span>
-            </Link>
-            <Link
-              href="/admin"
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
-                location.startsWith("/admin")
-                  ? "bg-primary text-white shadow-sm shadow-primary/30"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              }`}
-              data-testid="nav-admin"
-            >
-              <LayoutDashboard size={15} />
-              <span className="hidden sm:inline">Admin</span>
             </Link>
           </nav>
         </div>
