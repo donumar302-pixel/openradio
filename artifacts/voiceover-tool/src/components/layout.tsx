@@ -53,7 +53,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       <footer className="border-t border-border bg-secondary/40 py-4">
         <div className="container mx-auto px-4 text-center text-xs text-muted-foreground">
-          Bunny TTS &mdash; Powered by ElevenLabs &middot; <a href="https://flowbybunny.com" target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium">flowbybunny.com</a>
+          Bunny TTS &middot; <a href="https://flowbybunny.com" target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium">flowbybunny.com</a>
         </div>
       </footer>
     </div>

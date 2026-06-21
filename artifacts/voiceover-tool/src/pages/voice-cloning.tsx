@@ -50,7 +50,7 @@ export default function VoiceCloningPage() {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as any).error || "Cloning failed");
       }
-      toast({ title: "Voice cloned!", description: `"${name}" is ready to use in MiniMax TTS.` });
+      toast({ title: "Voice cloned!", description: `"${name}" is ready to use in Fire TTS.` });
       setFile(null);
       setName("");
       setDescription("");
@@ -80,7 +80,6 @@ export default function VoiceCloningPage() {
       <div>
         <div className="flex items-center gap-2 mb-1">
           <h1 className="text-2xl font-bold text-foreground">Voice Cloning</h1>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-600">MiniMax</span>
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-600">Free</span>
         </div>
         <p className="text-[#6b7280] text-sm">Upload a voice sample and create a custom AI clone. Cloning is completely free — charges only apply when generating audio.</p>
@@ -192,7 +191,7 @@ export default function VoiceCloningPage() {
           )}
 
           {clones.length > 0 && (
-            <p className="text-xs text-[#9ca3af] text-center">Cloned voices are available in MiniMax TTS voice selector</p>
+            <p className="text-xs text-[#9ca3af] text-center">Cloned voices are available in the Fire TTS voice selector</p>
           )}
         </div>
       </div>

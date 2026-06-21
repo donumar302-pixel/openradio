@@ -40,7 +40,7 @@ const elItems: NavItem[] = [
   { label: "Speech to Speech", href: "/speech-to-speech", icon: <AudioWaveform size={18} /> },
   { label: "Speech to Text",   href: "/speech-to-text",   icon: <MessageSquareText size={18} /> },
   { label: "Audio Isolation",  href: "/audio-isolation",  icon: <Radio size={18} /> },
-  { label: "Dubbing",          href: "/dubbing",          icon: <Languages size={18} />, badge: "New", badgeColor: "bg-orange-100 text-orange-600" },
+  { label: "Dubbing",          href: "/dubbing",          icon: <Languages size={18} /> },
 ];
 
 const minimaxItems: NavItem[] = [
@@ -171,19 +171,15 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
         {/* General */}
         {generalItems.map(item => <NavLink key={item.href} {...item} />)}
 
-        {/* ElevenLabs */}
-        <SectionLabel extra={
-          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-500">EL</span>
-        }>
-          ElevenLabs
-        </SectionLabel>
+        {/* Products */}
+        <SectionLabel>Products</SectionLabel>
         {elItems.map(item => <NavLink key={item.href} {...item} />)}
 
-        {/* MiniMax */}
+        {/* AI Tools */}
         <SectionLabel extra={
-          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600">AI</span>
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600">New</span>
         }>
-          MiniMax
+          AI Tools
         </SectionLabel>
         {minimaxItems.map(item => <NavLink key={item.href} {...item} />)}
 

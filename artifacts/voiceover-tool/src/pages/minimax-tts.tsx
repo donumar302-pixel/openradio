@@ -133,7 +133,7 @@ export default function MinimaxTtsPage() {
       }
       const blob = await res.blob();
       setAudioUrl(URL.createObjectURL(blob));
-      toast({ title: "Generated!", description: "MiniMax audio is ready." });
+      toast({ title: "Generated!", description: "Your audio is ready." });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
@@ -153,9 +153,9 @@ export default function MinimaxTtsPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-[18px] font-black text-foreground tracking-tight">Fire TTS</h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-600">MiniMax</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-500">Hot</span>
             </div>
-            <p className="text-[12px] text-[#9ca3af]">Powered by MiniMax Speech API — 35+ voices, 13 languages</p>
+            <p className="text-[12px] text-[#9ca3af]">AI Speech Synthesis — 35+ voices, 13 languages</p>
           </div>
         </div>
       </div>
@@ -198,7 +198,7 @@ export default function MinimaxTtsPage() {
         {/* Left — text area */}
         <div className="flex flex-col flex-1 min-w-0 bg-white border-r border-[#f0f0f0]">
           <textarea
-            placeholder="Start typing here to generate speech with MiniMax Fire TTS…"
+            placeholder="Start typing here to generate speech with Fire TTS…"
             className="flex-1 resize-none text-[15px] leading-relaxed px-7 py-6 outline-none bg-white placeholder:text-[#c4c4c4]"
             value={text}
             onChange={e => setText(e.target.value)}
