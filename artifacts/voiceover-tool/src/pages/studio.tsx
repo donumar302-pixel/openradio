@@ -165,15 +165,19 @@ export default function StudioPage() {
     return acc;
   }, {} as Record<string, MiniMaxVoice[]>);
 
-  const selectedElVoice = voices?.find((v) => v.voiceId === voiceId);
-  const selectedMmVoice = mmVoices.find((v) => v.id === voiceId);
+  // Composite select values: "el:<voiceId>" or "mm:<voiceId>"
+  const compositeVoiceValue = voiceId ? `${voiceProvider}:${voiceId}` : "";
+
+  const selectedElVoice = voiceProvider === "el" ? voices?.find((v) => v.voiceId === voiceId) : undefined;
+  const selectedMmVoice = voiceProvider === "minimax" ? mmVoices.find((v) => v.id === voiceId) : undefined;
   const selectedModel = MODELS.find((m) => m.id === modelId);
 
-  const handleVoiceSelect = (id: string) => {
+  const handleVoiceSelect = (composite: string) => {
+    const colonIdx = composite.indexOf(":");
+    const provider = composite.slice(0, colonIdx) as "el" | "minimax";
+    const id = composite.slice(colonIdx + 1);
+    setVoiceProvider(provider);
     setVoiceId(id);
-    // Determine provider from which list the voice belongs to
-    const isMm = mmVoices.some(v => v.id === id);
-    setVoiceProvider(isMm ? "minimax" : "el");
   };
 
   const resetSettings = () => {
@@ -395,7 +399,7 @@ export default function StudioPage() {
                   </div>
                 )}
 
-                <Select value={voiceId} onValueChange={handleVoiceSelect} disabled={loadingVoices}>
+                <Select value={compositeVoiceValue} onValueChange={handleVoiceSelect} disabled={loadingVoices}>
                   <SelectTrigger className="border-[#e5e7eb] text-sm h-10 w-full" data-testid="select-voice">
                     <SelectValue placeholder={loadingVoices ? "Loading voices..." : "Choose a voice"} />
                   </SelectTrigger>
@@ -407,10 +411,10 @@ export default function StudioPage() {
                           <p className="text-[10px] font-black uppercase tracking-wider text-orange-500">Text to Speech Voices</p>
                         </div>
                         {Object.entries(voicesByCategory).map(([cat, items]) => (
-                          <SelectGroup key={cat}>
+                          <SelectGroup key={`el-${cat}`}>
                             <SelectLabel className="text-primary/70 text-xs capitalize">{cat}</SelectLabel>
                             {items.map((v) => (
-                              <SelectItem key={v.voiceId} value={v.voiceId} className="text-sm py-2">
+                              <SelectItem key={`el:${v.voiceId}`} value={`el:${v.voiceId}`} textValue={v.name} className="text-sm py-2">
                                 {v.name}
                               </SelectItem>
                             ))}
@@ -428,10 +432,15 @@ export default function StudioPage() {
                           </p>
                         </div>
                         {Object.entries(mmByLang).map(([lang, langVoices]) => (
-                          <SelectGroup key={lang}>
+                          <SelectGroup key={`mm-${lang}`}>
                             <SelectLabel className="text-violet-500/70 text-xs">{lang}</SelectLabel>
                             {langVoices.map(v => (
-                              <SelectItem key={v.id} value={v.id} className="text-sm py-2">
+                              <SelectItem
+                                key={`mm:${v.id}`}
+                                value={`mm:${v.id}`}
+                                textValue={v.isClone ? v.name : `${v.name}${v.style ? ` · ${v.style}` : ""}`}
+                                className="text-sm py-2"
+                              >
                                 <div className="flex items-center gap-2">
                                   <span>{v.name}</span>
                                   {v.style && <span className="text-[10px] text-[#9ca3af]">{v.style}</span>}
