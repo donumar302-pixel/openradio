@@ -5,6 +5,7 @@ import { apiKeysTable, voiceClonesTable, usersTable } from "@workspace/db";
 import { eq, asc, and, sql, gte } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { requireActiveUser, isUserAdmin } from "../middleware/require-active-user";
+import { planAllowsFeature, modelAllowedForPlan } from "../lib/plans";
 
 const router = Router();
 
@@ -98,8 +99,10 @@ const BUILTIN_VOICES = [
 ];
 
 /* ── GET /voices ──────────────────────────────────────────────────────── */
-router.get("/voices", async (req, res) => {
-  const clones = await db.select().from(voiceClonesTable).orderBy(asc(voiceClonesTable.createdAt));
+router.get("/voices", requireActiveUser, async (req, res) => {
+  const clones = await db.select().from(voiceClonesTable)
+    .where(eq(voiceClonesTable.userId, req.appUser!.id))
+    .orderBy(asc(voiceClonesTable.createdAt));
   res.json({
     builtin: BUILTIN_VOICES,
     clones: clones.map((c) => ({
@@ -122,6 +125,11 @@ router.post("/tts", requireActiveUser, async (req, res) => {
 
   const user = req.appUser!;
   const admin = isUserAdmin(user);
+
+  if (!admin && !modelAllowedForPlan(user.plan, "minimax", model)) {
+    res.status(403).json({ error: "This model requires a paid plan. Please upgrade your plan." });
+    return;
+  }
 
   const creds = await getMinimaxCreds();
   if (!creds) {
@@ -187,7 +195,14 @@ router.post("/tts", requireActiveUser, async (req, res) => {
 });
 
 /* ── POST /voice-clone ────────────────────────────────────────────────── */
-router.post("/voice-clone", upload.single("audio"), async (req, res) => {
+router.post("/voice-clone", requireActiveUser, async (req, res, next) => {
+  const user = req.appUser!;
+  if (!isUserAdmin(user) && !planAllowsFeature(user.plan, "voice-cloning")) {
+    res.status(403).json({ error: "Voice Cloning is a paid feature. Please upgrade your plan." });
+    return;
+  }
+  next();
+}, upload.single("audio"), async (req, res) => {
   const { name, description } = req.body;
   const file = req.file;
 
@@ -234,9 +249,9 @@ router.post("/voice-clone", upload.single("audio"), async (req, res) => {
       return;
     }
 
-    // Save clone to DB
+    // Save clone to DB (scoped to the creating user)
     const [saved] = await db.insert(voiceClonesTable)
-      .values({ name, voiceId, description: description || null })
+      .values({ name, voiceId, description: description || null, userId: req.appUser!.id })
       .returning();
 
     await bumpKey(creds.id, creds.usageCount);
@@ -249,9 +264,22 @@ router.post("/voice-clone", upload.single("audio"), async (req, res) => {
 });
 
 /* ── DELETE /voice-clone/:id ──────────────────────────────────────────── */
-router.delete("/voice-clone/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
-  await db.delete(voiceClonesTable).where(eq(voiceClonesTable.id, id));
+router.delete("/voice-clone/:id", requireActiveUser, async (req, res) => {
+  const id = parseInt(String(req.params.id), 10);
+  if (Number.isNaN(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const user = req.appUser!;
+  // Admins may delete any clone; everyone else only their own.
+  const where = isUserAdmin(user)
+    ? eq(voiceClonesTable.id, id)
+    : and(eq(voiceClonesTable.id, id), eq(voiceClonesTable.userId, user.id));
+  const deleted = await db.delete(voiceClonesTable).where(where).returning({ id: voiceClonesTable.id });
+  if (deleted.length === 0) {
+    res.status(404).json({ error: "Voice clone not found" });
+    return;
+  }
   res.json({ success: true });
 });
 

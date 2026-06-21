@@ -6,11 +6,13 @@ import voicesRouter from "./voices";
 import ttsRouter from "./tts";
 import generationsRouter from "./generations";
 import minimaxRouter from "./minimax";
+import plansRouter from "./plans";
 import { requireAdmin } from "../middleware/require-admin";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use("/plans", plansRouter);
 router.use("/auth", authRouter);
 router.use("/admin", requireAdmin, adminRouter);
 router.use("/voices", voicesRouter);

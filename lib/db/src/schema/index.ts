@@ -42,6 +42,7 @@ export const apiKeysTable = pgTable("api_keys", {
 
 export const voiceClonesTable = pgTable("voice_clones", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id"),
   name: text("name").notNull(),
   voiceId: text("voice_id").notNull(),
   description: text("description"),

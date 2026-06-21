@@ -3,7 +3,20 @@ import { useLogin, useRegister, useLogout } from "@workspace/api-client-react";
 
 const AUTH_KEY = ["auth", "me"] as const;
 
-async function fetchMe(): Promise<{ id: number; name: string; email: string; isAdmin: boolean; createdAt: string }> {
+export interface AuthUser {
+  id: number;
+  name: string;
+  email: string;
+  isAdmin: boolean;
+  plan: string;
+  credits: number;
+  creditsUsed: number;
+  planExpiresAt: string | null;
+  status: string;
+  createdAt: string;
+}
+
+async function fetchMe(): Promise<AuthUser> {
   const res = await fetch("/api/auth/me", { credentials: "include" });
   if (!res.ok) throw new Error("Unauthenticated");
   return res.json();

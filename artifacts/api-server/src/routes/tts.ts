@@ -8,10 +8,23 @@ import fs from "fs/promises";
 import { logger } from "../lib/logger";
 import { GenerateSpeechBody } from "@workspace/api-zod";
 import { requireActiveUser, isUserAdmin } from "../middleware/require-active-user";
+import { planAllowsFeature, modelAllowedForPlan, type FeatureKey } from "../lib/plans";
 
 const router = Router();
 
 router.use(requireActiveUser);
+
+// Block free-plan users from paid-only features. Admins always pass.
+function requireFeature(feature: FeatureKey) {
+  return (req: any, res: any, next: any) => {
+    const user = req.appUser!;
+    if (!isUserAdmin(user) && !planAllowsFeature(user.plan, feature)) {
+      res.status(403).json({ error: "This is a paid feature. Please upgrade your plan to use it." });
+      return;
+    }
+    next();
+  };
+}
 
 // Atomically reserve credits before calling the provider so concurrent
 // requests can never overspend. Returns false if the balance is insufficient.
@@ -69,6 +82,11 @@ router.post("/", async (req, res) => {
   const user = req.appUser!;
   const admin = isUserAdmin(user);
 
+  if (!admin && modelId && !modelAllowedForPlan(user.plan, "elevenlabs", modelId)) {
+    res.status(403).json({ error: "This model requires a paid plan. Please upgrade your plan." });
+    return;
+  }
+
   const apiKey = await getNextActiveKey();
   if (!apiKey) { noKey(res); return; }
 
@@ -107,7 +125,7 @@ router.post("/", async (req, res) => {
 });
 
 /* ── Speech to Speech ─────────────────────────────────────────────────── */
-router.post("/speech-to-speech", upload.single("audio"), async (req, res) => {
+router.post("/speech-to-speech", requireFeature("speech-to-speech"), upload.single("audio"), async (req, res) => {
   const { voiceId, stability = "0.5", similarityBoost = "0.75" } = req.body;
   if (!req.file || !voiceId) { res.status(400).json({ error: "audio file and voiceId are required" }); return; }
 
@@ -142,7 +160,7 @@ router.post("/speech-to-speech", upload.single("audio"), async (req, res) => {
 });
 
 /* ── Speech to Text ───────────────────────────────────────────────────── */
-router.post("/speech-to-text", upload.single("audio"), async (req, res) => {
+router.post("/speech-to-text", requireFeature("speech-to-text"), upload.single("audio"), async (req, res) => {
   if (!req.file) { res.status(400).json({ error: "audio file required" }); return; }
 
   const apiKey = await getNextActiveKey();
@@ -174,7 +192,7 @@ router.post("/speech-to-text", upload.single("audio"), async (req, res) => {
 });
 
 /* ── Sound Effects ────────────────────────────────────────────────────── */
-router.post("/sound-effects", async (req, res) => {
+router.post("/sound-effects", requireFeature("sound-effects"), async (req, res) => {
   const { prompt, durationSeconds = 5 } = req.body;
   if (!prompt) { res.status(400).json({ error: "prompt is required" }); return; }
 
@@ -204,7 +222,7 @@ router.post("/sound-effects", async (req, res) => {
 });
 
 /* ── Audio Isolation ──────────────────────────────────────────────────── */
-router.post("/audio-isolation", upload.single("audio"), async (req, res) => {
+router.post("/audio-isolation", requireFeature("audio-isolation"), upload.single("audio"), async (req, res) => {
   if (!req.file) { res.status(400).json({ error: "audio file required" }); return; }
 
   const apiKey = await getNextActiveKey();
@@ -236,7 +254,7 @@ router.post("/audio-isolation", upload.single("audio"), async (req, res) => {
 });
 
 /* ── Music Generation ─────────────────────────────────────────────────── */
-router.post("/music", async (req, res) => {
+router.post("/music", requireFeature("music"), async (req, res) => {
   const { prompt, durationSeconds = 30 } = req.body;
   if (!prompt) { res.status(400).json({ error: "prompt is required" }); return; }
 
@@ -266,7 +284,7 @@ router.post("/music", async (req, res) => {
 });
 
 /* ── Dubbing ──────────────────────────────────────────────────────────── */
-router.post("/dubbing", upload.single("file"), async (req, res) => {
+router.post("/dubbing", requireFeature("dubbing"), upload.single("file"), async (req, res) => {
   const { sourceLanguage = "en", targetLanguage } = req.body;
   if (!req.file || !targetLanguage) { res.status(400).json({ error: "file and targetLanguage are required" }); return; }
 
