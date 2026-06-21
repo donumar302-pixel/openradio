@@ -4,7 +4,6 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   Home,
   Mic2,
-  LayoutDashboard,
   LogOut,
   User,
   Menu,
@@ -17,6 +16,9 @@ import {
   BookAudio,
   Sparkles,
   Copy,
+  Zap,
+  CreditCard,
+  ChevronUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,39 +27,49 @@ interface NavItem {
   href: string;
   icon: React.ReactNode;
   badge?: string;
+  badgeColor?: string;
 }
 
-const aiGenerationTools: NavItem[] = [
-  { label: "Text to Speech", href: "/studio", icon: <Mic2 size={16} />, badge: "EL" },
+const generalItems: NavItem[] = [
+  { label: "Home",          href: "/",         icon: <Home size={18} /> },
+  { label: "Voice Library", href: "/voices",   icon: <BookAudio size={18} /> },
 ];
 
-const aiTools: NavItem[] = [
-  { label: "Speech to Speech", href: "/speech-to-speech", icon: <AudioWaveform size={16} /> },
-  { label: "Speech to Text",   href: "/speech-to-text",   icon: <MessageSquareText size={16} /> },
-  { label: "Audio Isolation",  href: "/audio-isolation",  icon: <Radio size={16} /> },
-  { label: "Dubbing",          href: "/dubbing",          icon: <Languages size={16} /> },
+const elItems: NavItem[] = [
+  { label: "Text to Speech",   href: "/studio",           icon: <Mic2 size={18} /> },
+  { label: "Speech to Speech", href: "/speech-to-speech", icon: <AudioWaveform size={18} /> },
+  { label: "Speech to Text",   href: "/speech-to-text",   icon: <MessageSquareText size={18} /> },
+  { label: "Audio Isolation",  href: "/audio-isolation",  icon: <Radio size={18} /> },
+  { label: "Dubbing",          href: "/dubbing",          icon: <Languages size={18} />, badge: "New", badgeColor: "bg-orange-100 text-orange-600" },
 ];
 
-const minimaxTools: NavItem[] = [
-  { label: "MiniMax TTS",    href: "/minimax",        icon: <Sparkles size={16} />, badge: "New" },
-  { label: "Voice Cloning",  href: "/voice-cloning",  icon: <Copy size={16} />,     badge: "Free" },
+const minimaxItems: NavItem[] = [
+  { label: "Fire TTS",      href: "/minimax",        icon: <Zap size={18} />,      badge: "Hot", badgeColor: "bg-red-100 text-red-500" },
+  { label: "Voice Cloning", href: "/voice-cloning",  icon: <Copy size={18} />,     badge: "Free", badgeColor: "bg-green-100 text-green-600" },
 ];
 
-function NavLink({ href, icon, label, badge }: NavItem) {
+const platformItems: NavItem[] = [
+  { label: "Settings", href: "/settings", icon: <Settings size={18} /> },
+  { label: "Billing",  href: "/billing",  icon: <CreditCard size={18} /> },
+];
+
+function NavLink({ href, icon, label, badge, badgeColor }: NavItem) {
   const [location] = useLocation();
-  const active = location === href;
+  const active = location === href || (href !== "/" && location.startsWith(href));
   return (
     <Link href={href}>
       <div className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors select-none",
+        "flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] cursor-pointer transition-all select-none group",
         active
-          ? "bg-[#f3f4f6] text-foreground font-medium"
+          ? "bg-[#f3f4f6] text-foreground font-semibold"
           : "text-[#6b7280] hover:bg-[#f9fafb] hover:text-foreground font-normal"
       )}>
-        <span className={cn("shrink-0", active ? "text-foreground" : "text-[#9ca3af]")}>{icon}</span>
+        <span className={cn("shrink-0 transition-colors", active ? "text-foreground" : "text-[#9ca3af] group-hover:text-[#6b7280]")}>
+          {icon}
+        </span>
         <span className="flex-1 truncate">{label}</span>
         {badge && (
-          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-primary shrink-0">
+          <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0", badgeColor ?? "bg-orange-100 text-orange-600")}>
             {badge}
           </span>
         )}
@@ -66,138 +78,138 @@ function NavLink({ href, icon, label, badge }: NavItem) {
   );
 }
 
+function SectionLabel({ children, extra }: { children: React.ReactNode; extra?: React.ReactNode }) {
+  return (
+    <div className="pt-6 pb-1.5 px-3 flex items-center gap-2">
+      <p className="text-[11px] text-[#9ca3af] font-bold uppercase tracking-widest flex-1">{children}</p>
+      {extra}
+    </div>
+  );
+}
+
+function UserCard({ user, logout }: { user: any; logout: () => void }) {
+  const [open, setOpen] = useState(false);
+  const initials = user?.name
+    ? user.name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)
+    : "U";
+
+  const colors = [
+    "bg-orange-500", "bg-violet-500", "bg-blue-500",
+    "bg-green-500", "bg-pink-500", "bg-amber-500",
+  ];
+  const colorIdx = user?.name ? user.name.charCodeAt(0) % colors.length : 0;
+  const avatarColor = colors[colorIdx];
+
+  return (
+    <div className="p-3 border-t border-[#f3f4f6] shrink-0">
+      {/* Upgrade button */}
+      <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-orange-400 text-white text-[13px] font-bold shadow-sm hover:from-orange-600 hover:to-orange-500 transition-all mb-3">
+        <Zap size={14} className="fill-white" />
+        Upgrade Now
+      </button>
+
+      {/* User row */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-[#f9fafb] transition-colors group"
+      >
+        <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white font-black text-[13px]", avatarColor)}>
+          {initials}
+        </div>
+        <div className="flex-1 min-w-0 text-left">
+          <div className="flex items-center gap-1.5">
+            <p className="text-[13px] font-semibold truncate text-foreground leading-none">{user?.name ?? "User"}</p>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-[#f3f4f6] text-[#6b7280] shrink-0 leading-none">Free</span>
+          </div>
+          <p className="text-[11px] text-[#9ca3af] truncate mt-0.5">{user?.email ?? ""}</p>
+        </div>
+        <ChevronUp size={14} className={cn("text-[#9ca3af] transition-transform shrink-0", open ? "rotate-180" : "")} />
+      </button>
+
+      {/* Expanded menu */}
+      {open && (
+        <div className="mt-1 mx-1 rounded-xl border border-[#f3f4f6] bg-white shadow-sm overflow-hidden">
+          <div className="px-3 py-2.5 border-b border-[#f9fafb]">
+            <p className="text-[11px] text-[#9ca3af]">Plan</p>
+            <p className="text-[13px] font-semibold text-foreground">Free — 0 Credits</p>
+          </div>
+          <button
+            onClick={logout}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-red-500 hover:bg-red-50 transition-colors font-medium"
+          >
+            <LogOut size={14} />
+            Sign Out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SidebarLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
-  const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  const isAdmin = location.startsWith("/admin");
-  const isSettings = location === "/settings";
-  const isHome = location === "/";
+  const [location] = useLocation();
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="px-4 py-5 shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shrink-0">
-            <span className="text-white font-black text-sm leading-none">B</span>
+      <div className="px-5 py-5 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-sm">
+            <span className="text-white font-black text-[15px] leading-none">B</span>
           </div>
           <div className="flex items-baseline gap-0.5">
-            <span className="font-black text-[15px] tracking-tight text-foreground">Bunny</span>
-            <span className="font-black text-[15px] tracking-tight text-primary">TTS</span>
+            <span className="font-black text-[17px] tracking-tight text-foreground">Bunny</span>
+            <span className="font-black text-[17px] tracking-tight text-primary">TTS</span>
           </div>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 overflow-y-auto space-y-0.5">
-        {/* Home */}
-        <Link href="/">
-          <div className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors select-none",
-            isHome
-              ? "bg-[#f3f4f6] text-foreground font-medium"
-              : "text-[#6b7280] hover:bg-[#f9fafb] hover:text-foreground font-normal"
-          )}>
-            <Home size={16} className={cn("shrink-0", isHome ? "text-foreground" : "text-[#9ca3af]")} />
-            <span>Home</span>
-          </div>
-        </Link>
+      <nav className="flex-1 px-3 overflow-y-auto">
+        {/* General */}
+        {generalItems.map(item => <NavLink key={item.href} {...item} />)}
 
-        {/* Voice Library */}
-        <Link href="/studio">
-          <div className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors select-none",
-            location === "/voices"
-              ? "bg-[#f3f4f6] text-foreground font-medium"
-              : "text-[#6b7280] hover:bg-[#f9fafb] hover:text-foreground font-normal"
-          )}>
-            <BookAudio size={16} className="shrink-0 text-[#9ca3af]" />
-            <span>Voice Library</span>
-          </div>
-        </Link>
-
-        {/* AI Generation */}
-        <div className="pt-5 pb-1.5">
-          <p className="px-3 text-[11px] text-[#6b7280] font-bold uppercase tracking-wider">AI Generation</p>
-        </div>
-        {aiGenerationTools.map((item) => (
-          <NavLink key={item.href} {...item} />
-        ))}
-
-        {/* AI Tools */}
-        <div className="pt-5 pb-1.5">
-          <p className="px-3 text-[11px] text-[#6b7280] font-bold uppercase tracking-wider">AI Tools</p>
-        </div>
-        {aiTools.map((item) => (
-          <NavLink key={item.href} {...item} />
-        ))}
+        {/* ElevenLabs */}
+        <SectionLabel extra={
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-500">EL</span>
+        }>
+          ElevenLabs
+        </SectionLabel>
+        {elItems.map(item => <NavLink key={item.href} {...item} />)}
 
         {/* MiniMax */}
-        <div className="pt-5 pb-1.5">
-          <div className="px-3 flex items-center gap-1.5">
-            <p className="text-[11px] text-[#6b7280] font-bold uppercase tracking-wider">MiniMax</p>
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600">AI</span>
-          </div>
-        </div>
-        {minimaxTools.map((item) => (
-          <NavLink key={item.href} {...item} />
-        ))}
+        <SectionLabel extra={
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600">AI</span>
+        }>
+          MiniMax
+        </SectionLabel>
+        {minimaxItems.map(item => <NavLink key={item.href} {...item} />)}
 
-        {/* Manage */}
-        <div className="pt-5 pb-1.5">
-          <p className="px-3 text-[11px] text-[#6b7280] font-bold uppercase tracking-wider">Manage</p>
-        </div>
+        {/* Platform */}
+        <SectionLabel>Platform</SectionLabel>
+        {platformItems.map(item => <NavLink key={item.href} {...item} />)}
 
-        <Link href="/settings">
-          <div className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors select-none",
-            isSettings
-              ? "bg-[#f3f4f6] text-foreground font-medium"
-              : "text-[#6b7280] hover:bg-[#f9fafb] hover:text-foreground font-normal"
-          )}>
-            <Settings size={16} className={cn("shrink-0", isSettings ? "text-foreground" : "text-[#9ca3af]")} />
-            <span>Settings</span>
-          </div>
-        </Link>
+        <div className="h-4" />
       </nav>
 
-      {/* Bottom user area */}
-      <div className="p-3 border-t border-[#f3f4f6] shrink-0">
-        {user && (
-          <div className="flex items-center gap-2.5 px-2 py-1.5 mb-1">
-            <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
-              <User size={13} className="text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-semibold truncate text-foreground leading-none mb-0.5">{user.name}</p>
-              <p className="text-[11px] text-[#9ca3af] truncate">{user.email}</p>
-            </div>
-          </div>
-        )}
-        <button
-          onClick={logout}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-full border border-[#e5e7eb] text-sm text-[#6b7280] hover:text-foreground hover:border-[#d1d5db] transition-colors font-medium"
-        >
-          <LogOut size={14} />
-          Sign Out
-        </button>
-      </div>
+      {/* User */}
+      <UserCard user={user} logout={logout} />
     </div>
   );
 
   return (
     <div className="min-h-screen flex bg-white text-foreground">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col bg-white border-r border-[#f3f4f6] w-56 shrink-0">
+      <aside className="hidden lg:flex flex-col bg-white border-r border-[#f3f4f6] w-64 shrink-0">
         <SidebarContent />
       </aside>
 
       {/* Mobile overlay */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div className="w-56 bg-white border-r border-[#f3f4f6] flex flex-col shadow-xl">
+          <div className="w-64 bg-white border-r border-[#f3f4f6] flex flex-col shadow-xl">
             <SidebarContent />
           </div>
           <div className="flex-1 bg-black/30" onClick={() => setMobileOpen(false)} />
