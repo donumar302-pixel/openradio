@@ -93,4 +93,66 @@ router.get("/me", async (req, res) => {
   });
 });
 
+/* ── PATCH /profile — update email and/or password ── */
+router.patch("/profile", async (req, res) => {
+  if (!req.session.userId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const { email, currentPassword, newPassword } = req.body as {
+    email?: string;
+    currentPassword?: string;
+    newPassword?: string;
+  };
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId));
+  if (!user) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const updates: Partial<{ email: string; passwordHash: string }> = {};
+
+  if (email && email.toLowerCase() !== user.email) {
+    const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
+    if (existing.length > 0) {
+      res.status(409).json({ error: "Email already in use by another account" });
+      return;
+    }
+    updates.email = email.toLowerCase();
+  }
+
+  if (newPassword) {
+    if (!currentPassword) {
+      res.status(400).json({ error: "Current password is required to set a new password" });
+      return;
+    }
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) {
+      res.status(400).json({ error: "Current password is incorrect" });
+      return;
+    }
+    if (newPassword.length < 6) {
+      res.status(400).json({ error: "New password must be at least 6 characters" });
+      return;
+    }
+    updates.passwordHash = await bcrypt.hash(newPassword, 10);
+  }
+
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "Nothing to update" });
+    return;
+  }
+
+  const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id)).returning();
+
+  res.json({
+    id: updated.id,
+    name: updated.name,
+    email: updated.email,
+    createdAt: updated.createdAt.toISOString(),
+  });
+});
+
 export default router;
