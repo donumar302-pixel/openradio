@@ -42,9 +42,7 @@ function NavLink({ href, icon, label, badge, badgeColor }: NavItem) {
         "flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] cursor-pointer transition-all select-none group",
         active ? "bg-[#f3f4f6] text-foreground font-semibold" : "text-[#6b7280] hover:bg-[#f9fafb] hover:text-foreground"
       )}>
-        <span className={cn("shrink-0", active ? "text-foreground" : "text-[#9ca3af] group-hover:text-[#6b7280]")}>
-          {icon}
-        </span>
+        <span className={cn("shrink-0", active ? "text-foreground" : "text-[#9ca3af] group-hover:text-[#6b7280]")}>{icon}</span>
         <span className="flex-1 truncate">{label}</span>
         {badge && (
           <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0", badgeColor ?? "bg-orange-100 text-orange-600")}>
@@ -65,7 +63,7 @@ function SectionLabel({ children, extra }: { children: React.ReactNode; extra?: 
   );
 }
 
-/* ─── Account panel ─────────────────────────────────────────────────── */
+/* ─── Account panel — opens from top-right ──────────────────────────── */
 function AccountPanel({ user, logout, onClose }: { user: any; logout: () => void; onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -85,9 +83,10 @@ function AccountPanel({ user, logout, onClose }: { user: any; logout: () => void
   const colors = ["bg-orange-500", "bg-violet-500", "bg-blue-500", "bg-green-500", "bg-pink-500", "bg-amber-500"];
   const avatarColor = colors[user?.name ? user.name.charCodeAt(0) % colors.length : 0];
 
-  function MenuItem({
-    icon, label, href, chevron, red, onClick,
-  }: { icon: React.ReactNode; label: string; href?: string; chevron?: boolean; red?: boolean; onClick?: () => void }) {
+  function MenuItem({ icon, label, href, chevron, red, onClick }: {
+    icon: React.ReactNode; label: string; href?: string;
+    chevron?: boolean; red?: boolean; onClick?: () => void;
+  }) {
     const cls = cn(
       "w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium transition-colors cursor-pointer text-left",
       red ? "text-red-500 hover:bg-red-50" : "text-foreground hover:bg-[#f9fafb]"
@@ -104,16 +103,17 @@ function AccountPanel({ user, logout, onClose }: { user: any; logout: () => void
   }
 
   return (
+    /* Fixed panel anchored to top-right */
     <div
       ref={panelRef}
       className={cn(
-        "fixed bottom-0 left-64 z-50 w-72 bg-white rounded-r-2xl shadow-2xl border border-[#e5e7eb] flex flex-col overflow-hidden",
+        "fixed top-14 right-3 z-50 w-72 bg-white rounded-2xl shadow-2xl border border-[#e5e7eb] flex flex-col overflow-hidden",
         "transition-all duration-200 ease-out",
-        visible ? "translate-x-0 opacity-100" : "-translate-x-4 opacity-0"
+        visible ? "translate-y-0 opacity-100 scale-100" : "-translate-y-2 opacity-0 scale-95"
       )}
-      style={{ top: "auto", maxHeight: "calc(100vh - 24px)", bottom: "12px" }}
+      style={{ maxHeight: "calc(100vh - 72px)" }}
     >
-      {/* ── Balance section ── */}
+      {/* Balance */}
       <div className="px-4 pt-4 pb-3 border-b border-[#f3f4f6]">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 text-sm font-bold text-foreground">
@@ -138,7 +138,7 @@ function AccountPanel({ user, logout, onClose }: { user: any; logout: () => void
         </div>
       </div>
 
-      {/* ── Workspace / plan ── */}
+      {/* Workspace / plan */}
       <div className="px-4 py-3 border-b border-[#f3f4f6]">
         <p className="text-[10px] text-[#9ca3af] font-semibold uppercase tracking-wide mb-1.5">Current workspace</p>
         <div className="flex items-center gap-2.5">
@@ -150,29 +150,22 @@ function AccountPanel({ user, logout, onClose }: { user: any; logout: () => void
             <p className="text-[11px] text-[#9ca3af] truncate">{user?.email ?? ""}</p>
           </div>
         </div>
-        <div className="mt-2 flex items-center gap-1.5">
+        <div className="mt-2">
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#f3f4f6] text-[#6b7280]">Free plan</span>
         </div>
       </div>
 
-      {/* ── Menu items ── */}
+      {/* Menu */}
       <div className="flex-1 overflow-y-auto py-1">
-        <MenuItem icon={<Settings size={15} />}    label="Account Settings"  href="/settings" />
-        <MenuItem icon={<CreditCard size={15} />}  label="Subscription"      href="/billing"  />
-        <MenuItem icon={<BarChart2 size={15} />}   label="Usage analytics"   href="/billing"  />
-        <MenuItem icon={<User size={15} />}        label="Profile"           href="/settings" />
-
+        <MenuItem icon={<Settings size={15} />}   label="Account Settings" href="/settings" />
+        <MenuItem icon={<CreditCard size={15} />} label="Subscription"      href="/billing" />
+        <MenuItem icon={<BarChart2 size={15} />}  label="Usage analytics"   href="/billing" />
+        <MenuItem icon={<User size={15} />}       label="Profile"           href="/settings" />
         <div className="my-1 border-t border-[#f3f4f6]" />
-
-        <MenuItem
-          icon={<LogOut size={15} />}
-          label="Sign out"
-          red
-          onClick={() => { onClose(); logout(); }}
-        />
+        <MenuItem icon={<LogOut size={15} />} label="Sign out" red onClick={() => { onClose(); logout(); }} />
       </div>
 
-      {/* ── Member info footer ── */}
+      {/* Footer */}
       <div className="px-4 py-2.5 border-t border-[#f3f4f6] bg-[#fafafa]">
         <p className="text-[10px] text-[#9ca3af]">
           Member since {user?.createdAt ? new Date(user.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—"}
@@ -182,8 +175,8 @@ function AccountPanel({ user, logout, onClose }: { user: any; logout: () => void
   );
 }
 
-/* ─── User trigger button ────────────────────────────────────────────── */
-function UserTrigger({ user, onClick }: { user: any; onClick: () => void }) {
+/* ─── Top-right avatar button ────────────────────────────────────────── */
+function TopRightUserBtn({ user, onClick }: { user: any; onClick: () => void }) {
   const initials = user?.name
     ? user.name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)
     : "U";
@@ -193,29 +186,25 @@ function UserTrigger({ user, onClick }: { user: any; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-[#f3f4f6] transition-colors border border-transparent hover:border-[#e5e7eb] group"
+      title={user?.name ?? "Account"}
+      className={cn(
+        "fixed top-3 right-3 z-40 w-9 h-9 rounded-full flex items-center justify-center",
+        "text-white font-black text-[13px] shadow-md ring-2 ring-white hover:ring-4 transition-all",
+        avatarColor
+      )}
     >
-      <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-[12px] shrink-0 ring-2 ring-white group-hover:ring-[#e5e7eb] transition-all", avatarColor)}>
-        {initials}
-      </div>
-      <div className="flex-1 min-w-0 text-left">
-        <p className="text-[13px] font-semibold truncate text-foreground leading-tight">{user?.name ?? "User"}</p>
-        <p className="text-[11px] text-[#9ca3af] truncate leading-tight">{user?.email ?? ""}</p>
-      </div>
-      <ChevronRight size={13} className="text-[#d1d5db] shrink-0 group-hover:text-[#9ca3af] transition-colors" />
+      {initials}
     </button>
   );
 }
 
-/* ─── Sidebar content ────────────────────────────────────────────────── */
-function SidebarContent({ user, logout }: { user: any; logout: () => void }) {
-  const [panelOpen, setPanelOpen] = useState(false);
-
+/* ─── Sidebar nav only (no user button here) ─────────────────────────── */
+function SidebarContent() {
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="px-4 pt-4 pb-2 shrink-0">
-        <div className="flex items-center gap-2.5 px-1 mb-3">
+      <div className="px-5 py-5 shrink-0">
+        <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-sm">
             <span className="text-white font-black text-[14px] leading-none">B</span>
           </div>
@@ -224,9 +213,6 @@ function SidebarContent({ user, logout }: { user: any; logout: () => void }) {
             <span className="font-black text-[16px] tracking-tight text-primary">TTS</span>
           </div>
         </div>
-
-        {/* User trigger */}
-        <UserTrigger user={user} onClick={() => setPanelOpen(v => !v)} />
       </div>
 
       {/* Nav */}
@@ -243,7 +229,7 @@ function SidebarContent({ user, logout }: { user: any; logout: () => void }) {
         <div className="h-4" />
       </nav>
 
-      {/* Bottom upgrade button */}
+      {/* Upgrade button */}
       <div className="p-3 border-t border-[#f3f4f6] shrink-0">
         <Link href="/billing">
           <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-orange-400 text-white text-[13px] font-bold shadow-sm hover:from-orange-600 hover:to-orange-500 transition-all">
@@ -252,9 +238,6 @@ function SidebarContent({ user, logout }: { user: any; logout: () => void }) {
           </button>
         </Link>
       </div>
-
-      {/* Sliding account panel */}
-      {panelOpen && <AccountPanel user={user} logout={logout} onClose={() => setPanelOpen(false)} />}
     </div>
   );
 }
@@ -263,19 +246,20 @@ function SidebarContent({ user, logout }: { user: any; logout: () => void }) {
 export function SidebarLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
 
   return (
     <div className="h-screen flex bg-white text-foreground overflow-hidden">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col bg-white border-r border-[#f3f4f6] w-64 shrink-0 h-full">
-        <SidebarContent user={user} logout={logout} />
+        <SidebarContent />
       </aside>
 
       {/* Mobile overlay */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className="w-64 bg-white border-r border-[#f3f4f6] flex flex-col h-full shadow-xl">
-            <SidebarContent user={user} logout={logout} />
+            <SidebarContent />
           </div>
           <div className="flex-1 bg-black/30" onClick={() => setMobileOpen(false)} />
         </div>
@@ -299,6 +283,12 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
         </header>
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
+
+      {/* Fixed top-right avatar button */}
+      <TopRightUserBtn user={user} onClick={() => setPanelOpen(v => !v)} />
+
+      {/* Sliding account panel */}
+      {panelOpen && <AccountPanel user={user} logout={logout} onClose={() => setPanelOpen(false)} />}
     </div>
   );
 }
