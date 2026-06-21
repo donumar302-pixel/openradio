@@ -9,6 +9,48 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Register a new user
+ */
+
+export const registerBodyPasswordMin = 6;
+
+
+
+export const RegisterBody = zod.object({
+  "name": zod.string().min(1),
+  "email": zod.string(),
+  "password": zod.string().min(registerBodyPasswordMin)
+})
+
+
+/**
+ * @summary Login
+ */
+export const LoginBody = zod.object({
+  "email": zod.string(),
+  "password": zod.string()
+})
+
+export const LoginResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Get current user
+ */
+export const GetMeResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({

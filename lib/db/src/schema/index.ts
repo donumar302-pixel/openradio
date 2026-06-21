@@ -1,6 +1,16 @@
-import { pgTable, serial, text, boolean, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, integer, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+
+export const usersTable = pgTable("users", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("users_email_idx").on(t.email)]);
+
+export type User = typeof usersTable.$inferSelect;
 
 export const apiKeysTable = pgTable("api_keys", {
   id: serial("id").primaryKey(),

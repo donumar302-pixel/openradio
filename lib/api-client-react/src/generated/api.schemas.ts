@@ -97,6 +97,26 @@ export interface ErrorResponse {
   error: string;
 }
 
+export interface RegisterInput {
+  /** @minLength 1 */
+  name: string;
+  email: string;
+  /** @minLength 6 */
+  password: string;
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+export interface AuthUser {
+  id: number;
+  name: string;
+  email: string;
+  createdAt: string;
+}
+
 export type ListGenerationsParams = {
 limit?: number;
 offset?: number;
