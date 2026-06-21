@@ -15,6 +15,8 @@ import {
   Radio,
   Settings,
   BookAudio,
+  Sparkles,
+  Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,14 +28,19 @@ interface NavItem {
 }
 
 const aiGenerationTools: NavItem[] = [
-  { label: "Text to Speech", href: "/studio",           icon: <Mic2 size={16} />,              badge: "New" },
+  { label: "Text to Speech", href: "/studio", icon: <Mic2 size={16} />, badge: "EL" },
 ];
 
 const aiTools: NavItem[] = [
   { label: "Speech to Speech", href: "/speech-to-speech", icon: <AudioWaveform size={16} /> },
   { label: "Speech to Text",   href: "/speech-to-text",   icon: <MessageSquareText size={16} /> },
   { label: "Audio Isolation",  href: "/audio-isolation",  icon: <Radio size={16} /> },
-  { label: "Dubbing",          href: "/dubbing",          icon: <Languages size={16} />,        badge: "New" },
+  { label: "Dubbing",          href: "/dubbing",          icon: <Languages size={16} /> },
+];
+
+const minimaxTools: NavItem[] = [
+  { label: "MiniMax TTS",    href: "/minimax",        icon: <Sparkles size={16} />, badge: "New" },
+  { label: "Voice Cloning",  href: "/voice-cloning",  icon: <Copy size={16} />,     badge: "Free" },
 ];
 
 function NavLink({ href, icon, label, badge }: NavItem) {
@@ -124,6 +131,17 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
           <p className="px-3 text-[11px] text-[#6b7280] font-bold uppercase tracking-wider">AI Tools</p>
         </div>
         {aiTools.map((item) => (
+          <NavLink key={item.href} {...item} />
+        ))}
+
+        {/* MiniMax */}
+        <div className="pt-5 pb-1.5">
+          <div className="px-3 flex items-center gap-1.5">
+            <p className="text-[11px] text-[#6b7280] font-bold uppercase tracking-wider">MiniMax</p>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600">AI</span>
+          </div>
+        </div>
+        {minimaxTools.map((item) => (
           <NavLink key={item.href} {...item} />
         ))}
 

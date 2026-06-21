@@ -16,9 +16,18 @@ export const apiKeysTable = pgTable("api_keys", {
   id: serial("id").primaryKey(),
   label: text("label").notNull(),
   key: text("key").notNull(),
+  provider: text("provider").notNull().default("elevenlabs"),
   isActive: boolean("is_active").notNull().default(true),
   usageCount: integer("usage_count").notNull().default(0),
   lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const voiceClonesTable = pgTable("voice_clones", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  voiceId: text("voice_id").notNull(),
+  description: text("description"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

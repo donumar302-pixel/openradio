@@ -15,6 +15,8 @@ import SpeechToTextPage from "@/pages/speech-to-text";
 import AudioIsolationPage from "@/pages/audio-isolation";
 import DubbingPage from "@/pages/dubbing";
 import SettingsPage from "@/pages/settings";
+import MinimaxTtsPage from "@/pages/minimax-tts";
+import VoiceCloningPage from "@/pages/voice-cloning";
 import { SidebarLayout } from "@/components/sidebar-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
@@ -62,6 +64,8 @@ function AppRoutes() {
         <Route path="/audio-isolation" component={AudioIsolationPage} />
         <Route path="/dubbing" component={DubbingPage} />
         <Route path="/settings" component={SettingsPage} />
+        <Route path="/minimax" component={MinimaxTtsPage} />
+        <Route path="/voice-cloning" component={VoiceCloningPage} />
         <Route path="/admin" component={AdminDashboard} />
         <Route path="/admin/keys/new" component={AdminKeysNew} />
         <Route path="/login"><Redirect to="/" /></Route>
