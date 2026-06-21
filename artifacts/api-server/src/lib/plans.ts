@@ -112,8 +112,7 @@ const PAID_FEATURES = [
   "Speech to Text",
   "Audio Isolation",
   "Multilingual Dubbing",
-  "Sound Effects",
-  "AI Music Generation",
+  "Voice Library",
   "All premium & emotional voices",
   "MP3 downloads",
 ];

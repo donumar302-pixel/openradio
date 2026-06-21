@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   Home, Mic2, LogOut, Menu, X, AudioWaveform, MessageSquareText,
   Languages, Radio, Settings, BookAudio, Copy, Zap, CreditCard,
-  ChevronRight, User, BarChart2, Moon, Lock,
+  ChevronRight, User, Moon, Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +35,6 @@ const minimaxItems: NavItem[] = [
 ];
 const platformItems: NavItem[] = [
   { label: "Settings", href: "/settings", icon: <Settings size={18} /> },
-  { label: "Billing",  href: "/billing",  icon: <CreditCard size={18} /> },
 ];
 
 function NavLink({ href, icon, label, badge, badgeColor, locked }: NavItem & { locked?: boolean }) {
@@ -43,7 +42,7 @@ function NavLink({ href, icon, label, badge, badgeColor, locked }: NavItem & { l
   const active = location === href || (href !== "/" && location.startsWith(href));
   if (locked) {
     return (
-      <Link href="/billing">
+      <Link href="/pricing">
         <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] cursor-pointer transition-all select-none group text-[#9ca3af] hover:bg-[#f9fafb]" title="Upgrade to unlock">
           <span className="shrink-0 text-[#cbd5e1] group-hover:text-[#9ca3af]">{icon}</span>
           <span className="flex-1 truncate">{label}</span>
@@ -136,7 +135,7 @@ function AccountPanel({ user, logout, onClose }: { user: any; logout: () => void
             <Moon size={14} className="text-[#9ca3af]" />
             Balance
           </div>
-          <Link href="/billing" onClick={onClose}>
+          <Link href="/pricing" onClick={onClose}>
             <span className="text-[11px] font-black px-2.5 py-1 rounded-lg bg-primary text-white cursor-pointer hover:bg-primary/90 transition-colors">
               Upgrade
             </span>
@@ -174,8 +173,7 @@ function AccountPanel({ user, logout, onClose }: { user: any; logout: () => void
       {/* Menu */}
       <div className="flex-1 overflow-y-auto py-1">
         <MenuItem icon={<Settings size={15} />}   label="Account Settings" href="/settings" />
-        <MenuItem icon={<CreditCard size={15} />} label="Subscription"      href="/billing" />
-        <MenuItem icon={<BarChart2 size={15} />}  label="Usage analytics"   href="/billing" />
+        <MenuItem icon={<CreditCard size={15} />} label="Subscription"      href="/pricing" />
         <MenuItem icon={<User size={15} />}       label="Profile"           href="/settings" />
         <div className="my-1 border-t border-[#f3f4f6]" />
         <MenuItem icon={<LogOut size={15} />} label="Sign out" red onClick={() => { onClose(); logout(); }} />
@@ -254,7 +252,7 @@ function SidebarContent() {
 
       {/* Upgrade button */}
       <div className="p-3 border-t border-[#f3f4f6] shrink-0">
-        <Link href="/billing">
+        <Link href="/pricing">
           <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-orange-400 text-white text-[13px] font-bold shadow-sm hover:from-orange-600 hover:to-orange-500 transition-all">
             <Zap size={14} className="fill-white" />
             Upgrade Now

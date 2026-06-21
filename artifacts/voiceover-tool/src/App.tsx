@@ -23,7 +23,6 @@ import SpeechToTextPage from "@/pages/speech-to-text";
 import AudioIsolationPage from "@/pages/audio-isolation";
 import DubbingPage from "@/pages/dubbing";
 import SettingsPage from "@/pages/settings";
-import BillingPage from "@/pages/billing";
 import MinimaxTtsPage from "@/pages/minimax-tts";
 import VoiceCloningPage from "@/pages/voice-cloning";
 import VoiceLibraryPage from "@/pages/voices";
@@ -87,6 +86,10 @@ function AppRoutes() {
     return <AdminRoutes />;
   }
 
+  if (location === "/pricing") {
+    return <PricingPage />;
+  }
+
   return (
     <SidebarLayout>
       <Switch>
@@ -97,7 +100,6 @@ function AppRoutes() {
         <Route path="/audio-isolation" component={AudioIsolationPage} />
         <Route path="/dubbing" component={DubbingPage} />
         <Route path="/settings" component={SettingsPage} />
-        <Route path="/billing" component={BillingPage} />
         <Route path="/minimax" component={MinimaxTtsPage} />
         <Route path="/voice-cloning" component={VoiceCloningPage} />
         <Route path="/voices" component={VoiceLibraryPage} />
