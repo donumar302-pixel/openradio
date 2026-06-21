@@ -211,10 +211,8 @@ function SidebarContent() {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="px-5 py-5 shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-sm">
-            <span className="text-white font-black text-[14px] leading-none">B</span>
-          </div>
+        <div className="flex items-center gap-2">
+          <img src="/logo.png" alt="Bunny TTS" className="w-8 h-8 object-contain shrink-0" />
           <div className="flex items-baseline gap-0.5">
             <span className="font-black text-[16px] tracking-tight text-foreground">Bunny</span>
             <span className="font-black text-[16px] tracking-tight text-primary">TTS</span>

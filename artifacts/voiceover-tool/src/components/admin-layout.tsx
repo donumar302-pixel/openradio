@@ -27,10 +27,8 @@ function AdminNav({ onClose }: { onClose?: () => void }) {
     <div className="flex flex-col h-full bg-[#0f1117]">
       {/* Logo */}
       <div className="px-5 py-5 border-b border-white/5 shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shrink-0">
-            <span className="text-white font-black text-[13px]">B</span>
-          </div>
+        <div className="flex items-center gap-2">
+          <img src="/logo.png" alt="Bunny TTS" className="w-8 h-8 object-contain shrink-0" />
           <div>
             <div className="flex items-baseline gap-0.5">
               <span className="font-black text-[15px] text-white">Bunny</span>

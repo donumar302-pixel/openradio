@@ -30,10 +30,8 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="flex items-center justify-center gap-2.5 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
-            <span className="text-white font-bold text-xl leading-none">B</span>
-          </div>
+        <div className="flex items-center justify-center gap-2 mb-8">
+          <img src="/logo.png" alt="Bunny TTS" className="w-10 h-10 object-contain" />
           <div className="flex items-baseline gap-0.5">
             <span className="font-extrabold text-2xl tracking-tight text-foreground">Bunny</span>
             <span className="font-extrabold text-2xl tracking-tight text-primary">TTS</span>
