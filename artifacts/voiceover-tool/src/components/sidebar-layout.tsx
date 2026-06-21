@@ -187,13 +187,20 @@ function TopRightUserBtn({ user, onClick }: { user: any; onClick: () => void }) 
     <button
       onClick={onClick}
       title={user?.name ?? "Account"}
-      className={cn(
-        "fixed top-3 right-3 z-40 w-9 h-9 rounded-full flex items-center justify-center",
-        "text-white font-black text-[13px] shadow-md ring-2 ring-white hover:ring-4 transition-all",
-        avatarColor
-      )}
+      className="fixed top-3 right-3 z-40 flex items-center gap-2 hover:opacity-90 transition-opacity"
     >
-      {initials}
+      {/* Plan badge */}
+      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#f3f4f6] text-[#6b7280] border border-[#e5e7eb] shadow-sm">
+        Free
+      </span>
+      {/* Avatar circle */}
+      <div className={cn(
+        "w-9 h-9 rounded-full flex items-center justify-center",
+        "text-white font-black text-[13px] shadow-md ring-2 ring-white",
+        avatarColor
+      )}>
+        {initials}
+      </div>
     </button>
   );
 }
