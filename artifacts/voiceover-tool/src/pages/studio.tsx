@@ -289,18 +289,22 @@ export default function StudioPage() {
 
             <button
               onClick={handleGenerate}
-              disabled={generateSpeech.isPending || !text.trim() || !voiceId}
+              disabled={isGenerating || !text.trim() || !voiceId}
               className={cn(
                 "flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all",
-                generateSpeech.isPending || !text.trim() || !voiceId
+                isGenerating || !text.trim() || !voiceId
                   ? "bg-[#f3f4f6] text-[#9ca3af] cursor-not-allowed"
-                  : "bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/30"
+                  : voiceProvider === "minimax"
+                    ? "bg-violet-600 text-white hover:bg-violet-700 shadow-sm"
+                    : "bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/30"
               )}
               data-testid="btn-generate"
             >
-              {generateSpeech.isPending
+              {isGenerating
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>
-                : <><Play className="h-4 w-4 fill-white" /> Generate</>
+                : voiceProvider === "minimax"
+                  ? <><Zap className="h-4 w-4 fill-white" /> Generate</>
+                  : <><Play className="h-4 w-4 fill-white" /> Generate</>
               }
             </button>
           </div>
@@ -350,37 +354,95 @@ export default function StudioPage() {
                 </div>
 
                 {/* Selected voice card */}
-                {selectedVoice ? (
-                  <div className="flex items-center gap-3 p-2.5 border border-[#e5e7eb] rounded-xl mb-3">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/30 to-orange-200 flex items-center justify-center shrink-0 text-primary font-bold text-base">
-                      {selectedVoice.name?.[0] ?? "V"}
+                {(selectedElVoice || selectedMmVoice) && (
+                  <div className={cn(
+                    "flex items-center gap-3 p-2.5 border rounded-xl mb-3",
+                    voiceProvider === "minimax"
+                      ? "border-violet-200 bg-violet-50"
+                      : "border-[#e5e7eb]"
+                  )}>
+                    <div className={cn(
+                      "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 font-bold text-base",
+                      voiceProvider === "minimax"
+                        ? "bg-violet-100 text-violet-600"
+                        : "bg-gradient-to-br from-primary/30 to-orange-200 text-primary"
+                    )}>
+                      {(selectedElVoice?.name ?? selectedMmVoice?.name ?? "V")[0]}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{selectedVoice.name}</p>
-                      <span className="inline-block text-[10px] px-1.5 py-0.5 bg-[#f3f4f6] text-[#6b7280] rounded mt-0.5 capitalize">
-                        {selectedVoice.category || "voice"}
-                      </span>
+                      <p className="text-sm font-semibold truncate">
+                        {selectedElVoice?.name ?? selectedMmVoice?.name}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className={cn(
+                          "inline-block text-[10px] px-1.5 py-0.5 rounded font-semibold",
+                          voiceProvider === "minimax"
+                            ? "bg-violet-100 text-violet-600"
+                            : "bg-[#f3f4f6] text-[#6b7280]"
+                        )}>
+                          {voiceProvider === "minimax"
+                            ? (selectedMmVoice?.isClone ? "Clone" : selectedMmVoice?.lang ?? "AI")
+                            : (selectedElVoice?.category ?? "voice")}
+                        </span>
+                        {voiceProvider === "minimax" && (
+                          <span className="flex items-center gap-0.5 text-[10px] text-violet-500 font-semibold">
+                            <Zap size={9} className="fill-violet-500" /> Fire TTS
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <VoicePreviewBtn url={selectedVoice.previewUrl} />
+                    {voiceProvider === "el" && <VoicePreviewBtn url={selectedElVoice?.previewUrl} />}
                   </div>
-                ) : null}
+                )}
 
-                <Select value={voiceId} onValueChange={setVoiceId} disabled={loadingVoices}>
+                <Select value={voiceId} onValueChange={handleVoiceSelect} disabled={loadingVoices}>
                   <SelectTrigger className="border-[#e5e7eb] text-sm h-10 w-full" data-testid="select-voice">
                     <SelectValue placeholder={loadingVoices ? "Loading voices..." : "Choose a voice"} />
                   </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {voicesByCategory &&
-                      Object.entries(voicesByCategory).map(([cat, items]) => (
-                        <SelectGroup key={cat}>
-                          <SelectLabel className="text-primary/70 text-xs">{cat}</SelectLabel>
-                          {items.map((v) => (
-                            <SelectItem key={v.voiceId} value={v.voiceId} className="text-sm py-2">
-                              {v.name}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ))}
+                  <SelectContent className="max-h-80">
+                    {/* ── ElevenLabs voices ── */}
+                    {voicesByCategory && Object.keys(voicesByCategory).length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 border-b border-[#f3f4f6] mb-1">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-orange-500">Text to Speech Voices</p>
+                        </div>
+                        {Object.entries(voicesByCategory).map(([cat, items]) => (
+                          <SelectGroup key={cat}>
+                            <SelectLabel className="text-primary/70 text-xs capitalize">{cat}</SelectLabel>
+                            {items.map((v) => (
+                              <SelectItem key={v.voiceId} value={v.voiceId} className="text-sm py-2">
+                                {v.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ))}
+                      </>
+                    )}
+
+                    {/* ── MiniMax voices ── */}
+                    {mmVoices.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 border-t border-b border-[#f3f4f6] my-1">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-violet-500 flex items-center gap-1">
+                            <Zap size={9} className="fill-violet-500" /> Fire TTS Voices (35+ languages)
+                          </p>
+                        </div>
+                        {Object.entries(mmByLang).map(([lang, langVoices]) => (
+                          <SelectGroup key={lang}>
+                            <SelectLabel className="text-violet-500/70 text-xs">{lang}</SelectLabel>
+                            {langVoices.map(v => (
+                              <SelectItem key={v.id} value={v.id} className="text-sm py-2">
+                                <div className="flex items-center gap-2">
+                                  <span>{v.name}</span>
+                                  {v.style && <span className="text-[10px] text-[#9ca3af]">{v.style}</span>}
+                                  {v.isClone && <span className="text-[10px] text-violet-500 font-bold">Clone</span>}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ))}
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
