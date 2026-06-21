@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Key, Plus, Trash2, RefreshCw, CheckCircle2, XCircle, Edit2, Check, X, RotateCcw, Zap } from "lucide-react";
+import { Key, Plus, Trash2, RefreshCw, CheckCircle2, XCircle, Edit2, Check, X, RotateCcw, Zap, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PROVIDERS = [
@@ -39,7 +39,10 @@ type NewKeyForm = { label: string; key: string; provider: string; creditLimit: s
 export default function AdminKeys() {
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
   const [form, setForm] = useState<NewKeyForm>({ label: "", key: "", provider: "elevenlabs", creditLimit: "" });
+  const [bulk, setBulk] = useState({ provider: "elevenlabs", creditLimit: "", labelPrefix: "", text: "" });
+  const [bulkResult, setBulkResult] = useState<{ inserted: number; skippedDuplicates: number; totalParsed: number } | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [editLimit, setEditLimit] = useState("");
@@ -72,6 +75,23 @@ export default function AdminKeys() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-keys"] }),
   });
 
+  const bulkMutation = useMutation({
+    mutationFn: (body: any) => fetch("/api/admin/keys/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(async r => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data?.error || "Bulk import failed");
+      return data;
+    }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["admin-keys"] });
+      setBulkResult(data);
+      setBulk(b => ({ ...b, text: "" }));
+    },
+  });
+
   const resetCredits = (id: number) => {
     updateMutation.mutate({ id, creditsUsed: 0 });
   };
@@ -100,7 +120,17 @@ export default function AdminKeys() {
             <RefreshCw size={13} className={isFetching ? "animate-spin" : ""} />
           </button>
           <button
-            onClick={() => setShowAdd(v => !v)}
+            onClick={() => { setShowBulk(v => !v); setShowAdd(false); setBulkResult(null); }}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold transition-all border",
+              showBulk ? "bg-primary/10 border-primary/40 text-primary" : "bg-white/5 hover:bg-white/10 text-white/60 border-white/5"
+            )}
+          >
+            <Layers size={13} />
+            Bulk Add
+          </button>
+          <button
+            onClick={() => { setShowAdd(v => !v); setShowBulk(false); }}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-white text-[12px] font-bold transition-all"
           >
             <Plus size={13} />
@@ -108,6 +138,110 @@ export default function AdminKeys() {
           </button>
         </div>
       </div>
+
+      {/* Bulk Add Form */}
+      {showBulk && (
+        <div className="bg-[#161b22] border border-primary/20 rounded-2xl p-5 space-y-4">
+          <div>
+            <p className="text-[13px] font-bold text-white">Bulk Add API Keys</p>
+            <p className="text-[11px] text-white/40 mt-0.5">Paste many keys at once — one per line. Optional <code className="text-white/60">label,key</code> per line; otherwise labels are auto-generated. Duplicates are skipped.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Provider */}
+            <div className="space-y-1.5 sm:col-span-3">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-white/30">Provider</label>
+              <div className="flex gap-2">
+                {PROVIDERS.map(p => (
+                  <button
+                    key={p.value}
+                    onClick={() => setBulk(b => ({ ...b, provider: p.value }))}
+                    className={cn(
+                      "flex-1 py-2.5 rounded-xl text-[12px] font-bold border transition-all",
+                      bulk.provider === p.value
+                        ? cn("border-primary/40 bg-primary/10", p.color)
+                        : "border-white/5 bg-white/3 text-white/30 hover:text-white/60"
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Label prefix */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-white/30">Label Prefix <span className="text-white/20 normal-case font-normal">(optional)</span></label>
+              <input
+                value={bulk.labelPrefix}
+                onChange={e => setBulk(b => ({ ...b, labelPrefix: e.target.value }))}
+                placeholder="e.g. Account"
+                className="w-full bg-[#0f1117] border border-white/10 rounded-xl px-3 py-2.5 text-[13px] text-white placeholder:text-white/20 focus:outline-none focus:border-primary/50"
+              />
+            </div>
+            {/* Credit limit */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-white/30">Credit Limit <span className="text-white/20 normal-case font-normal">(optional)</span></label>
+              <input
+                value={bulk.creditLimit}
+                onChange={e => setBulk(b => ({ ...b, creditLimit: e.target.value }))}
+                placeholder="e.g. 10000"
+                type="number"
+                className="w-full bg-[#0f1117] border border-white/10 rounded-xl px-3 py-2.5 text-[13px] text-white placeholder:text-white/20 focus:outline-none focus:border-primary/50"
+              />
+            </div>
+            {/* Applies to all */}
+            <div className="flex items-end pb-2">
+              <p className="text-[10px] text-white/30">Provider &amp; limit apply to all keys in this batch.</p>
+            </div>
+          </div>
+          {/* Textarea */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-white/30">Keys — one per line</label>
+            <textarea
+              value={bulk.text}
+              onChange={e => { setBulk(b => ({ ...b, text: e.target.value })); setBulkResult(null); }}
+              rows={10}
+              placeholder={"sk-aaaaaaaa...\nsk-bbbbbbbb...\nAccount 3,sk-cccccccc..."}
+              className="w-full bg-[#0f1117] border border-white/10 rounded-xl px-3 py-2.5 text-[12px] text-white placeholder:text-white/20 focus:outline-none focus:border-primary/50 font-mono resize-y"
+            />
+            <p className="text-[10px] text-white/30">
+              {bulk.text.split(/\r?\n/).filter(l => l.trim().length >= 8).length} non-empty line(s) detected
+            </p>
+          </div>
+          {bulkResult && (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-green-500/5 border border-green-500/20">
+              <CheckCircle2 size={15} className="text-green-400 shrink-0" />
+              <p className="text-[12px] text-white/60">
+                <span className="text-green-400 font-bold">{bulkResult.inserted} added</span>
+                {bulkResult.skippedDuplicates > 0 && <> · {bulkResult.skippedDuplicates} duplicate(s) skipped</>}
+                {" "}· {bulkResult.totalParsed} parsed
+              </p>
+            </div>
+          )}
+          {bulkMutation.isError && (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500/5 border border-red-500/20">
+              <XCircle size={15} className="text-red-400 shrink-0" />
+              <p className="text-[12px] text-red-400">{(bulkMutation.error as Error)?.message || "Bulk import failed"}</p>
+            </div>
+          )}
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              onClick={() => bulkMutation.mutate({
+                keys: bulk.text,
+                provider: bulk.provider,
+                labelPrefix: bulk.labelPrefix || undefined,
+                creditLimit: bulk.creditLimit ? Number(bulk.creditLimit) : null,
+              })}
+              disabled={bulk.text.trim().length < 8 || bulkMutation.isPending}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-[12px] font-bold disabled:opacity-40 hover:bg-primary/90 transition-colors"
+            >
+              <Layers size={12} /> {bulkMutation.isPending ? "Importing..." : "Import Keys"}
+            </button>
+            <button onClick={() => { setShowBulk(false); setBulkResult(null); }} className="px-4 py-2 rounded-xl text-[12px] font-bold text-white/30 hover:text-white hover:bg-white/5 transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add Key Form */}
       {showAdd && (

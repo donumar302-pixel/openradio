@@ -41,6 +41,68 @@ router.post("/keys", async (req, res) => {
   });
 });
 
+router.post("/keys/bulk", async (req, res) => {
+  const { keys, provider, creditLimit, labelPrefix } = req.body as {
+    keys?: string;
+    provider?: string;
+    creditLimit?: number | null;
+    labelPrefix?: string;
+  };
+  if (!keys || typeof keys !== "string") {
+    res.status(400).json({ error: "keys text required" });
+    return;
+  }
+
+  const prefix = (labelPrefix && labelPrefix.trim()) || "Key";
+  const parsed: { label: string; key: string }[] = [];
+  const seen = new Set<string>();
+  let idx = 0;
+
+  for (const raw of keys.split(/[\r\n]+/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const parts = line.split(/[,\t]/).map((s) => s.trim()).filter(Boolean);
+    let label: string | undefined;
+    let key: string;
+    if (parts.length >= 2) {
+      label = parts[0];
+      key = parts.slice(1).join("");
+    } else {
+      key = line;
+    }
+    if (!key || key.length < 8) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    idx++;
+    parsed.push({ label: label || `${prefix} ${idx}`, key });
+  }
+
+  if (parsed.length === 0) {
+    res.status(400).json({ error: "No valid keys found" });
+    return;
+  }
+
+  const existing = await db.select({ key: apiKeysTable.key }).from(apiKeysTable);
+  const existingSet = new Set(existing.map((e) => e.key));
+  const toInsert = parsed.filter((p) => !existingSet.has(p.key));
+  const skippedDuplicates = parsed.length - toInsert.length;
+
+  let inserted = 0;
+  const CHUNK = 200;
+  for (let i = 0; i < toInsert.length; i += CHUNK) {
+    const chunk = toInsert.slice(i, i + CHUNK).map((p) => ({
+      label: p.label,
+      key: p.key,
+      provider: provider || "elevenlabs",
+      creditLimit: creditLimit ?? null,
+    }));
+    const r = await db.insert(apiKeysTable).values(chunk).returning({ id: apiKeysTable.id });
+    inserted += r.length;
+  }
+
+  res.status(201).json({ inserted, skippedDuplicates, totalParsed: parsed.length });
+});
+
 router.patch("/keys/:id", async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
