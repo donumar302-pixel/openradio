@@ -16,6 +16,8 @@ import AdminAnalytics from "@/pages/admin/analytics";
 import AdminOrders from "@/pages/admin/orders";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
+import LandingPage from "@/pages/landing";
+import PricingPage from "@/pages/pricing";
 import SpeechToSpeechPage from "@/pages/speech-to-speech";
 import SpeechToTextPage from "@/pages/speech-to-text";
 import AudioIsolationPage from "@/pages/audio-isolation";
@@ -69,9 +71,11 @@ function AppRoutes() {
   if (!isAuthenticated) {
     return (
       <Switch>
+        <Route path="/" component={LandingPage} />
+        <Route path="/pricing" component={PricingPage} />
         <Route path="/login" component={LoginPage} />
         <Route path="/register" component={RegisterPage} />
-        <Route><Redirect to="/login" /></Route>
+        <Route><Redirect to="/" /></Route>
       </Switch>
     );
   }
