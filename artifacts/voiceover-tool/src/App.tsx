@@ -18,6 +18,7 @@ import SettingsPage from "@/pages/settings";
 import BillingPage from "@/pages/billing";
 import MinimaxTtsPage from "@/pages/minimax-tts";
 import VoiceCloningPage from "@/pages/voice-cloning";
+import VoiceLibraryPage from "@/pages/voices";
 import { SidebarLayout } from "@/components/sidebar-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
@@ -68,6 +69,7 @@ function AppRoutes() {
         <Route path="/billing" component={BillingPage} />
         <Route path="/minimax" component={MinimaxTtsPage} />
         <Route path="/voice-cloning" component={VoiceCloningPage} />
+        <Route path="/voices" component={VoiceLibraryPage} />
         <Route path="/admin" component={AdminDashboard} />
         <Route path="/admin/keys/new" component={AdminKeysNew} />
         <Route path="/login"><Redirect to="/" /></Route>
