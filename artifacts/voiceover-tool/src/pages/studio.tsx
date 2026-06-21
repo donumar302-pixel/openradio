@@ -6,11 +6,13 @@ import {
   useListGenerations,
   getListGenerationsQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Play, Download, PlayCircle, StopCircle, Mic2, History, Settings2, ChevronRight, RotateCcw, Smile, PauseCircle, Tag, Upload } from "lucide-react";
+import { Loader2, Play, Download, PlayCircle, StopCircle, Mic2, History, Settings2, ChevronRight, RotateCcw, Smile, PauseCircle, Tag, Upload, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+
+interface MiniMaxVoice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; }
 
 const MODELS = [
   { id: "eleven_multilingual_v2", label: "Multilingual v2", badge: "Best" },
@@ -66,6 +68,7 @@ export default function StudioPage() {
 
   const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState("");
+  const [voiceProvider, setVoiceProvider] = useState<"el" | "minimax">("el");
   const [modelId, setModelId] = useState("eleven_multilingual_v2");
   const [stability, setStability] = useState(0.5);
   const [similarityBoost, setSimilarityBoost] = useState(0.75);
@@ -77,14 +80,25 @@ export default function StudioPage() {
     query: { queryKey: getListVoicesQueryKey() },
   });
 
+  const { data: mmVoiceData } = useQuery<{ builtin: MiniMaxVoice[]; clones: MiniMaxVoice[] }>({
+    queryKey: ["minimax-voices"],
+    queryFn: () => fetch("/api/minimax/voices").then(r => r.json()),
+    staleTime: 60_000,
+  });
+  const mmVoices: MiniMaxVoice[] = [
+    ...(mmVoiceData?.clones ?? []).map(c => ({ ...c, isClone: true })),
+    ...(mmVoiceData?.builtin ?? []),
+  ];
+
   const { data: history, isLoading: loadingHistory } = useListGenerations(
     { limit: 20 },
     { query: { queryKey: getListGenerationsQueryKey({ limit: 20 }) } }
   );
 
   const generateSpeech = useGenerateSpeech();
+  const [mmGenerating, setMmGenerating] = useState(false);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!text.trim()) {
       toast({ title: "Text required", description: "Please enter some text.", variant: "destructive" });
       return;
@@ -93,6 +107,33 @@ export default function StudioPage() {
       toast({ title: "Voice required", description: "Please select a voice.", variant: "destructive" });
       return;
     }
+
+    // MiniMax path
+    if (voiceProvider === "minimax") {
+      setMmGenerating(true);
+      setLatestAudio(null);
+      try {
+        const res = await fetch("/api/minimax/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, voiceId, model: "speech-02-hd", speed, volume: 1, pitch: 0 }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error((err as any).error || "Generation failed");
+        }
+        const blob = await res.blob();
+        setLatestAudio(URL.createObjectURL(blob));
+        toast({ title: "Generated!", description: "Your audio is ready." });
+      } catch (e: any) {
+        toast({ title: "Generation failed", description: e.message, variant: "destructive" });
+      } finally {
+        setMmGenerating(false);
+      }
+      return;
+    }
+
+    // ElevenLabs path
     generateSpeech.mutate(
       { data: { text, voiceId, stability, similarityBoost, modelId } },
       {
@@ -107,6 +148,8 @@ export default function StudioPage() {
     );
   };
 
+  const isGenerating = generateSpeech.isPending || mmGenerating;
+
   const voicesByCategory = voices?.reduce((acc, voice) => {
     const cat = voice.category || "Other";
     if (!acc[cat]) acc[cat] = [];
@@ -114,8 +157,24 @@ export default function StudioPage() {
     return acc;
   }, {} as Record<string, typeof voices>);
 
-  const selectedVoice = voices?.find((v) => v.voiceId === voiceId);
+  // MiniMax voices grouped by language
+  const mmByLang = mmVoices.reduce((acc, v) => {
+    const g = v.isClone ? "My Clones" : (v.lang ?? "Other");
+    if (!acc[g]) acc[g] = [];
+    acc[g].push(v);
+    return acc;
+  }, {} as Record<string, MiniMaxVoice[]>);
+
+  const selectedElVoice = voices?.find((v) => v.voiceId === voiceId);
+  const selectedMmVoice = mmVoices.find((v) => v.id === voiceId);
   const selectedModel = MODELS.find((m) => m.id === modelId);
+
+  const handleVoiceSelect = (id: string) => {
+    setVoiceId(id);
+    // Determine provider from which list the voice belongs to
+    const isMm = mmVoices.some(v => v.id === id);
+    setVoiceProvider(isMm ? "minimax" : "el");
+  };
 
   const resetSettings = () => {
     setStability(0.5);
