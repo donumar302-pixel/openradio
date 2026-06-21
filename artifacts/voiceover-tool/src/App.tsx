@@ -8,6 +8,11 @@ import Home from "@/pages/home";
 import StudioPage from "@/pages/studio";
 import AdminDashboard from "@/pages/admin/index";
 import AdminKeysNew from "@/pages/admin/keys/new";
+import AdminUsers from "@/pages/admin/users";
+import AdminKeys from "@/pages/admin/keys";
+import AdminGenerations from "@/pages/admin/generations";
+import AdminClones from "@/pages/admin/clones";
+import AdminAnalytics from "@/pages/admin/analytics";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import SpeechToSpeechPage from "@/pages/speech-to-speech";
@@ -20,16 +25,13 @@ import MinimaxTtsPage from "@/pages/minimax-tts";
 import VoiceCloningPage from "@/pages/voice-cloning";
 import VoiceLibraryPage from "@/pages/voices";
 import { SidebarLayout } from "@/components/sidebar-layout";
+import { AdminLayout } from "@/components/admin-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: {
-      retry: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    },
+    queries: { retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false },
   },
 });
 
@@ -49,34 +51,50 @@ function AppRoutes() {
       <Switch>
         <Route path="/login" component={LoginPage} />
         <Route path="/register" component={RegisterPage} />
-        <Route>
-          <Redirect to="/login" />
-        </Route>
+        <Route><Redirect to="/login" /></Route>
       </Switch>
     );
   }
 
   return (
-    <SidebarLayout>
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/studio" component={StudioPage} />
-        <Route path="/speech-to-speech" component={SpeechToSpeechPage} />
-        <Route path="/speech-to-text" component={SpeechToTextPage} />
-        <Route path="/audio-isolation" component={AudioIsolationPage} />
-        <Route path="/dubbing" component={DubbingPage} />
-        <Route path="/settings" component={SettingsPage} />
-        <Route path="/billing" component={BillingPage} />
-        <Route path="/minimax" component={MinimaxTtsPage} />
-        <Route path="/voice-cloning" component={VoiceCloningPage} />
-        <Route path="/voices" component={VoiceLibraryPage} />
-        <Route path="/admin" component={AdminDashboard} />
-        <Route path="/admin/keys/new" component={AdminKeysNew} />
-        <Route path="/login"><Redirect to="/" /></Route>
-        <Route path="/register"><Redirect to="/" /></Route>
-        <Route component={NotFound} />
-      </Switch>
-    </SidebarLayout>
+    <Switch>
+      {/* ── Admin routes — own dark layout ── */}
+      <Route path="/admin">
+        <AdminLayout>
+          <Switch>
+            <Route path="/admin" component={AdminDashboard} />
+            <Route path="/admin/users" component={AdminUsers} />
+            <Route path="/admin/keys" component={AdminKeys} />
+            <Route path="/admin/keys/new" component={AdminKeysNew} />
+            <Route path="/admin/generations" component={AdminGenerations} />
+            <Route path="/admin/clones" component={AdminClones} />
+            <Route path="/admin/analytics" component={AdminAnalytics} />
+          </Switch>
+        </AdminLayout>
+      </Route>
+
+      {/* ── App routes — sidebar layout ── */}
+      <Route>
+        <SidebarLayout>
+          <Switch>
+            <Route path="/" component={Home} />
+            <Route path="/studio" component={StudioPage} />
+            <Route path="/speech-to-speech" component={SpeechToSpeechPage} />
+            <Route path="/speech-to-text" component={SpeechToTextPage} />
+            <Route path="/audio-isolation" component={AudioIsolationPage} />
+            <Route path="/dubbing" component={DubbingPage} />
+            <Route path="/settings" component={SettingsPage} />
+            <Route path="/billing" component={BillingPage} />
+            <Route path="/minimax" component={MinimaxTtsPage} />
+            <Route path="/voice-cloning" component={VoiceCloningPage} />
+            <Route path="/voices" component={VoiceLibraryPage} />
+            <Route path="/login"><Redirect to="/" /></Route>
+            <Route path="/register"><Redirect to="/" /></Route>
+            <Route component={NotFound} />
+          </Switch>
+        </SidebarLayout>
+      </Route>
+    </Switch>
   );
 }
 
