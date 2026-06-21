@@ -9,7 +9,7 @@ import { Loader2 } from "lucide-react";
 
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
-  const { registerMutation } = useAuth();
+  const { register, registerPending } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,8 +18,8 @@ export default function RegisterPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    registerMutation.mutate(
-      { data: { name, email, password } },
+    register(
+      { name, email, password },
       {
         onSuccess: () => setLocation("/"),
         onError: (err: any) => setError(err?.error || "Registration failed. Please try again."),
@@ -30,7 +30,6 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="flex items-center justify-center gap-2.5 mb-8">
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
             <span className="text-white font-bold text-xl leading-none">B</span>
@@ -98,10 +97,10 @@ export default function RegisterPage() {
               <Button
                 type="submit"
                 className="w-full bg-primary hover:bg-primary/90 font-bold shadow-md shadow-primary/20"
-                disabled={registerMutation.isPending}
+                disabled={registerPending}
                 data-testid="btn-register"
               >
-                {registerMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating account...</> : "Create Account"}
+                {registerPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating account...</> : "Create Account"}
               </Button>
               <p className="text-sm text-muted-foreground text-center">
                 Already have an account?{" "}

@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Mic2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
-  const { loginMutation } = useAuth();
+  const { login, loginPending } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -17,8 +17,8 @@ export default function LoginPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    loginMutation.mutate(
-      { data: { email, password } },
+    login(
+      { email, password },
       {
         onSuccess: () => setLocation("/"),
         onError: (err: any) => setError(err?.error || "Invalid email or password"),
@@ -29,7 +29,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="flex items-center justify-center gap-2.5 mb-8">
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
             <span className="text-white font-bold text-xl leading-none">B</span>
@@ -83,10 +82,10 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 className="w-full bg-primary hover:bg-primary/90 font-bold shadow-md shadow-primary/20"
-                disabled={loginMutation.isPending}
+                disabled={loginPending}
                 data-testid="btn-login"
               >
-                {loginMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing in...</> : "Sign In"}
+                {loginPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing in...</> : "Sign In"}
               </Button>
               <p className="text-sm text-muted-foreground text-center">
                 Don't have an account?{" "}

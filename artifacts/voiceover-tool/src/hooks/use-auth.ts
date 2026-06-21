@@ -1,12 +1,12 @@
-import { useGetMe, useLogin, useRegister, useLogout, getGetMeQueryOptions } from "@workspace/api-client-react";
+import { useGetMe, useLogin, useRegister, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 export function useAuth() {
   const queryClient = useQueryClient();
+  const getMeKey = getGetMeQueryKey();
 
   const { data: user, isLoading, isError } = useGetMe({
     query: {
-      ...getGetMeQueryOptions(),
       retry: false,
       retryOnMount: false,
       refetchOnWindowFocus: false,
@@ -15,9 +15,41 @@ export function useAuth() {
     },
   });
 
-  const loginMutation = useLogin();
-  const registerMutation = useRegister();
+  const loginMutationRaw = useLogin();
+  const registerMutationRaw = useRegister();
   const logoutMutation = useLogout();
+
+  const login = (
+    data: { email: string; password: string },
+    callbacks?: { onSuccess?: () => void; onError?: (err: any) => void }
+  ) => {
+    loginMutationRaw.mutate(
+      { data },
+      {
+        onSuccess: (userData) => {
+          queryClient.setQueryData(getMeKey, userData);
+          callbacks?.onSuccess?.();
+        },
+        onError: callbacks?.onError,
+      }
+    );
+  };
+
+  const register = (
+    data: { name: string; email: string; password: string },
+    callbacks?: { onSuccess?: () => void; onError?: (err: any) => void }
+  ) => {
+    registerMutationRaw.mutate(
+      { data },
+      {
+        onSuccess: (userData) => {
+          queryClient.setQueryData(getMeKey, userData);
+          callbacks?.onSuccess?.();
+        },
+        onError: callbacks?.onError,
+      }
+    );
+  };
 
   const logout = () => {
     logoutMutation.mutate(undefined, {
@@ -32,8 +64,10 @@ export function useAuth() {
     user: user ?? null,
     isLoading,
     isAuthenticated: !!user && !isError,
-    loginMutation,
-    registerMutation,
+    login,
+    register,
+    loginPending: loginMutationRaw.isPending,
+    registerPending: registerMutationRaw.isPending,
     logout,
   };
 }
