@@ -103,23 +103,8 @@ export default function StudioPage() {
   return (
     <div className="h-[calc(100vh-0px)] flex flex-col bg-[#fafafa]">
       {/* Top bar */}
-      <div className="flex items-center gap-4 px-6 py-3 bg-white border-b border-border shrink-0">
+      <div className="flex items-center px-6 py-3 bg-white border-b border-border shrink-0">
         <h1 className="text-lg font-extrabold text-foreground">Speech Synthesis</h1>
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-sm text-muted-foreground">Model</span>
-          <Select value={modelId} onValueChange={setModelId}>
-            <SelectTrigger className="h-8 text-sm border-border w-52">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MODELS.map((m) => (
-                <SelectItem key={m.id} value={m.id} className="text-sm">
-                  {m.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
       {/* Main area */}
@@ -206,6 +191,23 @@ export default function StudioPage() {
           {/* Settings tab */}
           {rightTab === "settings" && (
             <div className="flex-1 overflow-y-auto">
+              {/* Model selector */}
+              <div className="p-4 border-b border-border space-y-2">
+                <span className="text-sm font-semibold text-foreground">Model</span>
+                <Select value={modelId} onValueChange={setModelId}>
+                  <SelectTrigger className="border-border text-sm h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MODELS.map((m) => (
+                      <SelectItem key={m.id} value={m.id} className="text-sm">
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Voice selector */}
               <div className="p-4 border-b border-border space-y-3">
                 <div className="flex items-center justify-between">
@@ -213,16 +215,16 @@ export default function StudioPage() {
                 </div>
 
                 <Select value={voiceId} onValueChange={setVoiceId} disabled={loadingVoices}>
-                  <SelectTrigger className="border-border text-sm" data-testid="select-voice">
-                    <SelectValue placeholder={loadingVoices ? "Loading..." : "Choose a voice"} />
+                  <SelectTrigger className="border-border text-sm h-11" data-testid="select-voice">
+                    <SelectValue placeholder={loadingVoices ? "Loading voices..." : "Choose a voice"} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-72">
                     {voicesByCategory &&
                       Object.entries(voicesByCategory).map(([cat, items]) => (
                         <SelectGroup key={cat}>
                           <SelectLabel className="text-primary/70 text-xs">{cat}</SelectLabel>
                           {items.map((v) => (
-                            <SelectItem key={v.voiceId} value={v.voiceId} className="text-sm">
+                            <SelectItem key={v.voiceId} value={v.voiceId} className="text-sm py-2">
                               {v.name}
                             </SelectItem>
                           ))}

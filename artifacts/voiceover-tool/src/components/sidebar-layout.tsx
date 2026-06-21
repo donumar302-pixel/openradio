@@ -132,18 +132,6 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
           <p className="px-3 text-xs text-[#9ca3af] font-medium">Manage</p>
         </div>
 
-        <Link href="/admin">
-          <div className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors select-none",
-            isAdmin
-              ? "bg-[#f3f4f6] text-foreground font-medium"
-              : "text-[#6b7280] hover:bg-[#f9fafb] hover:text-foreground font-normal"
-          )}>
-            <LayoutDashboard size={16} className={cn("shrink-0", isAdmin ? "text-foreground" : "text-[#9ca3af]")} />
-            <span>Admin Panel</span>
-          </div>
-        </Link>
-
         <Link href="/settings">
           <div className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors select-none",
