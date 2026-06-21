@@ -243,6 +243,8 @@ export default function LandingPage() {
                       <button
                         key={v.id}
                         onClick={() => toggleVoice(v)}
+                        aria-pressed={isPlaying}
+                        aria-label={(isPlaying ? "Pause " : "Play ") + v.name + " sample"}
                         className={
                           "w-full flex items-center gap-3 p-3 rounded-2xl border text-left transition-all " +
                           (isPlaying
