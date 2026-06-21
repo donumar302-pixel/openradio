@@ -1,1 +1,2 @@
 - [Session cookies & connect-pg-simple](session-cookies.md) — refresh-logout bug: session table never created under esbuild bundle + missing `trust proxy` for secure cookies.
+- [Credit enforcement & admin elevation](credit-enforcement.md) — charge TTS credits via atomic reserve-before-provider + refund-on-failure (never check-then-deduct); admins bypass; admin-by-email allowlist is an unverified security gap.

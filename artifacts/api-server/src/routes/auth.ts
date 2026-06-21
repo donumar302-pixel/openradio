@@ -5,6 +5,7 @@ import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { RegisterBody, LoginBody } from "@workspace/api-zod";
 import { isAdminEmail } from "../lib/admin";
+import { planCredits } from "../lib/plans";
 
 const router = Router();
 
@@ -24,7 +25,7 @@ router.post("/register", async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const [user] = await db.insert(usersTable).values({ name, email: email.toLowerCase(), passwordHash }).returning();
+  const [user] = await db.insert(usersTable).values({ name, email: email.toLowerCase(), passwordHash, credits: planCredits("free") }).returning();
 
   req.session.userId = user.id;
 
@@ -93,6 +94,11 @@ router.get("/me", async (req, res) => {
     name: user.name,
     email: user.email,
     isAdmin: user.isAdmin || isAdminEmail(user.email),
+    plan: user.plan,
+    credits: user.credits,
+    creditsUsed: user.creditsUsed,
+    planExpiresAt: user.planExpiresAt?.toISOString() ?? null,
+    status: user.status,
     createdAt: user.createdAt.toISOString(),
   });
 });

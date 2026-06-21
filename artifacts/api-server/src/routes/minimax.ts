@@ -1,11 +1,28 @@
 import { Router } from "express";
 import multer from "multer";
 import { db } from "@workspace/db";
-import { apiKeysTable, voiceClonesTable } from "@workspace/db";
-import { eq, asc, and } from "drizzle-orm";
+import { apiKeysTable, voiceClonesTable, usersTable } from "@workspace/db";
+import { eq, asc, and, sql, gte } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { requireActiveUser, isUserAdmin } from "../middleware/require-active-user";
 
 const router = Router();
+
+async function reserveCredits(userId: number, amount: number): Promise<boolean> {
+  const rows = await db.update(usersTable).set({
+    credits: sql`${usersTable.credits} - ${amount}`,
+    creditsUsed: sql`${usersTable.creditsUsed} + ${amount}`,
+  }).where(and(eq(usersTable.id, userId), gte(usersTable.credits, amount)))
+    .returning({ id: usersTable.id });
+  return rows.length > 0;
+}
+
+async function refundCredits(userId: number, amount: number) {
+  await db.update(usersTable).set({
+    credits: sql`${usersTable.credits} + ${amount}`,
+    creditsUsed: sql`GREATEST(0, ${usersTable.creditsUsed} - ${amount})`,
+  }).where(eq(usersTable.id, userId));
+}
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 const MINIMAX_BASE = "https://api.minimaxi.chat/v1";
@@ -95,7 +112,7 @@ router.get("/voices", async (req, res) => {
 });
 
 /* ── POST /tts ────────────────────────────────────────────────────────── */
-router.post("/tts", async (req, res) => {
+router.post("/tts", requireActiveUser, async (req, res) => {
   const { text, voiceId, model = "speech-02-hd", speed = 1, volume = 1, pitch = 0 } = req.body;
 
   if (!text || !voiceId) {
@@ -103,9 +120,17 @@ router.post("/tts", async (req, res) => {
     return;
   }
 
+  const user = req.appUser!;
+  const admin = isUserAdmin(user);
+
   const creds = await getMinimaxCreds();
   if (!creds) {
     res.status(503).json({ error: "No active MiniMax API key configured. Add MINIMAX_API_KEY + MINIMAX_GROUP_ID in Secrets." });
+    return;
+  }
+
+  if (!admin && !(await reserveCredits(user.id, text.length))) {
+    res.status(402).json({ error: `Not enough credits. This needs ${text.length} credits but you have ${user.credits}.` });
     return;
   }
 
@@ -136,6 +161,7 @@ router.post("/tts", async (req, res) => {
 
     const data = await response.json() as any;
     if (data?.base_resp?.status_code !== 0) {
+      if (!admin) await refundCredits(user.id, text.length);
       res.status(502).json({ error: data?.base_resp?.status_msg || "MiniMax error" });
       return;
     }
@@ -143,6 +169,7 @@ router.post("/tts", async (req, res) => {
     // Decode hex audio
     const hexAudio: string = data?.data?.audio ?? "";
     if (!hexAudio) {
+      if (!admin) await refundCredits(user.id, text.length);
       res.status(502).json({ error: "No audio data returned from MiniMax" });
       return;
     }
@@ -153,6 +180,7 @@ router.post("/tts", async (req, res) => {
     res.set({ "Content-Type": "audio/mpeg", "Content-Disposition": "attachment; filename=minimax-tts.mp3" });
     res.send(audioBuffer);
   } catch (e: any) {
+    if (!admin) await refundCredits(user.id, text.length);
     logger.error({ err: e }, "MiniMax TTS error");
     res.status(500).json({ error: e.message });
   }

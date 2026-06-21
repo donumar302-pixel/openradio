@@ -1,13 +1,14 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { apiKeysTable, generationsTable, usersTable, voiceClonesTable, ordersTable } from "@workspace/db";
-import { eq, count, sum, desc, and } from "drizzle-orm";
+import { eq, count, sum, desc, and, sql } from "drizzle-orm";
 import {
   CreateApiKeyBody,
   UpdateApiKeyBody,
   UpdateApiKeyParams,
   DeleteApiKeyParams,
 } from "@workspace/api-zod";
+import { planCredits, addDays, PLAN_DURATION_DAYS } from "../lib/plans";
 
 const router = Router();
 
@@ -167,31 +168,106 @@ router.get("/stats", async (req, res) => {
 });
 
 /* ── Users CRUD ─────────────────────────────────────────────────────── */
+function serializeUser(u: any) {
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    plan: u.plan,
+    credits: u.credits,
+    creditsUsed: u.creditsUsed,
+    planExpiresAt: u.planExpiresAt ? u.planExpiresAt.toISOString() : null,
+    status: u.status,
+    isAdmin: u.isAdmin,
+    createdAt: u.createdAt.toISOString(),
+  };
+}
+
 router.get("/users", async (req, res) => {
-  const users = await db.select({
-    id: usersTable.id,
-    name: usersTable.name,
-    email: usersTable.email,
-    plan: usersTable.plan,
-    createdAt: usersTable.createdAt,
-  }).from(usersTable).orderBy(desc(usersTable.createdAt));
-  res.json(users.map(u => ({ ...u, createdAt: u.createdAt.toISOString() })));
+  const users = await db.select().from(usersTable).orderBy(desc(usersTable.createdAt));
+
+  const stats = await db.select({
+    userId: generationsTable.userId,
+    genCount: count(),
+    chars: sum(generationsTable.characterCount),
+  }).from(generationsTable).groupBy(generationsTable.userId);
+
+  const statMap: Record<number, { genCount: number; chars: number }> = {};
+  for (const s of stats) {
+    if (s.userId != null) statMap[s.userId] = { genCount: Number(s.genCount), chars: Number(s.chars ?? 0) };
+  }
+
+  res.json(users.map(u => ({
+    ...serializeUser(u),
+    generationCount: statMap[u.id]?.genCount ?? 0,
+    charactersUsed: statMap[u.id]?.chars ?? 0,
+  })));
 });
 
 router.patch("/users/:id", async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  const { name, plan } = req.body;
+
+  const [current] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  if (!current) { res.status(404).json({ error: "User not found" }); return; }
+
+  const { name, plan, status, credits, creditsDelta, extendDays, planExpiresAt, applyPlanCredits } = req.body;
   const updates: Record<string, any> = {};
+
   if (name !== undefined) updates.name = name;
   if (plan !== undefined) updates.plan = plan;
-  const [updated] = await db.update(usersTable).set(updates)
-    .where(eq(usersTable.id, id)).returning({
-      id: usersTable.id, name: usersTable.name, email: usersTable.email,
-      plan: usersTable.plan, createdAt: usersTable.createdAt,
-    });
-  if (!updated) { res.status(404).json({ error: "User not found" }); return; }
-  res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+  if (status !== undefined) {
+    if (status !== "active" && status !== "blocked") { res.status(400).json({ error: "status must be 'active' or 'blocked'" }); return; }
+    updates.status = status;
+  }
+
+  // Absolute credit set
+  if (credits !== undefined) {
+    const n = Number(credits);
+    if (!Number.isFinite(n) || n < 0) { res.status(400).json({ error: "credits must be a non-negative number" }); return; }
+    updates.credits = Math.floor(n);
+  }
+
+  // Relative credit add (+) / deduct (-).
+  if (creditsDelta !== undefined) {
+    const d = Number(creditsDelta);
+    if (!Number.isFinite(d)) { res.status(400).json({ error: "creditsDelta must be a number" }); return; }
+    if (updates.credits !== undefined) {
+      // Combined with an absolute set in the same request — apply on top of it.
+      updates.credits = Math.max(0, Number(updates.credits) + Math.floor(d));
+    } else {
+      // Atomic relative adjustment so concurrent admin actions don't lose updates.
+      updates.credits = sql`GREATEST(0, ${usersTable.credits} + ${Math.floor(d)})`;
+    }
+  }
+
+  // Grant the credits + 30d expiry that belong to a plan
+  if (applyPlanCredits) {
+    const targetPlan = (updates.plan ?? current.plan) as string;
+    updates.plan = targetPlan;
+    updates.credits = planCredits(targetPlan);
+    updates.planExpiresAt = addDays(new Date(), PLAN_DURATION_DAYS);
+  }
+
+  // Extend expiry by N days (from the later of now / current expiry)
+  if (extendDays !== undefined) {
+    const days = Number(extendDays);
+    if (!Number.isFinite(days)) { res.status(400).json({ error: "extendDays must be a number" }); return; }
+    const start = current.planExpiresAt && current.planExpiresAt.getTime() > Date.now()
+      ? current.planExpiresAt
+      : new Date();
+    updates.planExpiresAt = addDays(start, days);
+  }
+
+  // Explicit expiry set / clear
+  if (planExpiresAt !== undefined) {
+    updates.planExpiresAt = planExpiresAt ? new Date(planExpiresAt) : null;
+  }
+
+  if (Object.keys(updates).length === 0) { res.json(serializeUser(current)); return; }
+
+  const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, id)).returning();
+  res.json(serializeUser(updated));
 });
 
 router.delete("/users/:id", async (req, res) => {
@@ -250,7 +326,12 @@ router.patch("/orders/:id", async (req, res) => {
   if (status === "approved") {
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
     if (order) {
-      await db.update(usersTable).set({ plan: order.plan }).where(eq(usersTable.id, order.userId));
+      await db.update(usersTable).set({
+        plan: order.plan,
+        credits: planCredits(order.plan),
+        planExpiresAt: addDays(new Date(), PLAN_DURATION_DAYS),
+        status: "active",
+      }).where(eq(usersTable.id, order.userId));
     }
   }
 

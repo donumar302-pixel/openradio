@@ -1,14 +1,35 @@
 import { Router } from "express";
 import multer from "multer";
 import { db } from "@workspace/db";
-import { apiKeysTable, generationsTable } from "@workspace/db";
-import { eq, asc } from "drizzle-orm";
+import { apiKeysTable, generationsTable, usersTable } from "@workspace/db";
+import { eq, asc, sql, and, gte } from "drizzle-orm";
 import path from "path";
 import fs from "fs/promises";
 import { logger } from "../lib/logger";
 import { GenerateSpeechBody } from "@workspace/api-zod";
+import { requireActiveUser, isUserAdmin } from "../middleware/require-active-user";
 
 const router = Router();
+
+router.use(requireActiveUser);
+
+// Atomically reserve credits before calling the provider so concurrent
+// requests can never overspend. Returns false if the balance is insufficient.
+async function reserveCredits(userId: number, amount: number): Promise<boolean> {
+  const rows = await db.update(usersTable).set({
+    credits: sql`${usersTable.credits} - ${amount}`,
+    creditsUsed: sql`${usersTable.creditsUsed} + ${amount}`,
+  }).where(and(eq(usersTable.id, userId), gte(usersTable.credits, amount)))
+    .returning({ id: usersTable.id });
+  return rows.length > 0;
+}
+
+async function refundCredits(userId: number, amount: number) {
+  await db.update(usersTable).set({
+    credits: sql`${usersTable.credits} + ${amount}`,
+    creditsUsed: sql`GREATEST(0, ${usersTable.creditsUsed} - ${amount})`,
+  }).where(eq(usersTable.id, userId));
+}
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
 const workspaceRoot = process.cwd().endsWith(path.join("artifacts", "api-server"))
@@ -44,8 +65,17 @@ router.post("/", async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: "Invalid request body" }); return; }
 
   const { text, voiceId, stability, similarityBoost, modelId } = parsed.data;
+
+  const user = req.appUser!;
+  const admin = isUserAdmin(user);
+
   const apiKey = await getNextActiveKey();
   if (!apiKey) { noKey(res); return; }
+
+  if (!admin && !(await reserveCredits(user.id, text.length))) {
+    res.status(402).json({ error: `Not enough credits. This needs ${text.length} credits but you have ${user.credits}.` });
+    return;
+  }
 
   const model = modelId ?? "eleven_multilingual_v2";
   try {
@@ -55,6 +85,7 @@ router.post("/", async (req, res) => {
       body: JSON.stringify({ text, model_id: model, voice_settings: { stability: stability ?? 0.5, similarity_boost: similarityBoost ?? 0.75 } }),
     });
     if (!response.ok) {
+      if (!admin) await refundCredits(user.id, text.length);
       logger.warn({ status: response.status }, "ElevenLabs TTS failed");
       res.status(502).json({ error: "ElevenLabs API error. Please check your API key." });
       return;
@@ -65,10 +96,11 @@ router.post("/", async (req, res) => {
     await fs.writeFile(path.join(audioDir, filename), Buffer.from(audioBuffer));
     const audioUrl = `/api/audio/${filename}`;
     const voiceName = req.body.voiceName ?? voiceId;
-    const [gen] = await db.insert(generationsTable).values({ text, voiceId, voiceName, characterCount: text.length, audioUrl, modelId: model, apiKeyId: apiKey.id }).returning();
+    const [gen] = await db.insert(generationsTable).values({ text, voiceId, voiceName, characterCount: text.length, audioUrl, modelId: model, apiKeyId: apiKey.id, userId: user.id }).returning();
     await bumpKeyUsage(apiKey.id, apiKey.usageCount);
     res.json({ generationId: gen.id, audioUrl, characterCount: text.length });
   } catch (err) {
+    if (!admin) await refundCredits(user.id, text.length);
     logger.error({ err }, "TTS generation error");
     res.status(500).json({ error: "Internal server error" });
   }

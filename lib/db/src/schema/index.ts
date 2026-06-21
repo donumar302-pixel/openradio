@@ -17,6 +17,10 @@ export const usersTable = pgTable("users", {
   email: text("email").notNull(),
   passwordHash: text("password_hash").notNull(),
   plan: text("plan").notNull().default("free"),
+  credits: integer("credits").notNull().default(0),
+  creditsUsed: integer("credits_used").notNull().default(0),
+  planExpiresAt: timestamp("plan_expires_at"),
+  status: text("status").notNull().default("active"),
   isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [uniqueIndex("users_email_idx").on(t.email)]);
