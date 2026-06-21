@@ -10,7 +10,12 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 const MINIMAX_BASE = "https://api.minimaxi.chat/v1";
 
-async function getMinimaxKey() {
+async function getMinimaxKey(): Promise<{ id: number; key: string; usageCount: number } | null> {
+  // Prefer env var (set once, works everywhere)
+  if (process.env.MINIMAX_API_KEY) {
+    return { id: 0, key: process.env.MINIMAX_API_KEY, usageCount: 0 };
+  }
+  // Fallback: DB key added via Admin panel
   const keys = await db
     .select()
     .from(apiKeysTable)
@@ -20,6 +25,7 @@ async function getMinimaxKey() {
 }
 
 async function bumpKey(id: number, current: number) {
+  if (id === 0) return; // env-var key — no DB row to update
   await db.update(apiKeysTable)
     .set({ usageCount: current + 1, lastUsedAt: new Date() })
     .where(eq(apiKeysTable.id, id));
