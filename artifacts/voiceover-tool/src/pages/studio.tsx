@@ -76,7 +76,7 @@ export default function StudioPage() {
       {
         onSuccess: (data) => {
           setLatestAudio(data.audioUrl);
-          toast({ title: "Audio Generated!", description: `${data.characterCount} characters processed.`, icon: <CheckCircle2 className="h-4 w-4 text-green-500" /> });
+          toast({ title: "Audio Generated!", description: `${data.characterCount} characters processed.` });
           queryClient.invalidateQueries({ queryKey: getListGenerationsQueryKey({ limit: 8 }) });
         },
         onError: (err: any) => {

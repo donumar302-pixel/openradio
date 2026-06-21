@@ -1,18 +1,27 @@
-import { useGetMe, useLogin, useRegister, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLogin, useRegister, useLogout } from "@workspace/api-client-react";
+
+const AUTH_KEY = ["auth", "me"] as const;
+
+async function fetchMe(): Promise<{ id: number; name: string; email: string; createdAt: string }> {
+  const res = await fetch("/api/auth/me", { credentials: "include" });
+  if (!res.ok) throw new Error("Unauthenticated");
+  return res.json();
+}
 
 export function useAuth() {
   const queryClient = useQueryClient();
-  const getMeKey = getGetMeQueryKey();
 
-  const { data: user, isLoading, isError } = useGetMe({
-    query: {
-      retry: false,
-      retryOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: 1000 * 60 * 5,
-    },
+  const { data: user, isLoading, isError } = useQuery({
+    queryKey: AUTH_KEY,
+    queryFn: fetchMe,
+    retry: false,
+    retryOnMount: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30,
   });
 
   const loginMutationRaw = useLogin();
@@ -27,7 +36,7 @@ export function useAuth() {
       { data },
       {
         onSuccess: (userData) => {
-          queryClient.setQueryData(getMeKey, userData);
+          queryClient.setQueryData(AUTH_KEY, userData);
           callbacks?.onSuccess?.();
         },
         onError: callbacks?.onError,
@@ -43,7 +52,7 @@ export function useAuth() {
       { data },
       {
         onSuccess: (userData) => {
-          queryClient.setQueryData(getMeKey, userData);
+          queryClient.setQueryData(AUTH_KEY, userData);
           callbacks?.onSuccess?.();
         },
         onError: callbacks?.onError,
@@ -54,6 +63,7 @@ export function useAuth() {
   const logout = () => {
     logoutMutation.mutate(undefined, {
       onSuccess: () => {
+        queryClient.setQueryData(AUTH_KEY, null);
         queryClient.clear();
         window.location.href = "/login";
       },
