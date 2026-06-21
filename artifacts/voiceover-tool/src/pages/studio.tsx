@@ -196,7 +196,7 @@ export default function StudioPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-white overflow-hidden">
+    <div className="h-full flex flex-col bg-white overflow-hidden">
       {/* ── Top bar ── */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-[#f3f4f6] shrink-0">
         <h1 className="text-[17px] font-bold text-foreground">Speech Synthesis</h1>

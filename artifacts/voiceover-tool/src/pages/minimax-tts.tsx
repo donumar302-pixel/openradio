@@ -142,7 +142,7 @@ export default function MinimaxTtsPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[#fafafa] overflow-hidden">
+    <div className="h-full flex flex-col bg-[#fafafa] overflow-hidden">
 
       {/* ── Top Header ── */}
       <div className="flex items-center justify-between px-7 py-4 border-b border-[#f0f0f0] bg-white shrink-0">
