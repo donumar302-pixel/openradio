@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Voiceover Tool"
+version = "1.0.0"
+id = "artifacts/voiceover-tool"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21350
+
+[services.development]
+run = "pnpm --filter @workspace/voiceover-tool run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/voiceover-tool", "run", "build" ]
+publicDir = "artifacts/voiceover-tool/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21350"
+BASE_PATH = "/"
