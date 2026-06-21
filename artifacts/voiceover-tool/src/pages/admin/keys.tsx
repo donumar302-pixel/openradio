@@ -197,6 +197,8 @@ export default function AdminKeys() {
 
       {/* Keys table */}
       <div className="bg-[#161b22] border border-white/5 rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto">
+        <div className="min-w-[700px]">
         <div className="grid grid-cols-[1fr_110px_120px_90px_130px_70px] px-5 py-3 border-b border-white/5 text-[10px] font-bold uppercase tracking-widest text-white/20">
           <span>Label / Key</span>
           <span>Provider</span>
@@ -313,6 +315,8 @@ export default function AdminKeys() {
             );
           })
         )}
+        </div>
+        </div>
       </div>
     </div>
   );
