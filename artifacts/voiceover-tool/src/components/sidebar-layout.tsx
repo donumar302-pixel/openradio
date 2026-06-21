@@ -9,49 +9,50 @@ import {
   User,
   Menu,
   X,
-  ChevronDown,
-  ChevronRight,
   AudioWaveform,
   MessageSquareText,
   Languages,
   Radio,
   Settings,
+  BookAudio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface Tool {
+interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
   badge?: string;
 }
 
-const pinnedTools: Tool[] = [
-  { label: "Text to Speech",    href: "/studio",            icon: <Mic2 size={15} />,              badge: "AI" },
-  { label: "Speech to Speech",  href: "/speech-to-speech",  icon: <AudioWaveform size={15} /> },
-  { label: "Speech to Text",    href: "/speech-to-text",    icon: <MessageSquareText size={15} /> },
-  { label: "Audio Isolation",   href: "/audio-isolation",   icon: <Radio size={15} /> },
-  { label: "Dubbing",           href: "/dubbing",           icon: <Languages size={15} />,         badge: "New" },
+const aiGenerationTools: NavItem[] = [
+  { label: "Text to Speech", href: "/studio",           icon: <Mic2 size={16} />,              badge: "New" },
 ];
 
-function SidebarLink({ href, icon, label, badge }: Tool) {
+const aiTools: NavItem[] = [
+  { label: "Speech to Speech", href: "/speech-to-speech", icon: <AudioWaveform size={16} /> },
+  { label: "Speech to Text",   href: "/speech-to-text",   icon: <MessageSquareText size={16} /> },
+  { label: "Audio Isolation",  href: "/audio-isolation",  icon: <Radio size={16} /> },
+  { label: "Dubbing",          href: "/dubbing",          icon: <Languages size={16} />,        badge: "New" },
+];
+
+function NavLink({ href, icon, label, badge }: NavItem) {
   const [location] = useLocation();
   const active = location === href;
   return (
     <Link href={href}>
       <div className={cn(
-        "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all cursor-pointer",
+        "flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors select-none",
         active
-          ? "bg-primary text-white font-semibold"
-          : "text-muted-foreground hover:text-foreground hover:bg-secondary font-medium"
+          ? "bg-[#f3f4f6] text-foreground font-medium"
+          : "text-[#6b7280] hover:bg-[#f9fafb] hover:text-foreground font-normal"
       )}>
-        <span className="shrink-0">{icon}</span>
+        <span className={cn("shrink-0", active ? "text-foreground" : "text-[#9ca3af]")}>{icon}</span>
         <span className="flex-1 truncate">{label}</span>
         {badge && (
-          <span className={cn(
-            "text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0",
-            active ? "bg-white/20 text-white" : "bg-primary/10 text-primary"
-          )}>{badge}</span>
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-primary shrink-0">
+            {badge}
+          </span>
         )}
       </div>
     </Link>
@@ -61,163 +62,160 @@ function SidebarLink({ href, icon, label, badge }: Tool) {
 export function SidebarLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const [location] = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [pinnedOpen, setPinnedOpen] = useState(true);
 
   const isAdmin = location.startsWith("/admin");
-  const isHome  = location === "/";
+  const isSettings = location === "/settings";
+  const isHome = location === "/";
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 py-5 border-b border-border">
-        <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shadow-md shadow-primary/30 shrink-0">
-          <span className="text-white font-bold text-base leading-none">B</span>
-        </div>
-        {!collapsed && (
-          <div className="flex items-baseline gap-0.5 flex-1 min-w-0">
-            <span className="font-extrabold text-base tracking-tight text-foreground">Bunny</span>
-            <span className="font-extrabold text-base tracking-tight text-primary">TTS</span>
+      <div className="px-4 py-5 shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shrink-0">
+            <span className="text-white font-black text-sm leading-none">B</span>
           </div>
-        )}
-        <button
-          className="shrink-0 text-muted-foreground hover:text-foreground transition-colors hidden lg:block"
-          onClick={() => setCollapsed(!collapsed)}
-        >
-          {collapsed ? <ChevronRight size={16} /> : <Menu size={16} />}
-        </button>
+          <div className="flex items-baseline gap-0.5">
+            <span className="font-black text-[15px] tracking-tight text-foreground">Bunny</span>
+            <span className="font-black text-[15px] tracking-tight text-primary">TTS</span>
+          </div>
+        </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
-
+      <nav className="flex-1 px-3 overflow-y-auto space-y-0.5">
         {/* Home */}
         <Link href="/">
           <div className={cn(
-            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer",
-            isHome ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors select-none",
+            isHome
+              ? "bg-[#f3f4f6] text-foreground font-medium"
+              : "text-[#6b7280] hover:bg-[#f9fafb] hover:text-foreground font-normal"
           )}>
-            <Home size={15} className="shrink-0" />
-            {!collapsed && <span>Home</span>}
+            <Home size={16} className={cn("shrink-0", isHome ? "text-foreground" : "text-[#9ca3af]")} />
+            <span>Home</span>
           </div>
         </Link>
 
-        {/* Divider */}
-        <div className="my-3 border-t border-border" />
-
-        {/* Pinned section */}
-        {!collapsed && (
-          <button
-            onClick={() => setPinnedOpen(!pinnedOpen)}
-            className="w-full flex items-center justify-between px-3 py-1 mb-1"
-          >
-            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">Pinned</span>
-            {pinnedOpen ? <ChevronDown size={12} className="text-muted-foreground" /> : <ChevronRight size={12} className="text-muted-foreground" />}
-          </button>
-        )}
-
-        {(pinnedOpen || collapsed) && (
-          <div className="space-y-0.5">
-            {pinnedTools.map((tool) => (
-              <SidebarLink key={tool.href} {...tool} />
-            ))}
+        {/* Voice Library */}
+        <Link href="/studio">
+          <div className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors select-none",
+            location === "/voices"
+              ? "bg-[#f3f4f6] text-foreground font-medium"
+              : "text-[#6b7280] hover:bg-[#f9fafb] hover:text-foreground font-normal"
+          )}>
+            <BookAudio size={16} className="shrink-0 text-[#9ca3af]" />
+            <span>Voice Library</span>
           </div>
-        )}
+        </Link>
 
-        {/* Divider */}
-        <div className="my-3 border-t border-border" />
+        {/* AI Generation */}
+        <div className="pt-4 pb-1">
+          <p className="px-3 text-xs text-[#9ca3af] font-medium">AI Generation</p>
+        </div>
+        {aiGenerationTools.map((item) => (
+          <NavLink key={item.href} {...item} />
+        ))}
+
+        {/* AI Tools */}
+        <div className="pt-4 pb-1">
+          <p className="px-3 text-xs text-[#9ca3af] font-medium">AI Tools</p>
+        </div>
+        {aiTools.map((item) => (
+          <NavLink key={item.href} {...item} />
+        ))}
 
         {/* Manage */}
-        {!collapsed && (
-          <p className="px-3 py-1 mb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
-            Manage
-          </p>
-        )}
+        <div className="pt-4 pb-1">
+          <p className="px-3 text-xs text-[#9ca3af] font-medium">Manage</p>
+        </div>
+
         <Link href="/admin">
           <div className={cn(
-            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer",
-            isAdmin ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors select-none",
+            isAdmin
+              ? "bg-[#f3f4f6] text-foreground font-medium"
+              : "text-[#6b7280] hover:bg-[#f9fafb] hover:text-foreground font-normal"
           )}>
-            <LayoutDashboard size={15} className="shrink-0" />
-            {!collapsed && <span>Admin Panel</span>}
+            <LayoutDashboard size={16} className={cn("shrink-0", isAdmin ? "text-foreground" : "text-[#9ca3af]")} />
+            <span>Admin Panel</span>
           </div>
         </Link>
 
         <Link href="/settings">
           <div className={cn(
-            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer",
-            location === "/settings" ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors select-none",
+            isSettings
+              ? "bg-[#f3f4f6] text-foreground font-medium"
+              : "text-[#6b7280] hover:bg-[#f9fafb] hover:text-foreground font-normal"
           )}>
-            <Settings size={15} className="shrink-0" />
-            {!collapsed && <span>Settings</span>}
+            <Settings size={16} className={cn("shrink-0", isSettings ? "text-foreground" : "text-[#9ca3af]")} />
+            <span>Settings</span>
           </div>
         </Link>
       </nav>
 
-      {/* User */}
-      <div className="border-t border-border p-3 space-y-1">
-        {user && !collapsed && (
-          <div className="flex items-center gap-2 px-2 py-1.5">
-            <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+      {/* Bottom user area */}
+      <div className="p-3 border-t border-[#f3f4f6] shrink-0">
+        {user && (
+          <div className="flex items-center gap-2.5 px-2 py-1.5 mb-1">
+            <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
               <User size={13} className="text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate text-foreground">{user.name}</p>
-              <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+              <p className="text-[13px] font-semibold truncate text-foreground leading-none mb-0.5">{user.name}</p>
+              <p className="text-[11px] text-[#9ca3af] truncate">{user.email}</p>
             </div>
           </div>
         )}
         <button
           onClick={logout}
-          className={cn(
-            "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all",
-            collapsed && "justify-center"
-          )}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-full border border-[#e5e7eb] text-sm text-[#6b7280] hover:text-foreground hover:border-[#d1d5db] transition-colors font-medium"
         >
-          <LogOut size={15} className="shrink-0" />
-          {!collapsed && <span>Sign Out</span>}
+          <LogOut size={14} />
+          Sign Out
         </button>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen flex bg-background text-foreground">
+    <div className="min-h-screen flex bg-white text-foreground">
       {/* Desktop sidebar */}
-      <aside className={cn(
-        "hidden lg:flex flex-col bg-white border-r border-border transition-all duration-200 shrink-0",
-        collapsed ? "w-[56px]" : "w-56"
-      )}>
+      <aside className="hidden lg:flex flex-col bg-white border-r border-[#f3f4f6] w-56 shrink-0">
         <SidebarContent />
       </aside>
 
       {/* Mobile overlay */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div className="w-56 bg-white border-r border-border flex flex-col">
+          <div className="w-56 bg-white border-r border-[#f3f4f6] flex flex-col shadow-xl">
             <SidebarContent />
           </div>
-          <div className="flex-1 bg-black/40" onClick={() => setMobileOpen(false)} />
+          <div className="flex-1 bg-black/30" onClick={() => setMobileOpen(false)} />
         </div>
       )}
 
       {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="lg:hidden flex items-center gap-3 px-4 h-14 border-b border-border bg-white">
-          <button onClick={() => setMobileOpen(true)} className="text-muted-foreground">
+      <div className="flex-1 flex flex-col min-w-0 bg-white">
+        {/* Mobile header */}
+        <header className="lg:hidden flex items-center gap-3 px-4 h-14 border-b border-[#f3f4f6]">
+          <button onClick={() => setMobileOpen(true)} className="text-[#6b7280]">
             <Menu size={20} />
           </button>
           <div className="flex items-baseline gap-0.5">
-            <span className="font-extrabold text-base tracking-tight text-foreground">Bunny</span>
-            <span className="font-extrabold text-base tracking-tight text-primary">TTS</span>
+            <span className="font-black text-[15px] tracking-tight text-foreground">Bunny</span>
+            <span className="font-black text-[15px] tracking-tight text-primary">TTS</span>
           </div>
           {mobileOpen && (
-            <button className="ml-auto" onClick={() => setMobileOpen(false)}>
+            <button className="ml-auto text-[#6b7280]" onClick={() => setMobileOpen(false)}>
               <X size={20} />
             </button>
           )}
         </header>
+
         <main className="flex-1 overflow-auto">
           {children}
         </main>
