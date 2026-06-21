@@ -21,7 +21,7 @@ const tools = [
     borderColor: "hover:border-orange-300",
     badge: "AI",
     name: "Text to Speech",
-    desc: "Apna text type karo aur AI se lifelike awaaz generate karo. 29 zabano mein support, multiple voice styles available.",
+    desc: "Type your script and generate lifelike AI voices instantly. Supports 29 languages with multiple voice styles.",
     cta: "Open Studio",
   },
   {
@@ -33,7 +33,7 @@ const tools = [
     borderColor: "hover:border-violet-300",
     badge: null,
     name: "Speech to Speech",
-    desc: "Apni awaaz record karo ya audio upload karo, AI kisi bhi voice mein convert kar dega — ek click mein.",
+    desc: "Upload any audio file and convert it into a completely different voice using AI — in seconds.",
     cta: "Try Now",
   },
   {
@@ -45,7 +45,7 @@ const tools = [
     borderColor: "hover:border-blue-300",
     badge: null,
     name: "Speech to Text",
-    desc: "Koi bhi audio ya video file upload karo — AI automatically text mein transcribe kar dega, har language mein.",
+    desc: "Upload any audio or video file and get an accurate text transcript automatically, in any language.",
     cta: "Transcribe",
   },
   {
@@ -57,7 +57,7 @@ const tools = [
     borderColor: "hover:border-emerald-300",
     badge: null,
     name: "Audio Isolation",
-    desc: "Background noise, music ya shor hat jata hai — sirf crystal clear awaaz bachti hai. Podcasts aur voiceovers ke liye perfect.",
+    desc: "Remove background noise and music — keep only the crystal clear voice. Perfect for podcasts and voiceovers.",
     cta: "Clean Audio",
   },
   {
@@ -69,7 +69,7 @@ const tools = [
     borderColor: "hover:border-rose-300",
     badge: "New",
     name: "Dubbing",
-    desc: "Koi bhi video ya audio 29+ zabano mein dub karo. Original timing aur emotion bilkul same rehti hai automatically.",
+    desc: "Automatically dub any video or audio into 29+ languages. Original timing and emotion are preserved perfectly.",
     cta: "Start Dubbing",
   },
 ];
@@ -128,7 +128,7 @@ export default function Home() {
       <div className="bg-gradient-to-r from-primary to-orange-400 rounded-2xl p-7 text-white flex flex-col sm:flex-row items-start sm:items-center gap-5">
         <div className="flex-1">
           <h2 className="text-2xl font-black mb-1">Ready to generate?</h2>
-          <p className="text-white/80 text-sm">Text to Speech studio kholo aur apna pehla voiceover banao.</p>
+          <p className="text-white/80 text-sm">Open the Text to Speech studio and create your first voiceover now.</p>
         </div>
         <Link href="/studio">
           <Button className="bg-white text-primary hover:bg-white/90 font-bold shadow-md shrink-0 px-6">
