@@ -10,18 +10,29 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 const MINIMAX_BASE = "https://api.minimaxi.chat/v1";
 
-async function getMinimaxKey(): Promise<{ id: number; key: string; usageCount: number } | null> {
-  // Prefer env var (set once, works everywhere)
-  if (process.env.MINIMAX_API_KEY) {
-    return { id: 0, key: process.env.MINIMAX_API_KEY, usageCount: 0 };
+interface MinimaxCreds { id: number; groupId: string; apiKey: string; usageCount: number; }
+
+async function getMinimaxCreds(): Promise<MinimaxCreds | null> {
+  // Option 1: two separate env vars (recommended)
+  if (process.env.MINIMAX_API_KEY && process.env.MINIMAX_GROUP_ID) {
+    return { id: 0, groupId: process.env.MINIMAX_GROUP_ID, apiKey: process.env.MINIMAX_API_KEY, usageCount: 0 };
   }
-  // Fallback: DB key added via Admin panel
+  // Option 2: combined env var "groupId:apiKey"
+  if (process.env.MINIMAX_API_KEY && process.env.MINIMAX_API_KEY.includes(":")) {
+    const [groupId, ...rest] = process.env.MINIMAX_API_KEY.split(":");
+    return { id: 0, groupId: groupId ?? "", apiKey: rest.join(":"), usageCount: 0 };
+  }
+  // Option 3: DB key added via Admin panel (format: groupId:apiKey)
   const keys = await db
     .select()
     .from(apiKeysTable)
     .where(and(eq(apiKeysTable.provider, "minimax"), eq(apiKeysTable.isActive, true)))
     .orderBy(asc(apiKeysTable.usageCount));
-  return keys[0] ?? null;
+  if (keys[0]) {
+    const [groupId, ...rest] = keys[0].key.split(":");
+    return { id: keys[0].id, groupId: groupId ?? "", apiKey: rest.join(":"), usageCount: keys[0].usageCount };
+  }
+  return null;
 }
 
 async function bumpKey(id: number, current: number) {
@@ -29,12 +40,6 @@ async function bumpKey(id: number, current: number) {
   await db.update(apiKeysTable)
     .set({ usageCount: current + 1, lastUsedAt: new Date() })
     .where(eq(apiKeysTable.id, id));
-}
-
-// key format: "groupId:apiKey"
-function parseKey(raw: string): { groupId: string; apiKey: string } {
-  const [groupId, ...rest] = raw.split(":");
-  return { groupId: groupId ?? "", apiKey: rest.join(":") };
 }
 
 /* ── Built-in voices list ─────────────────────────────────────────────── */
@@ -98,13 +103,13 @@ router.post("/tts", async (req, res) => {
     return;
   }
 
-  const keyRow = await getMinimaxKey();
-  if (!keyRow) {
-    res.status(503).json({ error: "No active MiniMax API key configured. Please add one in Admin → MiniMax Keys." });
+  const creds = await getMinimaxCreds();
+  if (!creds) {
+    res.status(503).json({ error: "No active MiniMax API key configured. Add MINIMAX_API_KEY + MINIMAX_GROUP_ID in Secrets." });
     return;
   }
 
-  const { groupId, apiKey } = parseKey(keyRow.key);
+  const { groupId, apiKey } = creds;
 
   try {
     const response = await fetch(`${MINIMAX_BASE}/t2a_v2?GroupId=${groupId}`, {
@@ -143,7 +148,7 @@ router.post("/tts", async (req, res) => {
     }
 
     const audioBuffer = Buffer.from(hexAudio, "hex");
-    await bumpKey(keyRow.id, keyRow.usageCount);
+    await bumpKey(creds.id, creds.usageCount);
 
     res.set({ "Content-Type": "audio/mpeg", "Content-Disposition": "attachment; filename=minimax-tts.mp3" });
     res.send(audioBuffer);
@@ -163,13 +168,13 @@ router.post("/voice-clone", upload.single("audio"), async (req, res) => {
     return;
   }
 
-  const keyRow = await getMinimaxKey();
-  if (!keyRow) {
+  const creds = await getMinimaxCreds();
+  if (!creds) {
     res.status(503).json({ error: "No active MiniMax API key configured." });
     return;
   }
 
-  const { groupId, apiKey } = parseKey(keyRow.key);
+  const { groupId, apiKey } = creds;
 
   try {
     const form = new FormData();
@@ -206,7 +211,7 @@ router.post("/voice-clone", upload.single("audio"), async (req, res) => {
       .values({ name, voiceId, description: description || null })
       .returning();
 
-    await bumpKey(keyRow.id, keyRow.usageCount);
+    await bumpKey(creds.id, creds.usageCount);
 
     res.status(201).json({ id: saved.id, name: saved.name, voiceId: saved.voiceId, description: saved.description });
   } catch (e: any) {
