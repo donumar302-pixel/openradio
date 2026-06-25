@@ -23,6 +23,7 @@ import SpeechToTextPage from "@/pages/speech-to-text";
 import AudioIsolationPage from "@/pages/audio-isolation";
 import DubbingPage from "@/pages/dubbing";
 import SettingsPage from "@/pages/settings";
+import BatchTtsPage from "@/pages/batch-tts";
 import MinimaxTtsPage from "@/pages/minimax-tts";
 import VoiceCloningPage from "@/pages/voice-cloning";
 import VoiceLibraryPage from "@/pages/voices";
@@ -100,6 +101,7 @@ function AppRoutes() {
         <Route path="/audio-isolation" component={AudioIsolationPage} />
         <Route path="/dubbing" component={DubbingPage} />
         <Route path="/settings" component={SettingsPage} />
+        <Route path="/batch" component={BatchTtsPage} />
         <Route path="/minimax" component={MinimaxTtsPage} />
         <Route path="/voice-cloning" component={VoiceCloningPage} />
         <Route path="/voices" component={VoiceLibraryPage} />
