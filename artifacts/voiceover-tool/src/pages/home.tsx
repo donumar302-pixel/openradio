@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import {
   Mic2, AudioWaveform, MessageSquareText, Radio,
-  Languages, Zap, Copy, Clock, ChevronRight,
+  Languages, Copy, Clock, ChevronRight,
   Play, Plus, Volume2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,14 +16,6 @@ const TOOLS = [
     name: "Text to Speech",
     desc: "Convert any text to natural-sounding speech in seconds",
     iconBg: "bg-orange-50", iconColor: "text-orange-500",
-  },
-  {
-    href: "/minimax",
-    icon: <Zap size={22} />,
-    name: "Fire TTS",
-    desc: "High-quality AI voices with 35+ languages support",
-    iconBg: "bg-violet-50", iconColor: "text-violet-500",
-    badge: "Hot",
   },
   {
     href: "/voice-cloning",

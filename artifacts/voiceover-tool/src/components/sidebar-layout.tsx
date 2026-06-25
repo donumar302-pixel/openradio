@@ -30,7 +30,6 @@ const elItems: NavItem[] = [
   { label: "Dubbing",          href: "/dubbing",          icon: <Languages size={18} />, premium: true },
 ];
 const minimaxItems: NavItem[] = [
-  { label: "Fire TTS",      href: "/minimax",       icon: <Zap size={18} />,    badge: "Hot",  badgeColor: "bg-red-100 text-red-500" },
   { label: "Bulk TTS",      href: "/batch",         icon: <Layers size={18} />, badge: "New",  badgeColor: "bg-blue-100 text-blue-600" },
   { label: "Voice Cloning", href: "/voice-cloning", icon: <Copy size={18} />,   premium: true },
 ];
