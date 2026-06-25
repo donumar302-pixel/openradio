@@ -9,7 +9,7 @@ import {
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Play, Download, PlayCircle, StopCircle, Mic2, History, Settings2, ChevronRight, RotateCcw, Smile, PauseCircle, Tag, Upload, Zap, ChevronsUpDown, Check, SlidersHorizontal, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -418,30 +418,52 @@ export default function StudioPage() {
           >
             <SlidersHorizontal size={13} /> {mobilePanel ? "Hide" : "Settings"}
           </button>
-          {/* Model selector - provider-aware (ElevenLabs models or Fire TTS models) */}
+          {/* Model selector - unified: both ElevenLabs + Fire TTS models, grouped like voices */}
           {(() => {
             const isMm = voiceProvider === "minimax";
-            const models = isMm ? MM_MODELS : MODELS;
             const value = isMm ? mmModel : modelId;
-            const setValue = isMm ? setMmModel : setModelId;
-            const selected = models.find((m) => m.id === value);
+            const selected = (isMm ? MM_MODELS : MODELS).find((m) => m.id === value);
+            const handleModelChange = (id: string) => {
+              const isElModel = MODELS.some((m) => m.id === id);
+              if (isElModel) {
+                setModelId(id);
+                if (voiceProvider !== "el") {
+                  setVoiceProvider("el");
+                  setVoiceId(voices?.[0]?.voiceId ?? "");
+                }
+              } else {
+                setMmModel(id);
+                if (voiceProvider !== "minimax") {
+                  setVoiceProvider("minimax");
+                  setVoiceId(mmVoices[0]?.id ?? "");
+                }
+              }
+            };
+            const renderItem = (m: { id: string; label: string; badge: string | null }) => (
+              <SelectItem key={m.id} value={m.id} className="text-sm">
+                <div className="flex items-center gap-2">
+                  {m.label}
+                  {m.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary">{m.badge}</span>}
+                </div>
+              </SelectItem>
+            );
             return (
               <div className="hidden sm:flex items-center gap-2">
                 <span className="text-sm text-[#6b7280]">Model</span>
-                <Select value={value} onValueChange={setValue}>
-                  <SelectTrigger className="h-8 text-sm border-[#e5e7eb] w-40 sm:w-48 gap-2">
+                <Select value={value} onValueChange={handleModelChange}>
+                  <SelectTrigger className="h-8 text-sm border-[#e5e7eb] w-44 sm:w-52 gap-2">
                     <SelectValue />
                     {selected?.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-primary text-white ml-1">{selected.badge}</span>}
                   </SelectTrigger>
                   <SelectContent>
-                    {models.map((m) => (
-                      <SelectItem key={m.id} value={m.id} className="text-sm">
-                        <div className="flex items-center gap-2">
-                          {m.label}
-                          {m.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary">{m.badge}</span>}
-                        </div>
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      <SelectLabel className="text-[11px] text-[#9ca3af]">Text to Speech</SelectLabel>
+                      {MODELS.map(renderItem)}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel className="text-[11px] text-[#9ca3af] flex items-center gap-1"><Zap size={11} className="text-violet-400" /> Fire TTS</SelectLabel>
+                      {MM_MODELS.map(renderItem)}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
