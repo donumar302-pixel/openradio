@@ -298,12 +298,12 @@ export default function MinimaxTtsPage() {
               </div>
             </div>
           )}
-          <div className="flex items-center gap-2 px-4 sm:px-7 py-2.5 sm:py-3 border-t border-[#f0f0f0] overflow-x-auto">
+          <div className="flex items-center gap-2 px-4 sm:px-7 py-2.5 sm:py-3 border-t border-[#f0f0f0] flex-wrap">
 
             {/* Emotion button */}
             <div className="relative shrink-0">
               <button
-                onMouseDown={e => { e.preventDefault(); setOpenPopup(p => p === "emotion" ? null : "emotion"); }}
+                onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setOpenPopup(p => p === "emotion" ? null : "emotion"); }}
                 className={cn("flex items-center gap-1.5 text-[12px] px-2.5 sm:px-3 py-1.5 rounded-full border font-medium whitespace-nowrap transition-colors",
                   openPopup === "emotion" ? "border-violet-400 text-violet-600 bg-violet-50" : "border-[#e5e7eb] text-[#6b7280] hover:border-violet-400 hover:text-violet-600"
                 )}>
@@ -325,7 +325,7 @@ export default function MinimaxTtsPage() {
             {/* Pause button */}
             <div className="relative shrink-0">
               <button
-                onMouseDown={e => { e.preventDefault(); setOpenPopup(p => p === "pause" ? null : "pause"); }}
+                onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setOpenPopup(p => p === "pause" ? null : "pause"); }}
                 className={cn("flex items-center gap-1.5 text-[12px] px-2.5 sm:px-3 py-1.5 rounded-full border font-medium whitespace-nowrap transition-colors",
                   openPopup === "pause" ? "border-violet-400 text-violet-600 bg-violet-50" : "border-[#e5e7eb] text-[#6b7280] hover:border-violet-400 hover:text-violet-600"
                 )}>
@@ -348,7 +348,7 @@ export default function MinimaxTtsPage() {
             {/* Sound Tag button */}
             <div className="relative shrink-0">
               <button
-                onMouseDown={e => { e.preventDefault(); setOpenPopup(p => p === "soundtag" ? null : "soundtag"); }}
+                onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setOpenPopup(p => p === "soundtag" ? null : "soundtag"); }}
                 className={cn("flex items-center gap-1.5 text-[12px] px-2.5 sm:px-3 py-1.5 rounded-full border font-medium whitespace-nowrap transition-colors",
                   openPopup === "soundtag" ? "border-violet-400 text-violet-600 bg-violet-50" : "border-[#e5e7eb] text-[#6b7280] hover:border-violet-400 hover:text-violet-600"
                 )}>
