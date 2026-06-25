@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Loader2, Play, Download, Mic2, Settings2, History,
-  RotateCcw, Smile, PauseCircle, Tag, Zap, SlidersHorizontal,
+  RotateCcw, Smile, PauseCircle, Tag, Zap, SlidersHorizontal, ChevronUp,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +19,33 @@ const MODELS = [
 ];
 
 const LANG_TABS = ["All", "English", "Arabic", "Chinese", "Hindi", "Japanese", "Korean", "Spanish", "French", "German", "Portuguese", "Italian", "Russian"];
+
+const EMOTIONS = [
+  { id: "happy",     emoji: "😄", label: "Happy" },
+  { id: "sad",       emoji: "😢", label: "Sad" },
+  { id: "angry",     emoji: "😠", label: "Angry" },
+  { id: "fearful",   emoji: "😨", label: "Fearful" },
+  { id: "surprised", emoji: "😲", label: "Surprised" },
+  { id: "disgusted", emoji: "🤢", label: "Disgusted" },
+  { id: "neutral",   emoji: "😐", label: "Neutral" },
+  { id: "excited",   emoji: "🤩", label: "Excited" },
+];
+
+const PAUSES = [
+  { label: "Short",   value: "500ms" },
+  { label: "Medium",  value: "1000ms" },
+  { label: "Long",    value: "2000ms" },
+  { label: "X-Long",  value: "3000ms" },
+];
+
+const SOUND_TAGS = [
+  { id: "laughter",  emoji: "😂", label: "Laughter" },
+  { id: "applause",  emoji: "👏", label: "Applause" },
+  { id: "gasp",      emoji: "😮", label: "Gasp" },
+  { id: "sigh",      emoji: "😮‍💨", label: "Sigh" },
+  { id: "music",     emoji: "🎵", label: "Music" },
+  { id: "breathing", emoji: "💨", label: "Breathing" },
+];
 
 interface Voice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; description?: string; }
 
@@ -55,6 +82,30 @@ export default function MinimaxTtsPage() {
   const [tab, setTab] = useState<"settings" | "history">("settings");
   const [langFilter, setLangFilter] = useState("All");
   const [mobilePanel, setMobilePanel] = useState(false);
+  const [openPopup, setOpenPopup] = useState<"emotion" | "pause" | "soundtag" | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!openPopup) return;
+    const close = () => setOpenPopup(null);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [openPopup]);
+
+  function insertAtCursor(before: string, after = "") {
+    const el = textareaRef.current;
+    if (!el) { setText(t => t + before + after); return; }
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const selected = text.slice(start, end);
+    const newText = text.slice(0, start) + before + selected + after + text.slice(end);
+    setText(newText);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + before.length + selected.length + after.length;
+      el.setSelectionRange(pos, pos);
+    });
+  }
 
   const { data: voiceData } = useQuery<{ builtin: Voice[]; clones: Voice[] }>({
     queryKey: ["minimax-voices"],
@@ -229,6 +280,7 @@ export default function MinimaxTtsPage() {
         {/* Left */}
         <div className="flex flex-col flex-1 min-w-0 min-h-0 bg-white border-r border-[#f0f0f0]">
           <textarea
+            ref={textareaRef}
             placeholder="Start typing here to generate speech with Fire TTS…"
             className="flex-1 resize-none text-[15px] leading-relaxed px-4 sm:px-7 py-4 sm:py-6 outline-none bg-white placeholder:text-[#c4c4c4] min-h-[120px]"
             value={text} onChange={e => setText(e.target.value)} maxLength={5000}
@@ -247,11 +299,74 @@ export default function MinimaxTtsPage() {
             </div>
           )}
           <div className="flex items-center gap-2 px-4 sm:px-7 py-2.5 sm:py-3 border-t border-[#f0f0f0] overflow-x-auto">
-            {[{ icon: <Smile size={13} />, label: "Emotion" }, { icon: <PauseCircle size={13} />, label: "Pause" }, { icon: <Tag size={13} />, label: "Sound Tag" }].map(p => (
-              <button key={p.label} className="flex items-center gap-1.5 text-[12px] px-2.5 sm:px-3 py-1.5 rounded-full border border-[#e5e7eb] text-[#6b7280] hover:border-violet-400 hover:text-violet-600 transition-colors font-medium whitespace-nowrap shrink-0">
-                {p.icon} {p.label}
+
+            {/* Emotion button */}
+            <div className="relative shrink-0">
+              <button
+                onMouseDown={e => { e.preventDefault(); setOpenPopup(p => p === "emotion" ? null : "emotion"); }}
+                className={cn("flex items-center gap-1.5 text-[12px] px-2.5 sm:px-3 py-1.5 rounded-full border font-medium whitespace-nowrap transition-colors",
+                  openPopup === "emotion" ? "border-violet-400 text-violet-600 bg-violet-50" : "border-[#e5e7eb] text-[#6b7280] hover:border-violet-400 hover:text-violet-600"
+                )}>
+                <Smile size={13} /> Emotion <ChevronUp size={11} className={cn("transition-transform", openPopup === "emotion" ? "rotate-180" : "")} />
               </button>
-            ))}
+              {openPopup === "emotion" && (
+                <div onMouseDown={e => e.stopPropagation()} className="absolute bottom-full left-0 mb-2 bg-white rounded-2xl shadow-xl border border-[#e5e7eb] p-1.5 z-30 min-w-[170px]">
+                  <p className="text-[10px] font-bold text-[#9ca3af] uppercase tracking-wide px-3 pt-1.5 pb-1">Choose emotion</p>
+                  {EMOTIONS.map(e => (
+                    <button key={e.id} onClick={() => { insertAtCursor(`[${e.id}]`); setOpenPopup(null); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium hover:bg-violet-50 hover:text-violet-700 rounded-xl transition-colors text-left text-foreground">
+                      <span>{e.emoji}</span> {e.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Pause button */}
+            <div className="relative shrink-0">
+              <button
+                onMouseDown={e => { e.preventDefault(); setOpenPopup(p => p === "pause" ? null : "pause"); }}
+                className={cn("flex items-center gap-1.5 text-[12px] px-2.5 sm:px-3 py-1.5 rounded-full border font-medium whitespace-nowrap transition-colors",
+                  openPopup === "pause" ? "border-violet-400 text-violet-600 bg-violet-50" : "border-[#e5e7eb] text-[#6b7280] hover:border-violet-400 hover:text-violet-600"
+                )}>
+                <PauseCircle size={13} /> Pause <ChevronUp size={11} className={cn("transition-transform", openPopup === "pause" ? "rotate-180" : "")} />
+              </button>
+              {openPopup === "pause" && (
+                <div onMouseDown={e => e.stopPropagation()} className="absolute bottom-full left-0 mb-2 bg-white rounded-2xl shadow-xl border border-[#e5e7eb] p-1.5 z-30 min-w-[160px]">
+                  <p className="text-[10px] font-bold text-[#9ca3af] uppercase tracking-wide px-3 pt-1.5 pb-1">Insert pause</p>
+                  {PAUSES.map(p => (
+                    <button key={p.value} onClick={() => { insertAtCursor(`<break time="${p.value}/>`); setOpenPopup(null); }}
+                      className="w-full flex items-center justify-between px-3 py-2 text-[13px] font-medium hover:bg-violet-50 hover:text-violet-700 rounded-xl transition-colors text-left">
+                      <span className="text-foreground">{p.label}</span>
+                      <span className="text-[11px] text-[#9ca3af] font-mono">{p.value}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Sound Tag button */}
+            <div className="relative shrink-0">
+              <button
+                onMouseDown={e => { e.preventDefault(); setOpenPopup(p => p === "soundtag" ? null : "soundtag"); }}
+                className={cn("flex items-center gap-1.5 text-[12px] px-2.5 sm:px-3 py-1.5 rounded-full border font-medium whitespace-nowrap transition-colors",
+                  openPopup === "soundtag" ? "border-violet-400 text-violet-600 bg-violet-50" : "border-[#e5e7eb] text-[#6b7280] hover:border-violet-400 hover:text-violet-600"
+                )}>
+                <Tag size={13} /> Sound Tag <ChevronUp size={11} className={cn("transition-transform", openPopup === "soundtag" ? "rotate-180" : "")} />
+              </button>
+              {openPopup === "soundtag" && (
+                <div onMouseDown={e => e.stopPropagation()} className="absolute bottom-full left-0 mb-2 bg-white rounded-2xl shadow-xl border border-[#e5e7eb] p-1.5 z-30 min-w-[170px]">
+                  <p className="text-[10px] font-bold text-[#9ca3af] uppercase tracking-wide px-3 pt-1.5 pb-1">Insert sound</p>
+                  {SOUND_TAGS.map(s => (
+                    <button key={s.id} onClick={() => { insertAtCursor(`[${s.id}]`); setOpenPopup(null); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium hover:bg-violet-50 hover:text-violet-700 rounded-xl transition-colors text-left text-foreground">
+                      <span>{s.emoji}</span> {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="flex-1 min-w-2" />
             <span className="text-[12px] text-[#9ca3af] font-medium shrink-0">{text.length} / 5,000</span>
           </div>
