@@ -23,6 +23,13 @@ const MODELS = [
   { id: "eleven_monolingual_v1",  label: "English v1",      badge: null },
 ];
 
+const MM_MODELS = [
+  { id: "speech-02-hd",    label: "Fire HD",          badge: "Best" },
+  { id: "speech-02-turbo", label: "Fire Turbo",       badge: "Fast" },
+  { id: "speech-01-hd",    label: "Fire HD (Gen 1)",  badge: null },
+  { id: "speech-01-turbo", label: "Fire Turbo (Gen 1)", badge: null },
+];
+
 const EMOTIONS = [
   { id: "happy",     emoji: "😄", label: "Happy" },
   { id: "sad",       emoji: "😢", label: "Sad" },
@@ -93,9 +100,12 @@ export default function StudioPage() {
   const [voiceId, setVoiceId] = useState("");
   const [voiceProvider, setVoiceProvider] = useState<"el" | "minimax">("el");
   const [modelId, setModelId] = useState("eleven_multilingual_v2");
+  const [mmModel, setMmModel] = useState("speech-02-hd");
   const [stability, setStability] = useState(0.5);
   const [similarityBoost, setSimilarityBoost] = useState(0.75);
   const [speed, setSpeed] = useState(1);
+  const [volume, setVolume] = useState(1);
+  const [pitch, setPitch] = useState(0);
   const [latestAudio, setLatestAudio] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<"settings" | "history">("settings");
   const [mobilePanel, setMobilePanel] = useState(false);
@@ -155,7 +165,7 @@ export default function StudioPage() {
       try {
         const res = await fetch("/api/minimax/tts", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, voiceId, model: "speech-02-hd", speed, volume: 1, pitch: 0 }),
+          body: JSON.stringify({ text, voiceId, model: mmModel, speed, volume, pitch }),
         });
         if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as any).error || "Generation failed"); }
         const blob = await res.blob();
@@ -195,7 +205,6 @@ export default function StudioPage() {
 
   const selectedElVoice = voiceProvider === "el" ? voices?.find((v) => v.voiceId === voiceId) : undefined;
   const selectedMmVoice = voiceProvider === "minimax" ? mmVoices.find((v) => v.id === voiceId) : undefined;
-  const selectedModel = MODELS.find((m) => m.id === modelId);
   const [voiceOpen, setVoiceOpen] = useState(false);
 
   const handleVoiceSelect = (composite: string) => {
@@ -215,7 +224,7 @@ export default function StudioPage() {
     return null;
   }, [voiceId, voiceProvider, selectedElVoice, selectedMmVoice]);
 
-  const resetSettings = () => { setStability(0.5); setSimilarityBoost(0.75); setSpeed(1); };
+  const resetSettings = () => { setStability(0.5); setSimilarityBoost(0.75); setSpeed(1); setVolume(1); setPitch(0); };
 
   const RightPanelContent = (
     <>
@@ -359,6 +368,12 @@ export default function StudioPage() {
                 <SliderRow label="Clarity" value={similarityBoost} onChange={setSimilarityBoost} min={0} max={1} step={0.01} />
               </>
             )}
+            {voiceProvider === "minimax" && (
+              <>
+                <SliderRow label="Pitch" value={pitch} onChange={setPitch} min={-12} max={12} step={1} />
+                <SliderRow label="Volume" value={volume} onChange={setVolume} min={0} max={10} step={0.1} />
+              </>
+            )}
           </div>
         </div>
       )}
@@ -403,26 +418,35 @@ export default function StudioPage() {
           >
             <SlidersHorizontal size={13} /> {mobilePanel ? "Hide" : "Settings"}
           </button>
-          {/* Model selector - ElevenLabs only (Fire TTS uses Speech-02-HD) */}
-          <div className={cn("items-center gap-2", voiceProvider === "minimax" ? "hidden" : "hidden sm:flex")}>
-            <span className="text-sm text-[#6b7280]">Model</span>
-            <Select value={modelId} onValueChange={setModelId}>
-              <SelectTrigger className="h-8 text-sm border-[#e5e7eb] w-40 sm:w-48 gap-2">
-                <SelectValue />
-                {selectedModel?.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-primary text-white ml-1">{selectedModel.badge}</span>}
-              </SelectTrigger>
-              <SelectContent>
-                {MODELS.map((m) => (
-                  <SelectItem key={m.id} value={m.id} className="text-sm">
-                    <div className="flex items-center gap-2">
-                      {m.label}
-                      {m.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary">{m.badge}</span>}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Model selector - provider-aware (ElevenLabs models or Fire TTS models) */}
+          {(() => {
+            const isMm = voiceProvider === "minimax";
+            const models = isMm ? MM_MODELS : MODELS;
+            const value = isMm ? mmModel : modelId;
+            const setValue = isMm ? setMmModel : setModelId;
+            const selected = models.find((m) => m.id === value);
+            return (
+              <div className="hidden sm:flex items-center gap-2">
+                <span className="text-sm text-[#6b7280]">Model</span>
+                <Select value={value} onValueChange={setValue}>
+                  <SelectTrigger className="h-8 text-sm border-[#e5e7eb] w-40 sm:w-48 gap-2">
+                    <SelectValue />
+                    {selected?.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-primary text-white ml-1">{selected.badge}</span>}
+                  </SelectTrigger>
+                  <SelectContent>
+                    {models.map((m) => (
+                      <SelectItem key={m.id} value={m.id} className="text-sm">
+                        <div className="flex items-center gap-2">
+                          {m.label}
+                          {m.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary">{m.badge}</span>}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
