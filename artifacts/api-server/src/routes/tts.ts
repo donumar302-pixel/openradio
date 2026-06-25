@@ -59,7 +59,7 @@ async function getNextActiveKey() {
   const keys = await db
     .select()
     .from(apiKeysTable)
-    .where(eq(apiKeysTable.isActive, true))
+    .where(and(eq(apiKeysTable.isActive, true), eq(apiKeysTable.provider, "elevenlabs")))
     .orderBy(asc(apiKeysTable.usageCount));
   return keys[0] ?? null;
 }

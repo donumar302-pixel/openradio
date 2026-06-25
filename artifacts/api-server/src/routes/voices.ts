@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { apiKeysTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -10,10 +10,10 @@ router.get("/", async (req, res) => {
   const activeKeys = await db
     .select()
     .from(apiKeysTable)
-    .where(eq(apiKeysTable.isActive, true));
+    .where(and(eq(apiKeysTable.isActive, true), eq(apiKeysTable.provider, "elevenlabs")));
 
   if (activeKeys.length === 0) {
-    res.status(503).json({ error: "No active API keys configured" });
+    res.status(503).json({ error: "No active ElevenLabs API key configured" });
     return;
   }
 
