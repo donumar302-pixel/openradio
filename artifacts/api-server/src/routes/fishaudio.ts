@@ -52,19 +52,21 @@ const FALLBACK_VOICES = [
 
 /* ── GET /voices ─────────────────────────────────────────────────────── */
 router.get("/voices", requireActiveUser, async (req, res) => {
+  const language = typeof req.query.language === "string" ? req.query.language : "";
   const creds = await getFishApiKey();
-  if (!creds) {
-    res.json({ voices: FALLBACK_VOICES });
-    return;
-  }
+
+  const params = new URLSearchParams({
+    page_size: "50",
+    page_number: "1",
+    sort_by: "hottest",
+  });
+  if (language) params.set("language", language);
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (creds) headers.Authorization = `Bearer ${creds.apiKey}`;
 
   try {
-    const response = await fetch(`${FISH_BASE}/model?page_size=30&page_number=1&sort_by=hottest`, {
-      headers: {
-        Authorization: `Bearer ${creds.apiKey}`,
-        "Content-Type": "application/json",
-      },
-    });
+    const response = await fetch(`${FISH_BASE}/model?${params.toString()}`, { headers });
 
     if (!response.ok) {
       res.json({ voices: FALLBACK_VOICES });

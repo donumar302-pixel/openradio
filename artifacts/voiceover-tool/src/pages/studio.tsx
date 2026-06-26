@@ -36,6 +36,26 @@ const FA_MODELS = [
   { id: "s1",            label: "Fish S1",       badge: null },
 ];
 
+const FA_LANGUAGES = [
+  { code: "",   label: "All Languages" },
+  { code: "en", label: "English" },
+  { code: "zh", label: "Chinese" },
+  { code: "ja", label: "Japanese" },
+  { code: "ko", label: "Korean" },
+  { code: "hi", label: "Hindi" },
+  { code: "ur", label: "Urdu" },
+  { code: "ar", label: "Arabic" },
+  { code: "es", label: "Spanish" },
+  { code: "fr", label: "French" },
+  { code: "de", label: "German" },
+  { code: "ru", label: "Russian" },
+  { code: "pt", label: "Portuguese" },
+  { code: "it", label: "Italian" },
+  { code: "tr", label: "Turkish" },
+  { code: "id", label: "Indonesian" },
+  { code: "vi", label: "Vietnamese" },
+];
+
 const EMOTIONS = [
   { id: "happy",     emoji: "😄", label: "Happy" },
   { id: "sad",       emoji: "😢", label: "Sad" },
@@ -108,6 +128,7 @@ export default function StudioPage() {
   const [modelId, setModelId] = useState("eleven_multilingual_v2");
   const [mmModel, setMmModel] = useState("speech-02-hd");
   const [faModel, setFaModel] = useState("s2.1-pro-free");
+  const [faLang, setFaLang] = useState("");
   const [stability, setStability] = useState(0.5);
   const [similarityBoost, setSimilarityBoost] = useState(0.75);
   const [speed, setSpeed] = useState(1);
@@ -156,11 +177,18 @@ export default function StudioPage() {
   ];
 
   const { data: faVoiceData } = useQuery<{ voices: FishVoice[] }>({
-    queryKey: ["fishaudio-voices"],
-    queryFn: () => fetch("/api/fishaudio/voices").then(r => r.json()),
+    queryKey: ["fishaudio-voices", faLang],
+    queryFn: () => fetch(`/api/fishaudio/voices${faLang ? `?language=${faLang}` : ""}`).then(r => r.json()),
     staleTime: 120_000,
   });
   const faVoices: FishVoice[] = faVoiceData?.voices ?? [];
+
+  const faByLang = faVoices.reduce<Record<string, FishVoice[]>>((acc, v) => {
+    const key = v.lang ?? "Multi";
+    if (!acc[key]) acc[key] = [];
+    acc[key]!.push(v);
+    return acc;
+  }, {});
 
   const { data: history, isLoading: loadingHistory } = useListGenerations(
     { limit: 20 },
@@ -323,6 +351,20 @@ export default function StudioPage() {
                 {voiceProvider === "el" && <VoicePreviewBtn url={selectedElVoice?.previewUrl} />}
               </div>
             )}
+            {voiceProvider === "fishaudio" && (
+              <div className="mb-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-[#9ca3af] mb-1 block">Language Filter</label>
+                <select
+                  value={faLang}
+                  onChange={e => { setFaLang(e.target.value); setVoiceId(""); }}
+                  className="w-full h-9 px-3 border border-[#e5e7eb] rounded-lg text-sm bg-white text-foreground focus:outline-none focus:border-emerald-400 cursor-pointer"
+                >
+                  {FA_LANGUAGES.map(l => (
+                    <option key={l.code} value={l.code}>{l.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <Popover open={voiceOpen} onOpenChange={setVoiceOpen}>
               <PopoverTrigger asChild>
                 <button data-testid="select-voice" className={cn(
@@ -392,19 +434,21 @@ export default function StudioPage() {
                             🐟 Fish Audio (83 langs)
                           </p>
                         </div>
-                        <CommandGroup heading="Fish Audio">
-                          {faVoices.map(v => (
-                            <CommandItem key={`fa:${v.id}`} value={`fa:${v.id}:${v.name} ${v.style ?? ""} ${v.lang ?? ""}`}
-                              onSelect={() => handleVoiceSelect(`fa:${v.id}`)} className="flex items-center gap-2 py-2 cursor-pointer">
-                              <div className="w-7 h-7 rounded-md bg-emerald-50 flex items-center justify-center shrink-0 text-emerald-600 font-bold text-xs">{v.name[0]}</div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
-                                <p className="text-[10px] text-[#9ca3af]">{v.lang ?? "Multi"}</p>
-                              </div>
-                              {voiceProvider === "fishaudio" && voiceId === v.id && <Check size={13} className="text-emerald-600 shrink-0" />}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
+                        {Object.entries(faByLang).map(([lang, langVoices]) => (
+                          <CommandGroup key={`fa-${lang}`} heading={lang}>
+                            {langVoices.map(v => (
+                              <CommandItem key={`fa:${v.id}`} value={`fa:${v.id}:${v.name} ${v.style ?? ""} ${v.lang ?? ""}`}
+                                onSelect={() => handleVoiceSelect(`fa:${v.id}`)} className="flex items-center gap-2 py-2 cursor-pointer">
+                                <div className="w-7 h-7 rounded-md bg-emerald-50 flex items-center justify-center shrink-0 text-emerald-600 font-bold text-xs">{v.name[0]}</div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
+                                  <p className="text-[10px] text-[#9ca3af]">{v.style ?? v.lang ?? "Multi"}</p>
+                                </div>
+                                {voiceProvider === "fishaudio" && voiceId === v.id && <Check size={13} className="text-emerald-600 shrink-0" />}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        ))}
                       </>
                     )}
                   </CommandList>
