@@ -30,10 +30,10 @@ const MM_MODELS = [
 ];
 
 const FA_MODELS = [
-  { id: "s2.1-pro-free", label: "Fish Free",  badge: "Free" },
-  { id: "s2.1-pro",      label: "Fish Pro",   badge: null },
-  { id: "s2-pro",        label: "Fish S2",    badge: null },
-  { id: "s1",            label: "Fish S1",    badge: null },
+  { id: "s2.1-pro-free", label: "Fish Standard", badge: null },
+  { id: "s2.1-pro",      label: "Fish Pro",      badge: "Best" },
+  { id: "s2-pro",        label: "Fish S2",       badge: null },
+  { id: "s1",            label: "Fish S1",       badge: null },
 ];
 
 const EMOTIONS = [
