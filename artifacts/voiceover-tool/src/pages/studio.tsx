@@ -24,10 +24,8 @@ const MODELS = [
 ];
 
 const MM_MODELS = [
-  { id: "speech-02-hd",    label: "Fire HD",          badge: "Best" },
-  { id: "speech-02-turbo", label: "Fire Turbo",       badge: "Fast" },
-  { id: "speech-01-hd",    label: "Fire HD (Gen 1)",  badge: null },
-  { id: "speech-01-turbo", label: "Fire Turbo (Gen 1)", badge: null },
+  { id: "speech-02-hd",    label: "Fire HD",    badge: "Best" },
+  { id: "speech-02-turbo", label: "Fire Turbo", badge: "Fast" },
 ];
 
 const EMOTIONS = [
