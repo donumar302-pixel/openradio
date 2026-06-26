@@ -4,8 +4,9 @@ import { Key, Plus, Trash2, RefreshCw, CheckCircle2, XCircle, Edit2, Check, X, R
 import { cn } from "@/lib/utils";
 
 const PROVIDERS = [
-  { value: "elevenlabs", label: "ElevenLabs", color: "text-orange-400", bg: "bg-orange-500/10" },
-  { value: "minimax", label: "Fire TTS", color: "text-violet-400", bg: "bg-violet-500/10" },
+  { value: "elevenlabs", label: "ElevenLabs", color: "text-orange-400",  bg: "bg-orange-500/10"  },
+  { value: "minimax",    label: "Fire TTS",   color: "text-violet-400",  bg: "bg-violet-500/10"  },
+  { value: "fishaudio",  label: "Fish Audio", color: "text-emerald-400", bg: "bg-emerald-500/10" },
 ];
 
 function ProviderBadge({ provider }: { provider: string }) {
@@ -98,6 +99,7 @@ export default function AdminKeys() {
 
   const elKeys = keys.filter((k: any) => k.provider === "elevenlabs");
   const mmKeys = keys.filter((k: any) => k.provider === "minimax");
+  const faKeys = keys.filter((k: any) => k.provider === "fishaudio");
 
   const startEdit = (k: any) => {
     setEditingId(k.id);
@@ -112,7 +114,7 @@ export default function AdminKeys() {
         <div>
           <h1 className="text-[22px] font-black text-white">API Keys</h1>
           <p className="text-[13px] text-white/40 mt-0.5">
-            {elKeys.length} ElevenLabs · {mmKeys.length} Fire TTS · auto-rotation enabled
+            {elKeys.length} ElevenLabs · {mmKeys.length} Fire TTS · {faKeys.length} Fish Audio · auto-rotation enabled
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -292,12 +294,12 @@ export default function AdminKeys() {
             {/* API Key */}
             <div className="space-y-1.5 col-span-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-white/30">
-                {form.provider === "minimax" ? "MiniMax API Key" : "ElevenLabs API Key"}
+                {form.provider === "minimax" ? "Fire TTS API Key" : form.provider === "fishaudio" ? "Fish Audio API Key" : "ElevenLabs API Key"}
               </label>
               <input
                 value={form.key}
                 onChange={e => setForm(f => ({ ...f, key: e.target.value }))}
-                placeholder={form.provider === "minimax" ? "Your MiniMax API key..." : "sk-..."}
+                placeholder={form.provider === "minimax" ? "groupId:apiKey" : form.provider === "fishaudio" ? "Paste Fish Audio API key..." : "sk-..."}
                 type="password"
                 className="w-full bg-[#0f1117] border border-white/10 rounded-xl px-3 py-2.5 text-[13px] text-white placeholder:text-white/20 focus:outline-none focus:border-primary/50 font-mono"
               />
@@ -325,7 +327,7 @@ export default function AdminKeys() {
       <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-blue-500/5 border border-blue-500/15">
         <RotateCcw size={13} className="text-blue-400 mt-0.5 shrink-0" />
         <p className="text-[12px] text-white/40">
-          <span className="text-blue-400 font-bold">Auto-rotation active —</span> when a key reaches its credit limit, the next active key is used automatically. Keys rotate per-provider (ElevenLabs keys rotate with ElevenLabs, Fire TTS with Fire TTS).
+          <span className="text-blue-400 font-bold">Auto-rotation active —</span> when a key reaches its credit limit, the next active key is used automatically. Keys rotate per-provider (ElevenLabs with ElevenLabs, Fire TTS with Fire TTS, Fish Audio with Fish Audio).
         </p>
       </div>
 
