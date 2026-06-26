@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 interface MiniMaxVoice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; }
+interface FishVoice { id: string; name: string; lang?: string; style?: string; }
 
 const MODELS = [
   { id: "eleven_multilingual_v2", label: "Multilingual v2", badge: "Best" },
@@ -26,6 +27,13 @@ const MODELS = [
 const MM_MODELS = [
   { id: "speech-02-hd",    label: "Fire HD",    badge: "Best" },
   { id: "speech-02-turbo", label: "Fire Turbo", badge: "Fast" },
+];
+
+const FA_MODELS = [
+  { id: "s2.1-pro-free", label: "Fish Free",  badge: "Free" },
+  { id: "s2.1-pro",      label: "Fish Pro",   badge: null },
+  { id: "s2-pro",        label: "Fish S2",    badge: null },
+  { id: "s1",            label: "Fish S1",    badge: null },
 ];
 
 const EMOTIONS = [
@@ -96,9 +104,10 @@ export default function StudioPage() {
 
   const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState("");
-  const [voiceProvider, setVoiceProvider] = useState<"el" | "minimax">("el");
+  const [voiceProvider, setVoiceProvider] = useState<"el" | "minimax" | "fishaudio">("el");
   const [modelId, setModelId] = useState("eleven_multilingual_v2");
   const [mmModel, setMmModel] = useState("speech-02-hd");
+  const [faModel, setFaModel] = useState("s2.1-pro-free");
   const [stability, setStability] = useState(0.5);
   const [similarityBoost, setSimilarityBoost] = useState(0.75);
   const [speed, setSpeed] = useState(1);
@@ -146,6 +155,13 @@ export default function StudioPage() {
     ...(mmVoiceData?.builtin ?? []),
   ];
 
+  const { data: faVoiceData } = useQuery<{ voices: FishVoice[] }>({
+    queryKey: ["fishaudio-voices"],
+    queryFn: () => fetch("/api/fishaudio/voices").then(r => r.json()),
+    staleTime: 120_000,
+  });
+  const faVoices: FishVoice[] = faVoiceData?.voices ?? [];
+
   const { data: history, isLoading: loadingHistory } = useListGenerations(
     { limit: 20 },
     { query: { queryKey: getListGenerationsQueryKey({ limit: 20 }) } }
@@ -153,6 +169,7 @@ export default function StudioPage() {
 
   const generateSpeech = useGenerateSpeech();
   const [mmGenerating, setMmGenerating] = useState(false);
+  const [faGenerating, setFaGenerating] = useState(false);
 
   const handleGenerate = async () => {
     if (!text.trim()) { toast({ title: "Text required", description: "Please enter some text.", variant: "destructive" }); return; }
@@ -175,6 +192,23 @@ export default function StudioPage() {
       return;
     }
 
+    if (voiceProvider === "fishaudio") {
+      setFaGenerating(true); setLatestAudio(null);
+      try {
+        const res = await fetch("/api/fishaudio/tts", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, voiceId, model: faModel, speed }),
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as any).error || "Generation failed"); }
+        const blob = await res.blob();
+        setLatestAudio(URL.createObjectURL(blob));
+        toast({ title: "Generated!", description: "Your audio is ready." });
+      } catch (e: any) {
+        toast({ title: "Generation failed", description: e.message, variant: "destructive" });
+      } finally { setFaGenerating(false); }
+      return;
+    }
+
     generateSpeech.mutate(
       { data: { text, voiceId, stability, similarityBoost, modelId } },
       {
@@ -184,7 +218,7 @@ export default function StudioPage() {
     );
   };
 
-  const isGenerating = generateSpeech.isPending || mmGenerating;
+  const isGenerating = generateSpeech.isPending || mmGenerating || faGenerating;
   const expressionEnabled = voiceProvider === "minimax";
 
   const voicesByCategory = voices?.reduce((acc, voice) => {
@@ -203,12 +237,13 @@ export default function StudioPage() {
 
   const selectedElVoice = voiceProvider === "el" ? voices?.find((v) => v.voiceId === voiceId) : undefined;
   const selectedMmVoice = voiceProvider === "minimax" ? mmVoices.find((v) => v.id === voiceId) : undefined;
+  const selectedFaVoice = voiceProvider === "fishaudio" ? faVoices.find((v) => v.id === voiceId) : undefined;
   const [voiceOpen, setVoiceOpen] = useState(false);
 
   const handleVoiceSelect = (composite: string) => {
     const colonIdx = composite.indexOf(":");
     const raw = composite.slice(0, colonIdx);
-    const provider: "el" | "minimax" = raw === "mm" ? "minimax" : "el";
+    const provider: "el" | "minimax" | "fishaudio" = raw === "mm" ? "minimax" : raw === "fa" ? "fishaudio" : "el";
     const id = composite.slice(colonIdx + 1);
     setVoiceProvider(provider); setVoiceId(id); setVoiceOpen(false);
     setMobilePanel(false);
@@ -219,8 +254,10 @@ export default function StudioPage() {
     if (voiceProvider === "el" && selectedElVoice) return selectedElVoice.name;
     if (voiceProvider === "minimax" && selectedMmVoice)
       return selectedMmVoice.name + (selectedMmVoice.style ? ` · ${selectedMmVoice.style}` : "");
+    if (voiceProvider === "fishaudio" && selectedFaVoice)
+      return selectedFaVoice.name + (selectedFaVoice.style ? ` · ${selectedFaVoice.style}` : "");
     return null;
-  }, [voiceId, voiceProvider, selectedElVoice, selectedMmVoice]);
+  }, [voiceId, voiceProvider, selectedElVoice, selectedMmVoice, selectedFaVoice]);
 
   const resetSettings = () => { setStability(0.5); setSimilarityBoost(0.75); setSpeed(1); setVolume(1); setPitch(0); };
 
@@ -250,27 +287,37 @@ export default function StudioPage() {
                 <RotateCcw size={10} /> Reset Value
               </button>
             </div>
-            {(selectedElVoice || selectedMmVoice) && (
+            {(selectedElVoice || selectedMmVoice || selectedFaVoice) && (
               <div className={cn("flex items-center gap-3 p-2.5 border rounded-xl mb-3",
-                voiceProvider === "minimax" ? "border-violet-200 bg-violet-50" : "border-[#e5e7eb]"
+                voiceProvider === "minimax" ? "border-violet-200 bg-violet-50"
+                : voiceProvider === "fishaudio" ? "border-emerald-200 bg-emerald-50"
+                : "border-[#e5e7eb]"
               )}>
                 <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0 font-bold text-lg",
-                  voiceProvider === "minimax" ? "bg-violet-100 text-violet-600" : "bg-gradient-to-br from-primary/30 to-orange-200 text-primary"
+                  voiceProvider === "minimax" ? "bg-violet-100 text-violet-600"
+                  : voiceProvider === "fishaudio" ? "bg-emerald-100 text-emerald-600"
+                  : "bg-gradient-to-br from-primary/30 to-orange-200 text-primary"
                 )}>
-                  {(selectedElVoice?.name ?? selectedMmVoice?.name ?? "V")[0]}
+                  {(selectedElVoice?.name ?? selectedMmVoice?.name ?? selectedFaVoice?.name ?? "V")[0]}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold truncate">{selectedElVoice?.name ?? selectedMmVoice?.name}</p>
+                  <p className="text-sm font-bold truncate">{selectedElVoice?.name ?? selectedMmVoice?.name ?? selectedFaVoice?.name}</p>
                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                     <span className={cn("inline-block text-[10px] px-1.5 py-0.5 rounded font-semibold",
-                      voiceProvider === "minimax" ? "bg-violet-100 text-violet-600" : "bg-[#f3f4f6] text-[#6b7280]"
+                      voiceProvider === "minimax" ? "bg-violet-100 text-violet-600"
+                      : voiceProvider === "fishaudio" ? "bg-emerald-100 text-emerald-600"
+                      : "bg-[#f3f4f6] text-[#6b7280]"
                     )}>
                       {voiceProvider === "minimax"
                         ? (selectedMmVoice?.isClone ? "Clone" : selectedMmVoice?.lang ?? "AI")
-                        : (selectedElVoice?.category ?? "voice")}
+                        : voiceProvider === "fishaudio"
+                          ? (selectedFaVoice?.lang ?? "Multi")
+                          : (selectedElVoice?.category ?? "voice")}
                     </span>
                     {voiceProvider === "minimax" && <span className="flex items-center gap-0.5 text-[10px] text-violet-500 font-semibold"><Zap size={9} className="fill-violet-500" /> Fire TTS</span>}
                     {voiceProvider === "minimax" && selectedMmVoice?.style && <span className="text-[10px] text-[#9ca3af]">{selectedMmVoice.style}</span>}
+                    {voiceProvider === "fishaudio" && <span className="text-[10px] text-emerald-600 font-semibold">🐟 Fish Audio</span>}
+                    {voiceProvider === "fishaudio" && selectedFaVoice?.style && <span className="text-[10px] text-[#9ca3af]">{selectedFaVoice.style}</span>}
                   </div>
                 </div>
                 {voiceProvider === "el" && <VoicePreviewBtn url={selectedElVoice?.previewUrl} />}
@@ -335,6 +382,29 @@ export default function StudioPage() {
                             ))}
                           </CommandGroup>
                         ))}
+                      </>
+                    )}
+                    {faVoices.length > 0 && (
+                      <>
+                        <CommandSeparator />
+                        <div className="px-3 pt-2.5 pb-1">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600 flex items-center gap-1">
+                            🐟 Fish Audio (83 langs)
+                          </p>
+                        </div>
+                        <CommandGroup heading="Fish Audio">
+                          {faVoices.map(v => (
+                            <CommandItem key={`fa:${v.id}`} value={`fa:${v.id}:${v.name} ${v.style ?? ""} ${v.lang ?? ""}`}
+                              onSelect={() => handleVoiceSelect(`fa:${v.id}`)} className="flex items-center gap-2 py-2 cursor-pointer">
+                              <div className="w-7 h-7 rounded-md bg-emerald-50 flex items-center justify-center shrink-0 text-emerald-600 font-bold text-xs">{v.name[0]}</div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
+                                <p className="text-[10px] text-[#9ca3af]">{v.lang ?? "Multi"}</p>
+                              </div>
+                              {voiceProvider === "fishaudio" && voiceId === v.id && <Check size={13} className="text-emerald-600 shrink-0" />}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
                       </>
                     )}
                   </CommandList>
@@ -419,21 +489,29 @@ export default function StudioPage() {
           {/* Model selector - unified: both ElevenLabs + Fire TTS models, grouped like voices */}
           {(() => {
             const isMm = voiceProvider === "minimax";
-            const value = isMm ? mmModel : modelId;
-            const selected = (isMm ? MM_MODELS : MODELS).find((m) => m.id === value);
+            const isFa = voiceProvider === "fishaudio";
+            const value = isMm ? mmModel : isFa ? faModel : modelId;
+            const selected = (isMm ? MM_MODELS : isFa ? FA_MODELS : MODELS).find((m) => m.id === value);
             const handleModelChange = (id: string) => {
               const isElModel = MODELS.some((m) => m.id === id);
+              const isMmModel = MM_MODELS.some((m) => m.id === id);
               if (isElModel) {
                 setModelId(id);
                 if (voiceProvider !== "el") {
                   setVoiceProvider("el");
                   setVoiceId(voices?.[0]?.voiceId ?? "");
                 }
-              } else {
+              } else if (isMmModel) {
                 setMmModel(id);
                 if (voiceProvider !== "minimax") {
                   setVoiceProvider("minimax");
                   setVoiceId(mmVoices[0]?.id ?? "");
+                }
+              } else {
+                setFaModel(id);
+                if (voiceProvider !== "fishaudio") {
+                  setVoiceProvider("fishaudio");
+                  setVoiceId(faVoices[0]?.id ?? "default");
                 }
               }
             };
@@ -461,6 +539,10 @@ export default function StudioPage() {
                     <SelectGroup>
                       <SelectLabel className="text-[11px] text-[#9ca3af] flex items-center gap-1"><Zap size={11} className="text-violet-400" /> Fire TTS</SelectLabel>
                       {MM_MODELS.map(renderItem)}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel className="text-[11px] text-[#9ca3af]">🐟 Fish Audio</SelectLabel>
+                      {FA_MODELS.map(renderItem)}
                     </SelectGroup>
                   </SelectContent>
                 </Select>
@@ -602,7 +684,9 @@ export default function StudioPage() {
                   ? "bg-[#f3f4f6] text-[#9ca3af] cursor-not-allowed"
                   : voiceProvider === "minimax"
                     ? "bg-violet-600 text-white hover:bg-violet-700 shadow-sm"
-                    : "bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/30"
+                    : voiceProvider === "fishaudio"
+                      ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
+                      : "bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/30"
               )}
               data-testid="btn-generate"
             >
@@ -610,7 +694,9 @@ export default function StudioPage() {
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>
                 : voiceProvider === "minimax"
                   ? <><Zap className="h-4 w-4 fill-white" /> Generate</>
-                  : <><Play className="h-4 w-4 fill-white" /> Generate</>
+                  : voiceProvider === "fishaudio"
+                    ? <>🐟 Generate</>
+                    : <><Play className="h-4 w-4 fill-white" /> Generate</>
               }
             </button>
           </div>

@@ -6,6 +6,7 @@ import voicesRouter from "./voices";
 import ttsRouter from "./tts";
 import generationsRouter from "./generations";
 import minimaxRouter from "./minimax";
+import fishAudioRouter from "./fishaudio";
 import plansRouter from "./plans";
 import { requireAdmin } from "../middleware/require-admin";
 
@@ -19,5 +20,6 @@ router.use("/voices", voicesRouter);
 router.use("/tts", ttsRouter);
 router.use("/generations", generationsRouter);
 router.use("/minimax", minimaxRouter);
+router.use("/fishaudio", fishAudioRouter);
 
 export default router;

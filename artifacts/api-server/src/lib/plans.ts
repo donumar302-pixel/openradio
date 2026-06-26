@@ -87,16 +87,27 @@ export const MINIMAX_MODEL_IDS = [
   "speech-02-turbo",
 ];
 
+export const FISH_AUDIO_MODEL_IDS = [
+  "s2.1-pro-free",
+  "s2.1-pro",
+  "s2-pro",
+  "s1",
+];
+
 // Free users only get the first N models of each provider.
 export const FREE_MODEL_LIMIT = 5;
 
-export function allowedModels(plan: string, provider: "elevenlabs" | "minimax"): string[] {
-  const all = provider === "minimax" ? MINIMAX_MODEL_IDS : ELEVENLABS_MODEL_IDS;
-  if (plan !== "free") return all;
-  return all.slice(0, FREE_MODEL_LIMIT);
+export function allowedModels(plan: string, provider: "elevenlabs" | "minimax" | "fishaudio"): string[] {
+  if (provider === "minimax") {
+    return plan !== "free" ? MINIMAX_MODEL_IDS : MINIMAX_MODEL_IDS.slice(0, FREE_MODEL_LIMIT);
+  }
+  if (provider === "fishaudio") {
+    return plan !== "free" ? FISH_AUDIO_MODEL_IDS : ["s2.1-pro-free"];
+  }
+  return plan !== "free" ? ELEVENLABS_MODEL_IDS : ELEVENLABS_MODEL_IDS.slice(0, FREE_MODEL_LIMIT);
 }
 
-export function modelAllowedForPlan(plan: string, provider: "elevenlabs" | "minimax", modelId: string): boolean {
+export function modelAllowedForPlan(plan: string, provider: "elevenlabs" | "minimax" | "fishaudio", modelId: string): boolean {
   return allowedModels(plan, provider).includes(modelId);
 }
 

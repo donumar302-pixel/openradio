@@ -21,8 +21,8 @@ enabled only for Fire TTS voices) stayed permanently disabled — selecting a Fi
 set provider to `"mm"`, so `voiceProvider === "minimax"` was always false.
 
 **How to apply:** whenever you read an engine prefix off a composite voice key, map it
-explicitly (`raw === "mm" ? "minimax" : "el"`). Never trust the raw prefix as the provider
-value. Same applies if more engines are added.
+explicitly (`raw === "mm" ? "minimax" : raw === "fa" ? "fishaudio" : "el"`). Never trust
+the raw prefix as the provider value. A third engine (Fish Audio, prefix "fa:") was added.
 
 **Related:** Fire TTS expression tags (`[happy]`, `<break time="1000ms"/>`, `[laughter]`)
 only affect MiniMax output, so the toolbar is intentionally gated to `voiceProvider === "minimax"`.
