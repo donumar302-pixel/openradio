@@ -25,6 +25,7 @@ async function refundCredits(userId: number, amount: number) {
 }
 
 const FISH_BASE = "https://api.fish.audio/v1";
+const FISH_PUBLIC_BASE = "https://api.fish.audio";
 
 interface FishCreds { id: number; apiKey: string; usageCount: number; }
 
@@ -57,8 +58,7 @@ router.get("/voices", requireActiveUser, async (req, res) => {
 
   const params = new URLSearchParams({
     page_size: "50",
-    page_number: "1",
-    sort_by: "hottest",
+    sort_by: "task_count",
   });
   if (language) params.set("language", language);
 
@@ -66,7 +66,7 @@ router.get("/voices", requireActiveUser, async (req, res) => {
   if (creds) headers.Authorization = `Bearer ${creds.apiKey}`;
 
   try {
-    const response = await fetch(`${FISH_BASE}/model?${params.toString()}`, { headers });
+    const response = await fetch(`${FISH_PUBLIC_BASE}/model?${params.toString()}`, { headers });
 
     if (!response.ok) {
       res.json({ voices: FALLBACK_VOICES });
