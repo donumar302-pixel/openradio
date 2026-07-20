@@ -13,15 +13,37 @@ const asset = (p: string) => `${import.meta.env.BASE_URL}${p}`.replace(/([^:]\/)
 type Voice = {
   id: string;
   name: string;
-  role: string;
+  category: string;
+  tags: string[];
   src: string;
+  gradient: string;
 };
 
 const VOICES: Voice[] = [
-  { id: "v1", name: "Arthur", role: "Documentary Narrator", src: asset("voices/narrator.mp3") },
-  { id: "v2", name: "Elena", role: "Guided Meditation", src: asset("voices/serena.mp3") },
-  { id: "v3", name: "Marcus", role: "Audiobook Protagonist", src: asset("voices/soren.mp3") },
-  { id: "v4", name: "Leo", role: "Commercial Voiceover", src: asset("voices/kai.mp3") },
+  {
+    id: "v1", name: "Audiobook", category: "Narrator",
+    tags: ["Professional", "Calm", "Articulate"],
+    src: asset("voices/narrator.mp3"),
+    gradient: "from-stone-400 via-orange-200 to-amber-100",
+  },
+  {
+    id: "v2", name: "Guided Meditation", category: "Companion",
+    tags: ["Warm", "Soothing", "Feminine"],
+    src: asset("voices/serena.mp3"),
+    gradient: "from-rose-300 via-pink-200 to-orange-100",
+  },
+  {
+    id: "v3", name: "Voice Acting", category: "Character",
+    tags: ["Expressive", "Lively", "Charismatic"],
+    src: asset("voices/soren.mp3"),
+    gradient: "from-orange-400 via-amber-300 to-yellow-100",
+  },
+  {
+    id: "v4", name: "Commercial Ad", category: "Presenter",
+    tags: ["Energetic", "Bold", "Persuasive"],
+    src: asset("voices/kai.mp3"),
+    gradient: "from-sky-300 via-indigo-200 to-purple-100",
+  },
 ];
 
 const fadeIn = {
@@ -157,102 +179,87 @@ export default function LandingPage() {
         </motion.div>
       </section>
 
-      {/* 2. Interactive Demo Section */}
-      <section className="relative px-4 sm:px-6 max-w-6xl mx-auto pb-32">
-        <motion.div 
-          initial={{ opacity: 0, y: 60 }}
+      {/* 2. Bunny Audio Voice Cards */}
+      <section className="relative px-4 sm:px-6 max-w-6xl mx-auto pb-28">
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="bg-white rounded-[48px] p-6 sm:p-12 shadow-[0_30px_60px_-15px_rgba(249,115,22,0.15)] border-2 border-black/5 relative z-10"
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
         >
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-orange-100 text-orange-500 mb-6">
-                <AudioLines size={28} />
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-black mb-3">
-                Hear the difference.
-              </h2>
-              <p className="text-[15px] sm:text-base text-black/60 font-medium mb-6">
-                No robotic undertones. No weird pacing. Just breathtakingly natural voices ready to read your script.
-              </p>
-              
-              <div className="space-y-4">
-                {VOICES.map((v) => {
-                  const isPlaying = playingId === v.id;
-                  return (
-                    <button
-                      key={v.id}
-                      onClick={() => toggleVoice(v)}
-                      aria-pressed={isPlaying}
-                      aria-label={(isPlaying ? "Pause " : "Play ") + v.name + " sample"}
-                      className={`w-full group flex items-center justify-between p-4 rounded-3xl border-2 transition-all duration-300 ${
-                        isPlaying 
-                          ? "border-orange-500 bg-orange-50/50 shadow-md" 
-                          : "border-black/5 bg-white hover:border-orange-200 hover:shadow-sm"
-                      }`}
-                    >
-                      <div className="flex items-center gap-5">
-                        <div className={`w-14 h-14 rounded-[20px] flex items-center justify-center text-white shadow-inner transition-colors ${isPlaying ? "bg-orange-500" : "bg-black group-hover:bg-gray-800"}`}>
-                          {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
-                        </div>
-                        <div className="text-left">
-                          <div className="font-black text-black text-base mb-0.5">{v.name}</div>
-                          {errorId === v.id ? (
-                            <div className="font-bold text-rose-500 text-sm tracking-wide uppercase">Sample coming soon</div>
-                          ) : (
-                            <div className="font-bold text-black/40 text-sm tracking-wide uppercase">{v.role}</div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="pr-2 opacity-100 transition-opacity">
-                        <AnimatedWaveform isPlaying={isPlaying} />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            
-            <div className="bg-[#fafafa] rounded-[40px] p-8 sm:p-10 border-2 border-black/5 h-full flex flex-col justify-center relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl" />
-              <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/5 rounded-full blur-3xl" />
-              
-              <div className="relative z-10 space-y-6">
-                <div className="bg-white rounded-[24px] p-6 shadow-sm border border-black/5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="flex h-3 w-3 rounded-full bg-orange-500" />
-                    <span className="font-bold text-sm text-black/40 uppercase tracking-widest">Input Script</span>
-                  </div>
-                  <p className="text-[15px] font-medium text-black leading-relaxed">
-                    "The secret to a great performance isn't just in the words you say... it's the breath between them."
-                  </p>
-                </div>
-                
-                <div className="flex justify-center">
-                  <ArrowRight className="text-orange-500 rotate-90" size={24} />
-                </div>
+          <div className="mb-10">
+            <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-black leading-tight mb-3">
+              Experience Bunny Audio<br />
+              <span className="text-black/40 font-semibold text-xl sm:text-2xl">AI Voice — but this time, it's alive.</span>
+            </h2>
+            <Link
+              href="/register"
+              className="inline-flex items-center gap-2 mt-2 px-5 py-2.5 bg-black rounded-full text-white text-sm font-bold hover:bg-gray-800 transition-colors"
+            >
+              Hear it in action <ArrowRight size={15} />
+            </Link>
+          </div>
 
-                <div className="bg-orange-500 rounded-[24px] p-6 shadow-sm">
-                  <div className="flex items-center gap-3 mb-3">
-                    <Sparkles className="text-white" size={18} />
-                    <span className="font-bold text-sm text-white/80 uppercase tracking-widest">Processing</span>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {VOICES.map((v) => {
+              const isPlaying = playingId === v.id;
+              return (
+                <button
+                  key={v.id}
+                  onClick={() => toggleVoice(v)}
+                  aria-pressed={isPlaying}
+                  aria-label={(isPlaying ? "Pause " : "Play ") + v.name}
+                  className="group relative rounded-3xl overflow-hidden aspect-[3/4] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                >
+                  {/* Gradient texture background */}
+                  <div className={`absolute inset-0 bg-gradient-to-br ${v.gradient} transition-all duration-500 group-hover:scale-105`} />
+                  {/* Noise overlay for texture */}
+                  <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")", backgroundSize: "150px" }} />
+                  {/* Playing ring */}
+                  {isPlaying && (
+                    <div className="absolute inset-0 ring-4 ring-inset ring-orange-500/60 rounded-3xl pointer-events-none" />
+                  )}
+
+                  {/* Category label — top left */}
+                  <div className="absolute top-4 left-4">
+                    <span className="text-sm font-bold text-black/70 bg-white/40 backdrop-blur-sm px-2.5 py-1 rounded-full">
+                      {v.category}
+                    </span>
                   </div>
-                  <div className="space-y-2">
-                    <div className="h-2 bg-white/20 rounded-full w-full overflow-hidden">
-                      <motion.div 
-                        className="h-full bg-white rounded-full"
-                        animate={{ width: ["0%", "100%"] }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                      />
+
+                  {/* Dotted waveform — center */}
+                  <div className="absolute inset-0 flex items-center justify-center px-4">
+                    <div className="flex items-end gap-[3px] h-8 opacity-30">
+                      {Array.from({ length: 20 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className={`w-[3px] rounded-full bg-black transition-all duration-150 ${isPlaying ? "animate-pulse" : ""}`}
+                          style={{ height: `${Math.round(20 + Math.sin(i * 0.9) * 14 + Math.cos(i * 0.4) * 8)}px` }}
+                        />
+                      ))}
                     </div>
-                    <p className="text-white/90 font-medium text-sm text-center">Rendering emotional cadence...</p>
                   </div>
-                </div>
-              </div>
-            </div>
+
+                  {/* Bottom info + play button */}
+                  <div className="absolute bottom-0 left-0 right-0 p-4 flex items-end justify-between">
+                    <div>
+                      <div className="font-black text-black text-sm mb-1">{v.name}</div>
+                      {errorId === v.id ? (
+                        <div className="text-rose-600 text-xs font-bold">Sample coming soon</div>
+                      ) : (
+                        <div className="text-black/50 text-xs font-medium">{v.tags.join(" • ")}</div>
+                      )}
+                    </div>
+                    <div className={`w-11 h-11 rounded-full flex items-center justify-center shadow-lg flex-shrink-0 transition-colors ${isPlaying ? "bg-orange-500" : "bg-black/80 group-hover:bg-black"}`}>
+                      {isPlaying
+                        ? <Pause size={18} fill="white" className="text-white" />
+                        : <Play size={18} fill="white" className="text-white ml-0.5" />
+                      }
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </motion.div>
       </section>
