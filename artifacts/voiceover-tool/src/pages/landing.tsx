@@ -58,6 +58,120 @@ const stagger = {
 
 const ROTATING = ["Truly Alive", "Truly Human", "Truly Yours", "Full of Emotion", "Simply Unreal"];
 
+const DEMO_VOICES = [
+  { id: "d1", name: "Arthur (Narrator)", tags: ["English", "Adult", "Male", "Calm"], color: "bg-amber-200" },
+  { id: "d2", name: "Elena (Healer)", tags: ["English", "Young", "Female", "Calm"], color: "bg-rose-200" },
+  { id: "d3", name: "Marcus (Soren)", tags: ["English", "Middle Aged", "Male", "Calm"], color: "bg-sky-200" },
+  { id: "d4", name: "Leo (Mentor)", tags: ["English", "Young", "Male", "Energetic"], color: "bg-orange-200" },
+];
+
+const DEMO_TEXTS = {
+  tts: `[😊]: Yes! I finally beat you at this game! I am the champion!\n[😤]: Wait a minute... why is the console unplugged? You let me win on purpose? That is so insulting!`,
+  clone: `Upload your voice sample and type any text — we'll clone it instantly with the same tone, pace, and emotion as the original.`,
+};
+
+function HeroDemoWidget() {
+  const [tab, setTab] = useState<"tts" | "clone">("tts");
+  const [text, setText] = useState(DEMO_TEXTS.tts);
+  const [selectedVoice, setSelectedVoice] = useState("d3");
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const handleTab = (t: "tts" | "clone") => {
+    setTab(t);
+    setText(DEMO_TEXTS[t]);
+  };
+
+  const selected = DEMO_VOICES.find(v => v.id === selectedVoice)!;
+  const maxChars = 400;
+
+  return (
+    <div className="w-full max-w-4xl mx-auto mt-10 mb-4">
+      {/* Tab bar */}
+      <div className="flex items-center justify-center gap-1 mb-5">
+        {([["tts", "Text to Speech"], ["clone", "Voice Clone"]] as const).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => handleTab(id)}
+            className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+              tab === id ? "bg-black text-white shadow" : "text-black/50 hover:text-black"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Widget card */}
+      <div className="bg-white rounded-3xl shadow-[0_8px_40px_-8px_rgba(0,0,0,0.12)] border border-black/5 overflow-hidden">
+        <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-black/5">
+          {/* Left — text area */}
+          <div className="p-5 flex flex-col min-h-[260px]">
+            <p className="text-xs font-bold text-black/30 uppercase tracking-widest mb-3">Enter your own text here</p>
+            {tab === "clone" && (
+              <div className="mb-3 flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-black/10 text-sm text-black/40 font-medium cursor-pointer hover:border-orange-300 transition-colors">
+                <Mic size={16} className="text-orange-400" />
+                Upload voice sample (MP3, WAV)
+              </div>
+            )}
+            <textarea
+              className="flex-1 resize-none text-sm font-medium text-black leading-relaxed bg-transparent outline-none placeholder:text-black/20"
+              value={text}
+              onChange={e => setText(e.target.value.slice(0, maxChars))}
+              rows={6}
+            />
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-black/5">
+              <span className="text-xs text-black/30 font-medium">{text.length} / {maxChars}</span>
+              <Link href="/register" className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 rounded-full text-white text-sm font-bold shadow shadow-orange-500/30 transition-all">
+                <Sparkles size={14} />
+                Generate Voice
+              </Link>
+            </div>
+          </div>
+
+          {/* Right — voice selection */}
+          <div className="p-5 flex flex-col">
+            <p className="text-xs font-bold text-black/30 uppercase tracking-widest mb-3">Select a Voice</p>
+            <div className="flex-1 space-y-1.5 overflow-auto">
+              {DEMO_VOICES.map(v => (
+                <button
+                  key={v.id}
+                  onClick={() => setSelectedVoice(v.id)}
+                  className={`w-full flex items-center gap-3 p-2.5 rounded-2xl text-left transition-all ${
+                    selectedVoice === v.id
+                      ? "bg-orange-50 ring-2 ring-orange-400"
+                      : "hover:bg-black/[0.03]"
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex-shrink-0 ${v.color} flex items-center justify-center text-black/40`}>
+                    <Mic size={16} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-black truncate">{v.name}</div>
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {v.tags.map(t => (
+                        <span key={t} className="text-[10px] font-semibold text-black/40">{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                  {selectedVoice === v.id && (
+                    <div className="ml-auto w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
+                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+            <Link href="/register" className="mt-3 flex items-center justify-center gap-1.5 pt-3 border-t border-black/5 text-xs font-bold text-black/40 hover:text-orange-500 transition-colors">
+              <ArrowRight size={12} />
+              Explore More Popular Voices
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RotatingWord() {
   const [i, setI] = useState(0);
   useEffect(() => {
@@ -175,6 +289,10 @@ export default function LandingPage() {
             <Link href="/pricing" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-white rounded-full text-black text-[15px] font-bold border border-black/10 hover:border-black/20 transition-colors">
               View Credit Plans
             </Link>
+          </motion.div>
+
+          <motion.div variants={fadeIn}>
+            <HeroDemoWidget />
           </motion.div>
         </motion.div>
       </section>
