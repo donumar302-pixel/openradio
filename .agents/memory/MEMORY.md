@@ -3,3 +3,4 @@
 - [Per-user isolation & plan gating](per-user-isolation-and-gating.md) — scope user-owned rows by id (lists + mutations + IDOR-safe deletes); plans.ts is the single source for credits/prices/rates/feature+model gating; free = TTS+Fire only; rates stay server-side.
 - [Voice provider prefix mapping](voice-provider-prefix.md) — dropdown keys are "el:"/"mm:"/"fa:" but runtime provider must be "el"/"minimax"/"fishaudio"; always map explicitly in handleVoiceSelect.
 - [Fish Audio integration](fish-audio-integration.md) — 3rd TTS engine; model passed as HTTP header not body; "default" voiceId = no reference_id sent; env var FISH_AUDIO_API_KEY or DB provider "fishaudio".
+- [Landing voice samples & MiniMax balance](landing-voice-samples.md) — demo mp3s via Replit-managed TTS into public/voices/; MiniMax has insufficient balance; stagger/sticky-nav gotchas.

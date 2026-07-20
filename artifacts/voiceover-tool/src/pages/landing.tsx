@@ -1,107 +1,57 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
-import {
-  Wand2, Mic, Copy, AudioWaveform, Play, Pause, ArrowRight, Check, Sparkles,
-  Globe, BookOpen, Clapperboard, GraduationCap, Megaphone,
+import { 
+  Play, Pause, ArrowRight, Mic, Globe, 
+  Wand2, AudioLines, Sparkles, Zap, Fingerprint,
+  MessageSquare, Headset, Shapes
 } from "lucide-react";
+import { motion } from "framer-motion";
 
 const asset = (p: string) => `${import.meta.env.BASE_URL}${p}`.replace(/([^:]\/)\/+/g, "$1");
-
-const DEMO_TABS = [
-  { icon: Wand2, label: "Voice Design" },
-  { icon: Mic, label: "Text to Speech" },
-  { icon: Copy, label: "Voice Clone" },
-  { icon: AudioWaveform, label: "Sound Design" },
-];
 
 type Voice = {
   id: string;
   name: string;
-  tags: string[];
-  color: string;
+  role: string;
   src: string;
 };
 
 const VOICES: Voice[] = [
-  { id: "narrator", name: "Educational Narrator", tags: ["English", "Adult", "Male", "Neutral"], color: "bg-blue-500", src: asset("voices/narrator.mp3") },
-  { id: "serena", name: "The Healer (Serena)", tags: ["English", "Young", "Female", "Calm"], color: "bg-rose-500", src: asset("voices/serena.mp3") },
-  { id: "soren", name: "The Naturalist (Soren)", tags: ["English", "Middle Aged", "Male"], color: "bg-amber-500", src: asset("voices/soren.mp3") },
-  { id: "kai", name: "The Mentor (Kai)", tags: ["English", "Young", "Male", "Joyful"], color: "bg-emerald-500", src: asset("voices/kai.mp3") },
+  { id: "v1", name: "Arthur", role: "Documentary Narrator", src: asset("voices/narrator.mp3") },
+  { id: "v2", name: "Elena", role: "Guided Meditation", src: asset("voices/serena.mp3") },
+  { id: "v3", name: "Marcus", role: "Audiobook Protagonist", src: asset("voices/soren.mp3") },
+  { id: "v4", name: "Leo", role: "Commercial Voiceover", src: asset("voices/kai.mp3") },
 ];
 
-const ROTATING = ["Truly Alive", "Truly Human", "Truly Yours", "Full of Emotion", "Simply Unreal"];
+const fadeIn = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] as const } }
+};
 
-const SCENARIOS = [
-  {
-    icon: Globe,
-    title: "Multilingual Dubbing",
-    desc: "Globalize your content with one-click AI dubbing. Seamlessly translate videos into multiple languages while preserving your original voice and every emotional nuance.",
-  },
-  {
-    icon: BookOpen,
-    title: "Immersive Storytelling",
-    desc: "Bring audiobooks and narratives to life with expressive, character-rich voices that hold listeners from the first line to the last.",
-  },
-  {
-    icon: Clapperboard,
-    title: "Creative & Entertainment",
-    desc: "Generate voices for games, animation, and film. Design unique characters with distinct personalities and emotional range.",
-  },
-  {
-    icon: GraduationCap,
-    title: "Educational Audio",
-    desc: "Turn lessons, courses, and e-learning material into clear, engaging narration that students actually want to listen to.",
-  },
-  {
-    icon: Megaphone,
-    title: "Commercial & Branding",
-    desc: "Craft polished voiceovers for ads, explainers, and product demos that sound studio-recorded — in minutes, not days.",
-  },
-];
+const stagger = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+};
 
-const FEATURES = [
-  { icon: Sparkles, title: "Emotional AI Voices", desc: "Voices that laugh, whisper, and emphasize — with natural human emotion built in." },
-  { icon: Copy, title: "Instant Voice Cloning", desc: "Clone any voice from a short sample and use it across all your projects." },
-  { icon: Globe, title: "30+ Languages", desc: "Generate and dub content in dozens of languages with native-level fluency." },
-  { icon: Mic, title: "Studio-Grade Output", desc: "Crisp, broadcast-ready audio you can drop straight into your timeline." },
-];
-
-/* ── Rotating headline word ─────────────────────────────────────────── */
-function RotatingWord() {
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setI((v) => (v + 1) % ROTATING.length), 2400);
-    return () => clearInterval(t);
-  }, []);
+function AnimatedWaveform({ isPlaying }: { isPlaying: boolean }) {
   return (
-    <span className="relative inline-block align-top overflow-hidden">
-      {ROTATING.map((w, idx) => (
-        <span
-          key={idx}
-          className={
-            "block bg-gradient-to-r from-[#f97316] to-amber-500 bg-clip-text text-transparent transition-all duration-500 " +
-            (idx === i
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 -translate-y-full absolute inset-0")
-          }
-        >
-          {w}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-/* ── Animated equalizer bars ────────────────────────────────────────── */
-function EqBars() {
-  return (
-    <div className="flex items-center gap-[3px] h-5">
-      {[0, 1, 2, 3].map((n) => (
-        <span
+    <div className="flex items-center gap-[4px] h-8">
+      {[0, 1, 2, 3, 4].map((n) => (
+        <motion.div
           key={n}
-          className="w-[3px] rounded-full bg-[#f97316] animate-pulse"
-          style={{ height: `${[60, 100, 45, 80][n]}%`, animationDelay: `${n * 120}ms`, animationDuration: "700ms" }}
+          className="w-[4px] rounded-full bg-orange-500"
+          animate={isPlaying ? {
+            height: ["20%", "100%", "40%", "80%", "20%"],
+          } : {
+            height: "20%"
+          }}
+          transition={isPlaying ? {
+            duration: 0.8,
+            repeat: Infinity,
+            delay: n * 0.1,
+            ease: "easeInOut"
+          } : { duration: 0.3 }}
         />
       ))}
     </div>
@@ -109,12 +59,9 @@ function EqBars() {
 }
 
 export default function LandingPage() {
-  const [activeTab, setActiveTab] = useState(1);
-  const [activeScenario, setActiveScenario] = useState(0);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [errorId, setErrorId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const ScenarioIcon = SCENARIOS[activeScenario].icon;
 
   useEffect(() => {
     return () => { audioRef.current?.pause(); };
@@ -128,11 +75,13 @@ export default function LandingPage() {
       audioRef.current = audio;
       audio.addEventListener("ended", () => setPlayingId(null));
     }
+    
     if (playingId === v.id) {
       audio.pause();
       setPlayingId(null);
       return;
     }
+    
     audio.src = v.src;
     audio.currentTime = 0;
     audio.play()
@@ -141,236 +90,347 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fafaf9] text-gray-900">
+    <div className="min-h-screen bg-[#fafafa] text-black overflow-x-clip font-sans selection:bg-orange-500/20 selection:text-orange-900">
       <MarketingNav />
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[900px] h-[600px] rounded-full bg-gradient-to-tr from-orange-200/50 via-amber-100/40 to-rose-200/40 blur-3xl" />
-          <div className="absolute top-[20%] left-[5%] w-[400px] h-[400px] rounded-full bg-orange-300/20 blur-3xl" />
-          <div className="absolute top-[10%] right-[5%] w-[400px] h-[400px] rounded-full bg-amber-200/30 blur-3xl" />
-        </div>
-
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-20 sm:pt-28 pb-16 text-center">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/70 border border-black/[0.06] text-[12.5px] font-semibold text-gray-600 mb-7 shadow-sm">
-            <Sparkles size={13} className="text-[#f97316]" />
-            AI-native voices, cloning & design
-          </div>
-          <h1 className="text-[48px] sm:text-[84px] leading-[0.98] font-black tracking-[-0.03em] text-gray-900">
-            Voices That Feel
-            <br />
-            <RotatingWord />
-          </h1>
-          <p className="mt-7 text-[16px] sm:text-[19px] text-gray-500 max-w-2xl mx-auto leading-relaxed">
-            Unlock AI-native emotional voices, cloning, and design. Create audiobooks,
-            podcasts, videos, and beyond — exactly as you imagine.
-          </p>
-          <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link
-              href="/register"
-              className="group inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-[#f97316] hover:bg-[#ea6c0a] text-white text-[15px] font-bold shadow-lg shadow-orange-500/30 transition-all"
-            >
-              Get Started
-              <ArrowRight size={17} className="group-hover:translate-x-0.5 transition-transform" />
-            </Link>
-            <Link
-              href="/pricing"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-white border border-black/[0.08] text-gray-700 hover:text-gray-900 text-[15px] font-bold transition-colors"
-            >
-              View Pricing
-            </Link>
-          </div>
-        </div>
-
-        {/* Product preview mockup */}
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 pb-20">
-          <div className="flex justify-center mb-5">
-            <div className="inline-flex flex-wrap justify-center gap-1 p-1.5 rounded-2xl bg-white/80 border border-black/[0.06] shadow-sm backdrop-blur">
-              {DEMO_TABS.map((t, i) => {
-                const Icon = t.icon;
-                return (
-                  <button
-                    key={i}
-                    onClick={() => setActiveTab(i)}
-                    className={
-                      "flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all " +
-                      (activeTab === i ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-800")
-                    }
-                  >
-                    <Icon size={14} /> {t.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-black/[0.07] bg-white shadow-2xl shadow-orange-100/50 overflow-hidden">
-            <div className="grid md:grid-cols-2">
-              {/* Left: text input */}
-              <div className="p-6 sm:p-8 border-b md:border-b-0 md:border-r border-black/[0.06]">
-                <p className="text-[12px] font-bold uppercase tracking-widest text-gray-400 mb-3">
-                  Enter your own text
-                </p>
-                <p className="text-[15px] leading-relaxed text-gray-700">
-                  <span className="inline-block mr-1">😄</span> I can't believe I actually won
-                  the first prize! This is the best day of my life.{" "}
-                  <span className="inline-block mx-1">😢</span> But realizing that I have to move
-                  away and leave you guys behind breaks my heart.
-                </p>
-                <div className="mt-6 flex items-center justify-between">
-                  <span className="text-[12px] text-gray-400">186 / 400</span>
-                  <Link
-                    href="/register"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-900 text-white text-[13px] font-bold"
-                  >
-                    <Play size={13} /> Generate Voice
-                  </Link>
-                </div>
+      {/* 1. Hero Section */}
+      <section className="relative pt-24 pb-32 sm:pt-32 sm:pb-40 px-4 sm:px-6 max-w-7xl mx-auto">
+        {/* Soft floating background blobs */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-orange-400/20 rounded-[100%] blur-[120px] pointer-events-none -z-10" />
+        
+        <motion.div 
+          initial="hidden"
+          animate="visible"
+          variants={stagger}
+          className="text-center max-w-4xl mx-auto"
+        >
+          <motion.div variants={fadeIn} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white shadow-sm border border-black/5 text-sm font-bold text-black mb-8">
+            <span className="flex h-2.5 w-2.5 rounded-full bg-orange-500 animate-pulse" />
+            The Next Generation of AI Audio
+          </motion.div>
+          
+          <motion.h1 variants={fadeIn} className="text-5xl sm:text-7xl lg:text-[88px] font-black tracking-[-0.04em] leading-[0.95] text-black mb-8">
+            Audio that sounds <br/>
+            <span className="text-orange-500">Unbelievably Real.</span>
+          </motion.h1>
+          
+          <motion.p variants={fadeIn} className="text-lg sm:text-2xl text-black/60 font-medium max-w-2xl mx-auto leading-relaxed mb-10">
+            Generate lifelike speech, clone voices in seconds, and dub videos globally. A playful, premium studio built for modern creators.
+          </motion.p>
+          
+          <motion.div variants={fadeIn} className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
+            <Link href="/register" className="w-full sm:w-auto relative group">
+              <div className="absolute inset-0 bg-orange-600 rounded-[32px] translate-y-1.5 group-hover:translate-y-2 transition-transform duration-200" />
+              <div className="relative flex items-center justify-center gap-2 px-8 py-4.5 bg-orange-500 rounded-[32px] text-white text-lg font-black border-2 border-orange-600 group-hover:-translate-y-1 transition-transform duration-200">
+                Start Creating Free
+                <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
               </div>
+            </Link>
+            <Link href="/pricing" className="w-full sm:w-auto relative group">
+              <div className="absolute inset-0 bg-black/10 rounded-[32px] translate-y-1.5 group-hover:translate-y-2 transition-transform duration-200" />
+              <div className="relative flex items-center justify-center gap-2 px-8 py-4.5 bg-white rounded-[32px] text-black text-lg font-black border-2 border-black/10 group-hover:-translate-y-1 transition-transform duration-200">
+                View Credit Plans
+              </div>
+            </Link>
+          </motion.div>
+        </motion.div>
+      </section>
 
-              {/* Right: playable voice list */}
-              <div className="p-6 sm:p-8 bg-[#fafaf9]/60">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-[12px] font-bold uppercase tracking-widest text-gray-400">
-                    Select a voice — tap to play
-                  </p>
-                </div>
-                <div className="space-y-2.5">
-                  {VOICES.map((v) => {
-                    const isPlaying = playingId === v.id;
-                    return (
-                      <button
-                        key={v.id}
-                        onClick={() => toggleVoice(v)}
-                        aria-pressed={isPlaying}
-                        aria-label={(isPlaying ? "Pause " : "Play ") + v.name + " sample"}
-                        className={
-                          "w-full flex items-center gap-3 p-3 rounded-2xl border text-left transition-all " +
-                          (isPlaying
-                            ? "border-[#f97316]/50 bg-orange-50/80 shadow-sm"
-                            : "border-black/[0.05] bg-white hover:border-[#f97316]/30 hover:shadow-sm")
-                        }
-                      >
-                        {/* Play/pause avatar */}
-                        <span className={"relative w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white " + v.color}>
-                          {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[13.5px] font-bold text-gray-900 truncate">{v.name}</p>
+      {/* 2. Interactive Demo Section */}
+      <section className="relative px-4 sm:px-6 max-w-6xl mx-auto pb-32">
+        <motion.div 
+          initial={{ opacity: 0, y: 60 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="bg-white rounded-[48px] p-6 sm:p-12 shadow-[0_30px_60px_-15px_rgba(249,115,22,0.15)] border-2 border-black/5 relative z-10"
+        >
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-orange-100 text-orange-500 mb-6">
+                <AudioLines size={28} />
+              </div>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-black mb-4">
+                Hear the difference.
+              </h2>
+              <p className="text-xl text-black/60 font-medium mb-8">
+                No robotic undertones. No weird pacing. Just breathtakingly natural voices ready to read your script.
+              </p>
+              
+              <div className="space-y-4">
+                {VOICES.map((v) => {
+                  const isPlaying = playingId === v.id;
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={() => toggleVoice(v)}
+                      aria-pressed={isPlaying}
+                      aria-label={(isPlaying ? "Pause " : "Play ") + v.name + " sample"}
+                      className={`w-full group flex items-center justify-between p-4 rounded-3xl border-2 transition-all duration-300 ${
+                        isPlaying 
+                          ? "border-orange-500 bg-orange-50/50 shadow-[0_8px_0_0_rgba(249,115,22,1)] -translate-y-1" 
+                          : "border-black/5 bg-white hover:border-orange-200 hover:shadow-[0_8px_0_0_rgba(249,115,22,0.2)] hover:-translate-y-1"
+                      }`}
+                    >
+                      <div className="flex items-center gap-5">
+                        <div className={`w-14 h-14 rounded-[20px] flex items-center justify-center text-white shadow-inner transition-colors ${isPlaying ? "bg-orange-500" : "bg-black group-hover:bg-gray-800"}`}>
+                          {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
+                        </div>
+                        <div className="text-left">
+                          <div className="font-black text-black text-xl mb-0.5">{v.name}</div>
                           {errorId === v.id ? (
-                            <p className="text-[10.5px] font-semibold text-rose-500 mt-1">Sample coming soon</p>
+                            <div className="font-bold text-rose-500 text-sm tracking-wide uppercase">Sample coming soon</div>
                           ) : (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {v.tags.slice(0, 4).map((t, j) => (
-                                <span key={j} className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-black/[0.05] text-gray-500">
-                                  {t}
-                                </span>
-                              ))}
-                            </div>
+                            <div className="font-bold text-black/40 text-sm tracking-wide uppercase">{v.role}</div>
                           )}
                         </div>
-                        {isPlaying && <EqBars />}
-                      </button>
-                    );
-                  })}
+                      </div>
+                      
+                      <div className="pr-2 opacity-100 transition-opacity">
+                        <AnimatedWaveform isPlaying={isPlaying} />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            
+            <div className="bg-[#fafafa] rounded-[40px] p-8 sm:p-10 border-2 border-black/5 h-full flex flex-col justify-center relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl" />
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/5 rounded-full blur-3xl" />
+              
+              <div className="relative z-10 space-y-6">
+                <div className="bg-white rounded-[24px] p-6 shadow-sm border border-black/5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="flex h-3 w-3 rounded-full bg-orange-500" />
+                    <span className="font-bold text-sm text-black/40 uppercase tracking-widest">Input Script</span>
+                  </div>
+                  <p className="text-lg font-medium text-black leading-relaxed">
+                    "The secret to a great performance isn't just in the words you say... it's the breath between them."
+                  </p>
+                </div>
+                
+                <div className="flex justify-center">
+                  <ArrowRight className="text-orange-500 rotate-90" size={24} />
+                </div>
+
+                <div className="bg-orange-500 rounded-[24px] p-6 shadow-sm">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Sparkles className="text-white" size={18} />
+                    <span className="font-bold text-sm text-white/80 uppercase tracking-widest">Processing</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-2 bg-white/20 rounded-full w-full overflow-hidden">
+                      <motion.div 
+                        className="h-full bg-white rounded-full"
+                        animate={{ width: ["0%", "100%"] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      />
+                    </div>
+                    <p className="text-white/90 font-medium text-sm text-center">Rendering emotional cadence...</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+        </motion.div>
+      </section>
+
+      {/* 3. How It Works Section */}
+      <section className="px-4 sm:px-6 max-w-7xl mx-auto pb-32">
+        <div className="text-center mb-20">
+          <h2 className="text-4xl sm:text-6xl font-black tracking-tight text-black mb-6">
+            Effortless Creation.
+          </h2>
+          <p className="text-xl text-black/60 font-medium max-w-2xl mx-auto">
+            From script to final audio in three simple steps.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-8">
+          {[
+            { icon: MessageSquare, title: "1. Type or Paste", desc: "Drop your script into our editor. We support long-form content perfectly." },
+            { icon: Headset, title: "2. Choose a Voice", desc: "Select from our premium library or clone your own voice instantly." },
+            { icon: Zap, title: "3. Generate Audio", desc: "Hit generate and download studio-grade MP3 audio in seconds." }
+          ].map((step, i) => (
+            <motion.div 
+              key={i}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="bg-white rounded-[40px] p-10 text-center border-2 border-black/5 hover:border-orange-500 transition-colors shadow-sm"
+            >
+              <div className="w-20 h-20 mx-auto bg-orange-50 rounded-[24px] flex items-center justify-center mb-8 text-orange-500">
+                <step.icon size={36} />
+              </div>
+              <h3 className="text-2xl font-black text-black mb-4">{step.title}</h3>
+              <p className="text-lg text-black/60 font-medium leading-relaxed">{step.desc}</p>
+            </motion.div>
+          ))}
         </div>
       </section>
 
-      {/* Scenarios */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-20">
-        <h2 className="text-[30px] sm:text-[40px] font-black tracking-tight text-gray-900 mb-10">
-          Give Every Scenario the
-          <br className="hidden sm:block" /> Voice It Deserves
-        </h2>
-
-        <div className="grid md:grid-cols-[280px_1fr] gap-6 lg:gap-10">
-          <div className="flex md:flex-col gap-2 overflow-x-auto md:overflow-visible pb-2 md:pb-0">
-            {SCENARIOS.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => setActiveScenario(i)}
-                className={
-                  "shrink-0 md:w-full text-left px-5 py-3.5 rounded-2xl text-[14.5px] font-bold transition-all whitespace-nowrap md:whitespace-normal " +
-                  (activeScenario === i
-                    ? "bg-gray-900 text-white shadow-lg"
-                    : "bg-white border border-black/[0.06] text-gray-600 hover:text-gray-900")
-                }
-              >
-                {s.title}
-              </button>
-            ))}
-          </div>
-
-          <div className="relative rounded-3xl bg-gray-900 text-white overflow-hidden min-h-[340px] p-7 sm:p-10 flex flex-col justify-between">
-            <div className="pointer-events-none absolute inset-0 opacity-30">
-              <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-[#f97316]/30 to-transparent" />
-            </div>
-            <div className="relative">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 text-[12.5px] font-bold mb-5">
-                <ScenarioIcon size={14} className="text-[#f97316]" />
-                {SCENARIOS[activeScenario].title}
+      {/* 4. Features Bento Grid */}
+      <section className="px-4 sm:px-6 max-w-7xl mx-auto pb-32">
+        <div className="text-center mb-16">
+          <h2 className="text-4xl sm:text-6xl font-black tracking-tight text-black mb-6">
+            Pro tools, playful vibe.
+          </h2>
+        </div>
+        
+        <div className="grid md:grid-cols-3 gap-6">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            className="md:col-span-2 bg-orange-500 rounded-[48px] p-10 sm:p-14 shadow-[0_20px_40px_-15px_rgba(249,115,22,0.4)] relative overflow-hidden group"
+          >
+            <div className="absolute -top-10 -right-10 w-64 h-64 bg-orange-400 rounded-full blur-3xl opacity-50 transition-opacity group-hover:opacity-80" />
+            <div className="relative z-10">
+              <div className="w-16 h-16 rounded-[24px] bg-white text-orange-500 flex items-center justify-center mb-8 shadow-sm">
+                <Wand2 size={32} />
               </div>
-              <p className="text-[17px] sm:text-[19px] leading-relaxed text-white/85 max-w-xl">
-                {SCENARIOS[activeScenario].desc}
+              <h3 className="text-4xl font-black text-white mb-4">Emotional AI Text-to-Speech</h3>
+              <p className="text-orange-100 text-xl font-medium max-w-lg leading-relaxed">
+                Inject laughter, whispers, shouts, and sighs. Our AI understands context and delivers lines with genuine human emotion, never flat robot reading.
               </p>
             </div>
-            <div className="relative mt-8 flex items-end gap-1 h-16">
-              {Array.from({ length: 48 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex-1 rounded-full bg-gradient-to-t from-[#f97316] to-amber-300"
-                  style={{ height: `${20 + Math.abs(Math.sin(i * 0.6 + activeScenario)) * 80}%` }}
-                />
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+            className="bg-black text-white rounded-[48px] p-10 sm:p-12 shadow-xl relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-gray-800/50 to-transparent opacity-50" />
+            <div className="relative z-10">
+              <div className="w-16 h-16 rounded-[24px] bg-white/10 text-white flex items-center justify-center mb-8">
+                <Shapes size={32} />
+              </div>
+              <h3 className="text-3xl font-black mb-4">Studio Grade Output</h3>
+              <p className="text-gray-400 text-lg font-medium leading-relaxed">
+                Download pristine, broadcast-ready MP3s. Zero background noise.
+              </p>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* 5. Voice Cloning Section */}
+      <section className="px-4 sm:px-6 max-w-7xl mx-auto pb-32">
+        <motion.div 
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="bg-white rounded-[48px] border-2 border-black/5 p-8 sm:p-16 flex flex-col md:flex-row items-center gap-16 shadow-sm"
+        >
+          <div className="flex-1">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-[24px] bg-black text-white mb-8">
+              <Fingerprint size={32} />
+            </div>
+            <h2 className="text-4xl sm:text-6xl font-black tracking-tight text-black mb-6">
+              Instant Voice Cloning.
+            </h2>
+            <p className="text-xl text-black/60 font-medium mb-10 leading-relaxed max-w-lg">
+              Upload just a 30-second audio clip and create a digital twin of any voice in seconds. Secure, private, and breathtakingly accurate.
+            </p>
+            <Link href="/register" className="inline-flex items-center gap-2 px-8 py-4 bg-black rounded-[32px] text-white text-lg font-black hover:-translate-y-1 transition-transform">
+              Try Cloning <ArrowRight size={20} />
+            </Link>
+          </div>
+          <div className="flex-1 w-full">
+            <div className="bg-[#fafafa] rounded-[40px] p-8 border-2 border-black/5 aspect-square flex flex-col items-center justify-center relative">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(249,115,22,0.1)_0%,transparent_70%)]" />
+              <div className="relative z-10 text-center">
+                <div className="w-24 h-24 mx-auto bg-white rounded-full border-4 border-orange-500 flex items-center justify-center shadow-lg mb-6 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-orange-500/20 animate-ping" />
+                  <Mic size={40} className="text-orange-500 relative z-10" />
+                </div>
+                <div className="bg-white px-6 py-3 rounded-full shadow-sm font-bold text-black border border-black/5">
+                  Voice Profile Created
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </section>
+
+      {/* 6. Global Dubbing */}
+      <section className="px-4 sm:px-6 max-w-7xl mx-auto pb-32">
+        <div className="bg-orange-500 rounded-[48px] p-8 sm:p-16 text-center text-white relative overflow-hidden shadow-[0_20px_60px_-15px_rgba(249,115,22,0.3)]">
+          <div className="absolute -top-40 -left-40 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-black/10 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="relative z-10 max-w-3xl mx-auto">
+            <div className="w-20 h-20 mx-auto bg-white text-orange-500 rounded-[24px] flex items-center justify-center mb-8 shadow-lg">
+              <Globe size={40} />
+            </div>
+            <h2 className="text-4xl sm:text-6xl font-black tracking-tight mb-6">
+              Go Global Instantly.
+            </h2>
+            <p className="text-2xl text-orange-50 font-medium mb-10 leading-relaxed">
+              Translate and dub your content into 30+ languages with native-level fluency. Maintain the original emotional tone and voice identity across every language.
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              {['English', 'Spanish', 'French', 'German', 'Japanese', 'Hindi', '+24 More'].map((lang, i) => (
+                <div key={i} className="px-5 py-2.5 bg-white/20 backdrop-blur-sm rounded-full font-bold text-white border border-white/20">
+                  {lang}
+                </div>
               ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-12 pb-24">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {FEATURES.map((f, i) => {
-            const Icon = f.icon;
-            return (
-              <div key={i} className="p-6 rounded-3xl bg-white border border-black/[0.06] hover:shadow-lg hover:shadow-orange-100/50 transition-all">
-                <div className="w-11 h-11 rounded-2xl bg-orange-50 flex items-center justify-center mb-4">
-                  <Icon size={20} className="text-[#f97316]" />
-                </div>
-                <h3 className="text-[16px] font-black text-gray-900 mb-1.5">{f.title}</h3>
-                <p className="text-[13.5px] text-gray-500 leading-relaxed">{f.desc}</p>
+      {/* 7. Use Cases */}
+      <section className="px-4 sm:px-6 max-w-7xl mx-auto pb-32">
+        <div className="text-center mb-16">
+          <h2 className="text-4xl sm:text-6xl font-black tracking-tight text-black mb-6">
+            Built for modern creators.
+          </h2>
+        </div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[
+            { title: "Audiobooks", desc: "Keep listeners hooked for hours with expressive, non-fatiguing narrators." },
+            { title: "Podcasts", desc: "Fix flubbed lines or generate entire ad reads instantly without a mic." },
+            { title: "Gaming", desc: "Populate your virtual worlds with hundreds of unique character voices." },
+            { title: "Marketing", desc: "Create high-converting video ads without booking expensive studio time." }
+          ].map((uc, i) => (
+            <div 
+              key={i}
+              className="bg-white rounded-[32px] p-8 border-2 border-black/5 hover:border-black transition-colors"
+            >
+              <div className="w-12 h-12 rounded-[16px] bg-black flex items-center justify-center mb-6 text-white font-black text-xl">
+                {i + 1}
               </div>
-            );
-          })}
+              <h4 className="text-2xl font-black text-black mb-3">{uc.title}</h4>
+              <p className="text-lg text-black/60 font-medium">{uc.desc}</p>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* CTA band */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-24">
-        <div className="relative rounded-[32px] bg-gradient-to-br from-[#f97316] to-orange-500 px-8 sm:px-14 py-14 sm:py-20 text-center overflow-hidden">
-          <div className="pointer-events-none absolute inset-0 opacity-20">
-            <div className="absolute -top-10 -right-10 w-72 h-72 rounded-full bg-white/40 blur-3xl" />
-            <div className="absolute -bottom-10 -left-10 w-72 h-72 rounded-full bg-amber-200/50 blur-3xl" />
-          </div>
-          <div className="relative">
-            <h2 className="text-[30px] sm:text-[44px] font-black tracking-tight text-white">
-              Start creating with BunnyTTS
+      {/* 8. CTA Section */}
+      <section className="px-4 sm:px-6 max-w-6xl mx-auto pb-32">
+        <div className="bg-black rounded-[48px] p-10 sm:p-24 text-center relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(249,115,22,0.2)_0%,transparent_60%)] pointer-events-none" />
+          
+          <div className="relative z-10">
+            <h2 className="text-5xl sm:text-7xl font-black tracking-tight text-white mb-8">
+              Your studio is ready.
             </h2>
-            <p className="mt-4 text-[16px] sm:text-[18px] text-white/90 max-w-xl mx-auto">
-              Join creators bringing their words to life with voices that feel truly alive.
+            <p className="text-2xl text-gray-400 font-medium max-w-2xl mx-auto mb-12">
+              Join creators producing professional audio at the speed of thought. 
             </p>
-            <Link
-              href="/register"
-              className="mt-8 inline-flex items-center gap-2 px-8 py-4 rounded-full bg-white text-[#f97316] text-[15px] font-black shadow-xl hover:scale-[1.02] transition-transform"
-            >
-              Get Started Free
-              <ArrowRight size={17} />
+            
+            <Link href="/register" className="inline-flex items-center gap-2 px-10 py-5 bg-orange-500 rounded-[32px] text-white text-xl font-black hover:-translate-y-1 transition-transform border-4 border-orange-600 shadow-[0_10px_30px_-10px_rgba(249,115,22,0.5)]">
+              Get Started Free <ArrowRight size={24} />
             </Link>
+            <p className="mt-8 text-gray-500 font-medium text-lg">No credit card required to start.</p>
           </div>
         </div>
       </section>

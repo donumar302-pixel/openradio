@@ -1,0 +1,26 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "vS9RPXtZI7ZM7ObL5LEX5"
+uri = "file://artifacts/voiceover-tool/public/voices/narrator.mp3"
+type = "audio"
+title = "narrator"
+
+[[outputs]]
+id = "XAuQZNNSUEWJMHpHiqTr7"
+uri = "file://artifacts/voiceover-tool/public/voices/serena.mp3"
+type = "audio"
+title = "serena"
+
+[[outputs]]
+id = "NhesCcDSf20G2WV0-Murx"
+uri = "file://artifacts/voiceover-tool/public/voices/soren.mp3"
+type = "audio"
+title = "soren"
+
+[[outputs]]
+id = "0mKBl6UjZ-XCHklxJfpj9"
+uri = "file://artifacts/voiceover-tool/public/voices/kai.mp3"
+type = "audio"
+title = "kai"
