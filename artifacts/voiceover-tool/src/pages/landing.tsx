@@ -382,6 +382,148 @@ export default function LandingPage() {
         </motion.div>
       </section>
 
+      {/* 2.5 All-in-One Studio Bento */}
+      <section className="px-4 sm:px-6 max-w-6xl mx-auto pb-28">
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+        >
+          <div className="text-center mb-10">
+            <h2 className="text-3xl sm:text-[40px] font-black tracking-tight text-black mb-3">
+              Your All-in-One Pro Audio Studio
+            </h2>
+            <p className="text-base text-black/50 font-medium max-w-lg mx-auto">
+              We build for creators — BunnyTTS empowers creators around the world with sound capabilities to improve productivity.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* Left — Voice Library (orange) */}
+            <div className="relative rounded-3xl bg-orange-500 overflow-hidden min-h-[340px] p-8 flex flex-col justify-between">
+              {/* Animated concentric rings */}
+              {[1,2,3].map(i => (
+                <motion.div
+                  key={i}
+                  className="absolute rounded-full border-2 border-white/20"
+                  style={{
+                    width: `${200 + i * 110}px`,
+                    height: `${200 + i * 110}px`,
+                    left: `calc(50% - ${(200 + i * 110)/2}px)`,
+                    top: `calc(60% - ${(200 + i * 110)/2}px)`,
+                  }}
+                  animate={{ scale: [1, 1.06, 1], opacity: [0.3, 0.6, 0.3] }}
+                  transition={{ duration: 3 + i * 0.7, repeat: Infinity, ease: "easeInOut", delay: i * 0.4 }}
+                />
+              ))}
+
+              {/* Floating voice mini-cards */}
+              <motion.div
+                className="absolute left-6 bottom-24 bg-white/20 backdrop-blur-sm rounded-2xl px-3 py-2 text-white text-xs font-bold flex items-center gap-2 shadow"
+                animate={{ y: [0, -8, 0] }}
+                transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <div className="w-6 h-6 rounded-full bg-white/30 flex items-center justify-center"><Mic size={11} /></div>
+                Narrator · Male
+              </motion.div>
+              <motion.div
+                className="absolute right-8 bottom-32 bg-white/20 backdrop-blur-sm rounded-2xl px-3 py-2 text-white text-xs font-bold flex items-center gap-2 shadow"
+                animate={{ y: [0, -10, 0] }}
+                transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
+              >
+                <div className="w-6 h-6 rounded-full bg-white/30 flex items-center justify-center"><Mic size={11} /></div>
+                Healer · Female
+              </motion.div>
+              <motion.div
+                className="absolute left-1/2 -translate-x-1/2 bottom-20 bg-white/20 backdrop-blur-sm rounded-2xl px-3 py-2 text-white text-xs font-bold flex items-center gap-2 shadow"
+                animate={{ y: [0, -6, 0] }}
+                transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut", delay: 1.4 }}
+              >
+                <div className="w-6 h-6 rounded-full bg-white/30 flex items-center justify-center"><Mic size={11} /></div>
+                Character · Expressive
+              </motion.div>
+
+              <div className="relative z-10">
+                <p className="text-white/80 text-sm font-semibold mb-1">More voices with</p>
+                <h3 className="text-2xl sm:text-3xl font-black text-white">Voice Library</h3>
+              </div>
+              <div className="relative z-10 mt-auto pt-24">
+                <span className="text-5xl font-black text-white">200+</span>
+                <span className="text-white/70 text-lg font-bold ml-2">Voices</span>
+              </div>
+            </div>
+
+            {/* Right — Voice Clone (white) */}
+            <div className="relative rounded-3xl bg-white border border-black/5 overflow-hidden min-h-[340px] p-8 flex flex-col justify-between shadow-sm">
+              <div>
+                <h3 className="text-2xl sm:text-3xl font-black text-black leading-tight mb-2">
+                  Bring characters to life with<br/>
+                  <span className="text-orange-500">Voice Clone</span>
+                </h3>
+                <p className="text-black/50 text-sm font-medium">
+                  Just need{" "}
+                  <span className="inline-block bg-yellow-300 text-black font-black px-2 py-0.5 rounded-lg text-base mx-1">3s</span>
+                  Audio
+                </p>
+              </div>
+
+              {/* Animated clone demo */}
+              <div className="relative mt-6 flex items-center gap-4">
+                {/* Source photo placeholder */}
+                <motion.div
+                  className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-200 to-blue-300 flex items-center justify-center shadow-md flex-shrink-0"
+                  animate={{ scale: [1, 1.04, 1] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <Mic size={24} className="text-blue-700" />
+                </motion.div>
+
+                {/* Animated connecting line with pulse */}
+                <div className="flex-1 relative h-1 bg-black/5 rounded-full overflow-visible">
+                  <motion.div
+                    className="absolute top-0 left-0 h-full bg-orange-400 rounded-full"
+                    animate={{ width: ["0%", "100%", "0%"] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                  {/* Mic icon travelling along */}
+                  <motion.div
+                    className="absolute -top-4 w-9 h-9 rounded-full bg-white shadow-lg border-2 border-orange-400 flex items-center justify-center"
+                    animate={{ left: ["0%", "88%", "0%"] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <Mic size={16} className="text-orange-500" />
+                  </motion.div>
+                </div>
+
+                {/* Output card */}
+                <motion.div
+                  className="bg-black/[0.04] rounded-2xl p-3 flex items-center gap-3 flex-shrink-0 shadow-sm"
+                  animate={{ x: [0, 4, 0] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-200 to-orange-300 flex items-center justify-center">
+                    <Wand2 size={16} className="text-orange-600" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-black text-black">Storyteller</div>
+                    <div className="flex gap-1 mt-0.5 flex-wrap">
+                      {["Young","Male","Calm"].map(t => (
+                        <span key={t} className="text-[9px] font-semibold text-black/40 bg-black/5 px-1.5 py-0.5 rounded-full">{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+
+              <Link href="/register" className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 bg-black rounded-full text-white text-sm font-bold hover:bg-gray-800 transition-colors self-start">
+                Try Voice Clone <ArrowRight size={14} />
+              </Link>
+            </div>
+          </div>
+        </motion.div>
+      </section>
+
       {/* 3. How It Works Section */}
       <section className="px-4 sm:px-6 max-w-7xl mx-auto pb-32">
         <div className="text-center mb-20">
