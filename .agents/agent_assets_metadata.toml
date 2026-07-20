@@ -1,5 +1,34 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "8CzoxrgEiBUFm8ibYc2zP"
+uri = "file://artifacts/voiceover-tool/public/scenarios/multilingual-dubbing.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "MxINjOZSvGW7gEKxL_wiH"
+uri = "file://artifacts/voiceover-tool/public/scenarios/creative-entertainment.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "s4mav4SwtNjc4ZLlWMgb0"
+uri = "file://artifacts/voiceover-tool/public/scenarios/educational-audio.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "rReCu4JNl6zXYhVarRRIM"
+uri = "file://artifacts/voiceover-tool/public/scenarios/commercial-branding.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "TrK81gG2RVcuDMEd_DDhT"
+uri = "file://artifacts/voiceover-tool/public/scenarios/immersive-storytelling.png"
+type = "image"
+title = "generated_image"
 
 [[outputs]]
 id = "vS9RPXtZI7ZM7ObL5LEX5"

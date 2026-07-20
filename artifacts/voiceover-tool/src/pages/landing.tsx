@@ -197,6 +197,112 @@ function RotatingWord() {
   );
 }
 
+const SCENARIOS = [
+  {
+    id: "multilingual",
+    label: "Multilingual Dubbing",
+    desc: "Reach global audiences instantly. Dub your content into 30+ languages with authentic, native-sounding voices that match the original emotion and pacing.",
+    img: "scenarios/multilingual-dubbing.png",
+    tag: "Multilingual Dubbing",
+  },
+  {
+    id: "storytelling",
+    label: "Immersive Storytelling",
+    desc: "Bring every character to life. Transport listeners into worlds with rich, expressive narration — from whispering villains to thundering heroes.",
+    img: "scenarios/immersive-storytelling.png",
+    tag: "Immersive Storytelling",
+  },
+  {
+    id: "entertainment",
+    label: "Creative & Entertainment",
+    desc: "Design any sound you imagine. From vibrant social personas to the delicate nuances of ASMR, craft the perfect audio identity for your creative world.",
+    img: "scenarios/creative-entertainment.png",
+    tag: "Creative & Entertainment",
+  },
+  {
+    id: "educational",
+    label: "Educational Audio",
+    desc: "Make learning stick. Calm, clear voices that guide learners through complex topics without fatigue — perfect for e-learning and audiobooks.",
+    img: "scenarios/educational-audio.png",
+    tag: "Educational Audio",
+  },
+  {
+    id: "commercial",
+    label: "Commercial & Branding",
+    desc: "Command attention and drive action. Authoritative, polished voices for ads, explainer videos, and brand content that converts.",
+    img: "scenarios/commercial-branding.png",
+    tag: "Commercial & Branding",
+  },
+];
+
+function ScenarioSelector() {
+  const [active, setActive] = useState("entertainment");
+  const scene = SCENARIOS.find(s => s.id === active)!;
+
+  return (
+    <div className="w-full flex flex-col lg:flex-row gap-6 items-start">
+      {/* Category list */}
+      <div className="flex flex-col gap-2 lg:w-56 flex-shrink-0">
+        {SCENARIOS.map(s => (
+          <button
+            key={s.id}
+            onClick={() => setActive(s.id)}
+            className={`text-left px-4 py-2.5 rounded-full text-sm font-semibold transition-all ${
+              active === s.id
+                ? "bg-black text-white shadow"
+                : "text-black/50 hover:text-black hover:bg-black/5"
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Preview card */}
+      <motion.div
+        key={active}
+        initial={{ opacity: 0, x: 16 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+        className="flex-1 min-w-0 bg-[#1a1a1a] rounded-3xl overflow-hidden shadow-2xl"
+      >
+        {/* Image */}
+        <div className="relative h-56 sm:h-72 overflow-hidden">
+          <img
+            src={asset(scene.img)}
+            alt={scene.label}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-[#1a1a1a]/20 to-transparent" />
+          {/* Category badge top-left */}
+          <div className="absolute top-4 left-4">
+            <span className="bg-black/50 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-full">
+              {scene.tag}
+            </span>
+          </div>
+          {/* Audio icon top-right */}
+          <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+            <AudioLines size={14} className="text-white" />
+          </div>
+        </div>
+
+        {/* Text */}
+        <div className="p-6">
+          <p className="text-white/80 text-[15px] font-medium leading-relaxed mb-5">
+            {scene.desc}
+          </p>
+          <Link
+            href="/register"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 rounded-full text-white text-sm font-bold transition-colors"
+          >
+            Try {scene.tag} <ArrowRight size={14} />
+          </Link>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 function AnimatedWaveform({ isPlaying }: { isPlaying: boolean }) {
   return (
     <div className="flex items-center gap-[4px] h-8">
@@ -557,6 +663,25 @@ export default function LandingPage() {
             </motion.div>
           ))}
         </div>
+      </section>
+
+      {/* 3.5 Scenario Selector */}
+      <section className="px-4 sm:px-6 max-w-6xl mx-auto pb-28">
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+        >
+          <h2 className="text-3xl sm:text-[40px] font-black tracking-tight text-black mb-10">
+            Give Every Scenario the Voice It Deserves
+          </h2>
+
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
+            {/* Left — category list */}
+            <ScenarioSelector />
+          </div>
+        </motion.div>
       </section>
 
       {/* 4. Features Bento Grid */}
