@@ -34,6 +34,33 @@ const stagger = {
   visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
 };
 
+const ROTATING = ["Truly Alive", "Truly Human", "Truly Yours", "Full of Emotion", "Simply Unreal"];
+
+function RotatingWord() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((v) => (v + 1) % ROTATING.length), 2400);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span className="relative inline-block align-top overflow-hidden">
+      {ROTATING.map((w, idx) => (
+        <span
+          key={idx}
+          className={
+            "block text-orange-500 transition-all duration-500 " +
+            (idx === i
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 -translate-y-full absolute inset-0")
+          }
+        >
+          {w}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function AnimatedWaveform({ isPlaying }: { isPlaying: boolean }) {
   return (
     <div className="flex items-center gap-[4px] h-8">
@@ -109,28 +136,22 @@ export default function LandingPage() {
             The Next Generation of AI Audio
           </motion.div>
           
-          <motion.h1 variants={fadeIn} className="text-5xl sm:text-7xl lg:text-[88px] font-black tracking-[-0.04em] leading-[0.95] text-black mb-8">
-            Audio that sounds <br/>
-            <span className="text-orange-500">Unbelievably Real.</span>
+          <motion.h1 variants={fadeIn} className="text-[40px] sm:text-6xl lg:text-7xl font-black tracking-[-0.03em] leading-[1.02] text-black mb-6">
+            Voices That Feel <br/>
+            <RotatingWord />
           </motion.h1>
           
-          <motion.p variants={fadeIn} className="text-lg sm:text-2xl text-black/60 font-medium max-w-2xl mx-auto leading-relaxed mb-10">
+          <motion.p variants={fadeIn} className="text-base sm:text-lg text-black/60 font-medium max-w-xl mx-auto leading-relaxed mb-8">
             Generate lifelike speech, clone voices in seconds, and dub videos globally. A playful, premium studio built for modern creators.
           </motion.p>
           
-          <motion.div variants={fadeIn} className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
-            <Link href="/register" className="w-full sm:w-auto relative group">
-              <div className="absolute inset-0 bg-orange-600 rounded-[32px] translate-y-1.5 group-hover:translate-y-2 transition-transform duration-200" />
-              <div className="relative flex items-center justify-center gap-2 px-8 py-4.5 bg-orange-500 rounded-[32px] text-white text-lg font-black border-2 border-orange-600 group-hover:-translate-y-1 transition-transform duration-200">
-                Start Creating Free
-                <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-              </div>
+          <motion.div variants={fadeIn} className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+            <Link href="/register" className="w-full sm:w-auto group inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-orange-500 hover:bg-orange-600 rounded-full text-white text-[15px] font-bold shadow-lg shadow-orange-500/30 transition-all">
+              Start Creating Free
+              <ArrowRight size={17} className="group-hover:translate-x-0.5 transition-transform" />
             </Link>
-            <Link href="/pricing" className="w-full sm:w-auto relative group">
-              <div className="absolute inset-0 bg-black/10 rounded-[32px] translate-y-1.5 group-hover:translate-y-2 transition-transform duration-200" />
-              <div className="relative flex items-center justify-center gap-2 px-8 py-4.5 bg-white rounded-[32px] text-black text-lg font-black border-2 border-black/10 group-hover:-translate-y-1 transition-transform duration-200">
-                View Credit Plans
-              </div>
+            <Link href="/pricing" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-white rounded-full text-black text-[15px] font-bold border border-black/10 hover:border-black/20 transition-colors">
+              View Credit Plans
             </Link>
           </motion.div>
         </motion.div>
@@ -150,10 +171,10 @@ export default function LandingPage() {
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-orange-100 text-orange-500 mb-6">
                 <AudioLines size={28} />
               </div>
-              <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-black mb-4">
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-black mb-3">
                 Hear the difference.
               </h2>
-              <p className="text-xl text-black/60 font-medium mb-8">
+              <p className="text-[15px] sm:text-base text-black/60 font-medium mb-6">
                 No robotic undertones. No weird pacing. Just breathtakingly natural voices ready to read your script.
               </p>
               
@@ -168,8 +189,8 @@ export default function LandingPage() {
                       aria-label={(isPlaying ? "Pause " : "Play ") + v.name + " sample"}
                       className={`w-full group flex items-center justify-between p-4 rounded-3xl border-2 transition-all duration-300 ${
                         isPlaying 
-                          ? "border-orange-500 bg-orange-50/50 shadow-[0_8px_0_0_rgba(249,115,22,1)] -translate-y-1" 
-                          : "border-black/5 bg-white hover:border-orange-200 hover:shadow-[0_8px_0_0_rgba(249,115,22,0.2)] hover:-translate-y-1"
+                          ? "border-orange-500 bg-orange-50/50 shadow-md" 
+                          : "border-black/5 bg-white hover:border-orange-200 hover:shadow-sm"
                       }`}
                     >
                       <div className="flex items-center gap-5">
@@ -177,7 +198,7 @@ export default function LandingPage() {
                           {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
                         </div>
                         <div className="text-left">
-                          <div className="font-black text-black text-xl mb-0.5">{v.name}</div>
+                          <div className="font-black text-black text-base mb-0.5">{v.name}</div>
                           {errorId === v.id ? (
                             <div className="font-bold text-rose-500 text-sm tracking-wide uppercase">Sample coming soon</div>
                           ) : (
@@ -205,7 +226,7 @@ export default function LandingPage() {
                     <span className="flex h-3 w-3 rounded-full bg-orange-500" />
                     <span className="font-bold text-sm text-black/40 uppercase tracking-widest">Input Script</span>
                   </div>
-                  <p className="text-lg font-medium text-black leading-relaxed">
+                  <p className="text-[15px] font-medium text-black leading-relaxed">
                     "The secret to a great performance isn't just in the words you say... it's the breath between them."
                   </p>
                 </div>
@@ -239,10 +260,10 @@ export default function LandingPage() {
       {/* 3. How It Works Section */}
       <section className="px-4 sm:px-6 max-w-7xl mx-auto pb-32">
         <div className="text-center mb-20">
-          <h2 className="text-4xl sm:text-6xl font-black tracking-tight text-black mb-6">
+          <h2 className="text-3xl sm:text-[40px] font-black tracking-tight text-black mb-6">
             Effortless Creation.
           </h2>
-          <p className="text-xl text-black/60 font-medium max-w-2xl mx-auto">
+          <p className="text-base text-black/60 font-medium max-w-2xl mx-auto">
             From script to final audio in three simple steps.
           </p>
         </div>
@@ -264,8 +285,8 @@ export default function LandingPage() {
               <div className="w-20 h-20 mx-auto bg-orange-50 rounded-[24px] flex items-center justify-center mb-8 text-orange-500">
                 <step.icon size={36} />
               </div>
-              <h3 className="text-2xl font-black text-black mb-4">{step.title}</h3>
-              <p className="text-lg text-black/60 font-medium leading-relaxed">{step.desc}</p>
+              <h3 className="text-xl font-black text-black mb-3">{step.title}</h3>
+              <p className="text-[15px] text-black/60 font-medium leading-relaxed">{step.desc}</p>
             </motion.div>
           ))}
         </div>
@@ -274,7 +295,7 @@ export default function LandingPage() {
       {/* 4. Features Bento Grid */}
       <section className="px-4 sm:px-6 max-w-7xl mx-auto pb-32">
         <div className="text-center mb-16">
-          <h2 className="text-4xl sm:text-6xl font-black tracking-tight text-black mb-6">
+          <h2 className="text-3xl sm:text-[40px] font-black tracking-tight text-black mb-6">
             Pro tools, playful vibe.
           </h2>
         </div>
@@ -291,8 +312,8 @@ export default function LandingPage() {
               <div className="w-16 h-16 rounded-[24px] bg-white text-orange-500 flex items-center justify-center mb-8 shadow-sm">
                 <Wand2 size={32} />
               </div>
-              <h3 className="text-4xl font-black text-white mb-4">Emotional AI Text-to-Speech</h3>
-              <p className="text-orange-100 text-xl font-medium max-w-lg leading-relaxed">
+              <h3 className="text-2xl sm:text-3xl font-black text-white mb-3">Emotional AI Text-to-Speech</h3>
+              <p className="text-orange-100 text-base font-medium max-w-lg leading-relaxed">
                 Inject laughter, whispers, shouts, and sighs. Our AI understands context and delivers lines with genuine human emotion, never flat robot reading.
               </p>
             </div>
@@ -310,8 +331,8 @@ export default function LandingPage() {
               <div className="w-16 h-16 rounded-[24px] bg-white/10 text-white flex items-center justify-center mb-8">
                 <Shapes size={32} />
               </div>
-              <h3 className="text-3xl font-black mb-4">Studio Grade Output</h3>
-              <p className="text-gray-400 text-lg font-medium leading-relaxed">
+              <h3 className="text-2xl font-black mb-3">Studio Grade Output</h3>
+              <p className="text-gray-400 text-[15px] font-medium leading-relaxed">
                 Download pristine, broadcast-ready MP3s. Zero background noise.
               </p>
             </div>
@@ -331,13 +352,13 @@ export default function LandingPage() {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-[24px] bg-black text-white mb-8">
               <Fingerprint size={32} />
             </div>
-            <h2 className="text-4xl sm:text-6xl font-black tracking-tight text-black mb-6">
+            <h2 className="text-3xl sm:text-[40px] font-black tracking-tight text-black mb-6">
               Instant Voice Cloning.
             </h2>
-            <p className="text-xl text-black/60 font-medium mb-10 leading-relaxed max-w-lg">
+            <p className="text-base text-black/60 font-medium mb-8 leading-relaxed max-w-lg">
               Upload just a 30-second audio clip and create a digital twin of any voice in seconds. Secure, private, and breathtakingly accurate.
             </p>
-            <Link href="/register" className="inline-flex items-center gap-2 px-8 py-4 bg-black rounded-[32px] text-white text-lg font-black hover:-translate-y-1 transition-transform">
+            <Link href="/register" className="inline-flex items-center gap-2 px-7 py-3.5 bg-black rounded-full text-white text-[15px] font-bold hover:bg-gray-800 transition-colors">
               Try Cloning <ArrowRight size={20} />
             </Link>
           </div>
@@ -368,10 +389,10 @@ export default function LandingPage() {
             <div className="w-20 h-20 mx-auto bg-white text-orange-500 rounded-[24px] flex items-center justify-center mb-8 shadow-lg">
               <Globe size={40} />
             </div>
-            <h2 className="text-4xl sm:text-6xl font-black tracking-tight mb-6">
+            <h2 className="text-3xl sm:text-[40px] font-black tracking-tight mb-6">
               Go Global Instantly.
             </h2>
-            <p className="text-2xl text-orange-50 font-medium mb-10 leading-relaxed">
+            <p className="text-base sm:text-lg text-orange-50 font-medium mb-8 leading-relaxed">
               Translate and dub your content into 30+ languages with native-level fluency. Maintain the original emotional tone and voice identity across every language.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
@@ -388,7 +409,7 @@ export default function LandingPage() {
       {/* 7. Use Cases */}
       <section className="px-4 sm:px-6 max-w-7xl mx-auto pb-32">
         <div className="text-center mb-16">
-          <h2 className="text-4xl sm:text-6xl font-black tracking-tight text-black mb-6">
+          <h2 className="text-3xl sm:text-[40px] font-black tracking-tight text-black mb-6">
             Built for modern creators.
           </h2>
         </div>
@@ -407,8 +428,8 @@ export default function LandingPage() {
               <div className="w-12 h-12 rounded-[16px] bg-black flex items-center justify-center mb-6 text-white font-black text-xl">
                 {i + 1}
               </div>
-              <h4 className="text-2xl font-black text-black mb-3">{uc.title}</h4>
-              <p className="text-lg text-black/60 font-medium">{uc.desc}</p>
+              <h4 className="text-xl font-black text-black mb-2">{uc.title}</h4>
+              <p className="text-[15px] text-black/60 font-medium">{uc.desc}</p>
             </div>
           ))}
         </div>
@@ -420,17 +441,17 @@ export default function LandingPage() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(249,115,22,0.2)_0%,transparent_60%)] pointer-events-none" />
           
           <div className="relative z-10">
-            <h2 className="text-5xl sm:text-7xl font-black tracking-tight text-white mb-8">
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white mb-6">
               Your studio is ready.
             </h2>
-            <p className="text-2xl text-gray-400 font-medium max-w-2xl mx-auto mb-12">
+            <p className="text-base sm:text-lg text-gray-400 font-medium max-w-xl mx-auto mb-10">
               Join creators producing professional audio at the speed of thought. 
             </p>
             
-            <Link href="/register" className="inline-flex items-center gap-2 px-10 py-5 bg-orange-500 rounded-[32px] text-white text-xl font-black hover:-translate-y-1 transition-transform border-4 border-orange-600 shadow-[0_10px_30px_-10px_rgba(249,115,22,0.5)]">
+            <Link href="/register" className="inline-flex items-center gap-2 px-8 py-4 bg-orange-500 hover:bg-orange-600 rounded-full text-white text-base font-bold shadow-lg shadow-orange-500/30 transition-all">
               Get Started Free <ArrowRight size={24} />
             </Link>
-            <p className="mt-8 text-gray-500 font-medium text-lg">No credit card required to start.</p>
+            <p className="mt-6 text-gray-500 font-medium text-sm">No credit card required to start.</p>
           </div>
         </div>
       </section>
