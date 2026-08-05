@@ -95,7 +95,10 @@ router.get("/voices", requireActiveUser, async (req, res) => {
 
 /* ── POST /tts ───────────────────────────────────────────────────────── */
 router.post("/tts", requireActiveUser, async (req, res) => {
-  const { text, voiceId, model = "s2.1-pro-free", speed = 1 } = req.body;
+  const { text, voiceId, speed = 1 } = req.body;
+
+  // Always use the free model for all users — zero cost on Fish Audio side
+  const model = "s2.1-pro-free";
 
   if (!text) {
     res.status(400).json({ error: "text is required" });
@@ -104,11 +107,6 @@ router.post("/tts", requireActiveUser, async (req, res) => {
 
   const user = req.appUser!;
   const admin = isUserAdmin(user);
-
-  if (!admin && !modelAllowedForPlan(user.plan, "fishaudio", model)) {
-    res.status(403).json({ error: "This model requires a paid plan. Please upgrade your plan." });
-    return;
-  }
 
   const creds = await getFishApiKey();
   if (!creds) {
