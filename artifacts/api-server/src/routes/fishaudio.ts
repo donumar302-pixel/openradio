@@ -54,11 +54,15 @@ const FALLBACK_VOICES = [
 /* ── GET /voices ─────────────────────────────────────────────────────── */
 router.get("/voices", requireActiveUser, async (req, res) => {
   const language = typeof req.query.language === "string" ? req.query.language : "";
+  const page = parseInt(typeof req.query.page === "string" ? req.query.page : "1", 10) || 1;
+  const pageSize = 50;
   const creds = await getFishApiKey();
 
   const params = new URLSearchParams({
-    page_size: "50",
+    page_size: String(pageSize),
+    page_number: String(page),
     sort_by: "task_count",
+    type: "tts",
   });
   if (language) params.set("language", language);
 
@@ -69,27 +73,31 @@ router.get("/voices", requireActiveUser, async (req, res) => {
     const response = await fetch(`${FISH_PUBLIC_BASE}/model?${params.toString()}`, { headers });
 
     if (!response.ok) {
-      res.json({ voices: FALLBACK_VOICES });
+      res.json({ voices: FALLBACK_VOICES, total: 0, page, pageSize });
       return;
     }
 
     const data = await response.json() as any;
     const items: any[] = data?.items ?? [];
+    const total: number = data?.total ?? 0;
 
-    const voices = [
-      ...FALLBACK_VOICES,
-      ...items.map((v: any) => ({
-        id: v._id as string,
-        name: v.title as string,
-        lang: (v.languages as string[])?.[0] ?? "Multi",
-        style: (v.tags as string[])?.[0] ?? "Voice",
-      })),
-    ];
+    const voices = items.map((v: any) => ({
+      id: v._id as string,
+      name: v.title as string,
+      lang: (v.languages as string[])?.[0] ?? "Multi",
+      languages: v.languages as string[] ?? [],
+      style: (v.tags as string[])?.[0] ?? "Voice",
+      tags: v.tags as string[] ?? [],
+      description: v.description as string ?? null,
+      preview: (v.samples as any[])?.[0]?.audio ?? null,
+      likeCount: v.like_count as number ?? 0,
+      taskCount: v.task_count as number ?? 0,
+    }));
 
-    res.json({ voices });
+    res.json({ voices, total, page, pageSize, totalPages: Math.ceil(total / pageSize) });
   } catch (e) {
     logger.warn({ err: e }, "Fish Audio voices fetch failed, using fallback");
-    res.json({ voices: FALLBACK_VOICES });
+    res.json({ voices: FALLBACK_VOICES, total: 0, page: 1, pageSize });
   }
 });
 

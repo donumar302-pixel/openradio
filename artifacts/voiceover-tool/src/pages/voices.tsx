@@ -8,29 +8,43 @@ import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
 
 interface MiniMaxVoice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; }
-interface FishVoice    { id: string; name: string; lang?: string; style?: string; }
+interface FishVoice    { id: string; name: string; lang?: string; languages?: string[]; style?: string; tags?: string[]; description?: string | null; preview?: string | null; likeCount?: number; taskCount?: number; }
 
 type Tab    = "all" | "el" | "mm" | "fa";
 type Gender = "all" | "male" | "female";
 
 const FA_LANG_OPTIONS = [
   { code: "",   label: "All Languages" },
-  { code: "en", label: "English" },
-  { code: "zh", label: "Chinese" },
-  { code: "ja", label: "Japanese" },
-  { code: "ko", label: "Korean" },
-  { code: "hi", label: "Hindi" },
-  { code: "ur", label: "Urdu" },
-  { code: "ar", label: "Arabic" },
-  { code: "es", label: "Spanish" },
-  { code: "fr", label: "French" },
-  { code: "de", label: "German" },
-  { code: "ru", label: "Russian" },
-  { code: "pt", label: "Portuguese" },
-  { code: "it", label: "Italian" },
-  { code: "tr", label: "Turkish" },
-  { code: "id", label: "Indonesian" },
-  { code: "vi", label: "Vietnamese" },
+  { code: "en", label: "🇺🇸 English" },
+  { code: "zh", label: "🇨🇳 Chinese" },
+  { code: "ja", label: "🇯🇵 Japanese" },
+  { code: "ko", label: "🇰🇷 Korean" },
+  { code: "hi", label: "🇮🇳 Hindi" },
+  { code: "ur", label: "🇵🇰 Urdu" },
+  { code: "ar", label: "🇸🇦 Arabic" },
+  { code: "es", label: "🇪🇸 Spanish" },
+  { code: "fr", label: "🇫🇷 French" },
+  { code: "de", label: "🇩🇪 German" },
+  { code: "ru", label: "🇷🇺 Russian" },
+  { code: "pt", label: "🇧🇷 Portuguese" },
+  { code: "it", label: "🇮🇹 Italian" },
+  { code: "tr", label: "🇹🇷 Turkish" },
+  { code: "id", label: "🇮🇩 Indonesian" },
+  { code: "vi", label: "🇻🇳 Vietnamese" },
+  { code: "th", label: "🇹🇭 Thai" },
+  { code: "pl", label: "🇵🇱 Polish" },
+  { code: "nl", label: "🇳🇱 Dutch" },
+  { code: "sv", label: "🇸🇪 Swedish" },
+  { code: "cs", label: "🇨🇿 Czech" },
+  { code: "ro", label: "🇷🇴 Romanian" },
+  { code: "hu", label: "🇭🇺 Hungarian" },
+  { code: "el", label: "🇬🇷 Greek" },
+  { code: "da", label: "🇩🇰 Danish" },
+  { code: "fi", label: "🇫🇮 Finnish" },
+  { code: "nb", label: "🇳🇴 Norwegian" },
+  { code: "uk", label: "🇺🇦 Ukrainian" },
+  { code: "ms", label: "🇲🇾 Malay" },
+  { code: "fil", label: "🇵🇭 Filipino" },
 ];
 
 function useAudioPreview() {
@@ -128,28 +142,36 @@ export default function VoiceLibraryPage() {
     ...(mmData?.builtin ?? []),
   ];
 
-  const { data: faData, isLoading: loadingFa } = useQuery<{ voices: FishVoice[] }>({
-    queryKey: ["fishaudio-voices", faLang],
-    queryFn:  () => fetch(`/api/fishaudio/voices${faLang ? `?language=${faLang}` : ""}`).then(r => r.json()),
+  const [faPage, setFaPage] = useState(1);
+  const resetFaPage = (lang: string) => { setFaLang(lang); setFaPage(1); };
+
+  const { data: faData, isLoading: loadingFa } = useQuery<{ voices: FishVoice[]; total: number; totalPages: number }>({
+    queryKey: ["fishaudio-voices", faLang, faPage],
+    queryFn:  () => fetch(`/api/fishaudio/voices?page=${faPage}${faLang ? `&language=${faLang}` : ""}`).then(r => r.json()),
     staleTime: 120_000,
   });
   const faVoices: FishVoice[] = (faData?.voices ?? []).filter(v => v.id !== "default");
+  const faTotalPages = faData?.totalPages ?? 1;
+  const faTotal = faData?.total ?? 0;
 
   const allVoices = useMemo(() => {
     const el = elVoices.map(v => ({
       id: v.voiceId, name: v.name, provider: "el" as Provider,
       tag: v.category ?? "General", description: v.description ?? null,
-      preview: v.previewUrl ?? null, lang: "English",
+      preview: v.previewUrl ?? null, lang: "English", tags: [] as string[],
     }));
     const mm = mmVoices.map(v => ({
       id: v.id, name: v.name, provider: "mm" as Provider,
       tag: v.isClone ? "My Clone" : `${v.lang ?? ""} · ${v.style ?? ""}`,
-      description: null, preview: null, lang: v.lang ?? "Other",
+      description: null, preview: null, lang: v.lang ?? "Other", tags: [] as string[],
     }));
     const fa = faVoices.map(v => ({
       id: v.id, name: v.name, provider: "fa" as Provider,
-      tag: v.style ?? v.lang ?? "Fish Audio",
-      description: null, preview: null, lang: v.lang ?? "Multi",
+      tag: (v.tags ?? []).slice(0, 3).join(" · ") || v.lang || "Fish Audio",
+      description: v.description ?? null,
+      preview: v.preview ?? null,
+      lang: v.lang ?? "Multi",
+      tags: v.tags ?? [],
     }));
     return [...el, ...mm, ...fa];
   }, [elVoices, mmVoices, faVoices]);
@@ -233,7 +255,7 @@ export default function VoiceLibraryPage() {
             {/* Fish Audio language selector */}
             {(tab === "fa" || tab === "all") && (
               <select
-                value={faLang} onChange={e => setFaLang(e.target.value)}
+                value={faLang} onChange={e => resetFaPage(e.target.value)}
                 className="text-[12px] border border-emerald-200 rounded-xl px-3 py-2 bg-white text-[#6b7280] focus:outline-none focus:ring-2 focus:ring-emerald-200 cursor-pointer"
               >
                 {FA_LANG_OPTIONS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
@@ -279,7 +301,11 @@ export default function VoiceLibraryPage() {
           </div>
         ) : (
           <>
-            <p className="text-[12px] text-[#9ca3af] font-semibold mb-4">{filtered.length} voices</p>
+            <p className="text-[12px] text-[#9ca3af] font-semibold mb-4">
+              {tab === "fa"
+                ? `${faTotal.toLocaleString()} voices total · page ${faPage} of ${faTotalPages}`
+                : `${filtered.length} voices`}
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filtered.map(v => (
                 <VoiceCard
@@ -294,6 +320,24 @@ export default function VoiceLibraryPage() {
                 />
               ))}
             </div>
+            {/* Fish Audio pagination */}
+            {tab === "fa" && faTotalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-8">
+                <button
+                  disabled={faPage <= 1}
+                  onClick={() => setFaPage(p => p - 1)}
+                  className="px-4 py-2 text-[13px] font-semibold border border-[#e5e7eb] rounded-xl bg-white hover:bg-[#f3f4f6] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >← Prev</button>
+                <span className="text-[13px] text-[#6b7280] font-medium px-3">
+                  {faPage} / {faTotalPages}
+                </span>
+                <button
+                  disabled={faPage >= faTotalPages}
+                  onClick={() => setFaPage(p => p + 1)}
+                  className="px-4 py-2 text-[13px] font-semibold border border-[#e5e7eb] rounded-xl bg-white hover:bg-[#f3f4f6] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >Next →</button>
+              </div>
+            )}
           </>
         )}
       </div>
