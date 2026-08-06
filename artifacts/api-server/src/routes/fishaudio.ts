@@ -27,17 +27,29 @@ async function refundCredits(userId: number, amount: number) {
 const FISH_BASE = "https://api.fish.audio/v1";
 const FISH_PUBLIC_BASE = "https://api.fish.audio";
 
-interface FishCreds { id: number; apiKey: string; usageCount: number; }
+interface FishCreds { id: number; apiKey: string; usageCount: number; isFree?: boolean; }
 
-async function getFishApiKey(): Promise<FishCreds | null> {
-  if (process.env.FISH_AUDIO_API_KEY) {
-    return { id: 0, apiKey: process.env.FISH_AUDIO_API_KEY, usageCount: 0 };
-  }
+/** Returns [freeKey | null, paidKey | null] */
+async function getFishKeys(): Promise<{ free: FishCreds | null; paid: FishCreds | null }> {
+  const freeEnv = process.env.FISH_AUDIO_API_KEY_FREE;
+  const paidEnv = process.env.FISH_AUDIO_API_KEY;
+  const free: FishCreds | null = freeEnv ? { id: 0, apiKey: freeEnv, usageCount: 0, isFree: true } : null;
+  const paid: FishCreds | null = paidEnv ? { id: 0, apiKey: paidEnv, usageCount: 0 } : null;
+
+  if (free || paid) return { free, paid };
+
+  // Fall back to DB keys
   const keys = await db.select().from(apiKeysTable)
     .where(and(eq(apiKeysTable.provider, "fishaudio"), eq(apiKeysTable.isActive, true)))
     .orderBy(asc(apiKeysTable.usageCount));
-  if (keys[0]) return { id: keys[0].id, apiKey: keys[0].key, usageCount: keys[0].usageCount };
-  return null;
+  const dbKey = keys[0] ? { id: keys[0].id, apiKey: keys[0].key, usageCount: keys[0].usageCount } : null;
+  return { free: null, paid: dbKey };
+}
+
+/** Primary: try free key, fallback to paid if 402 */
+async function getFishApiKey(): Promise<FishCreds | null> {
+  const { free, paid } = await getFishKeys();
+  return free ?? paid;
 }
 
 async function bumpKey(id: number, current: number) {
@@ -116,8 +128,8 @@ router.post("/tts", requireActiveUser, async (req, res) => {
   const user = req.appUser!;
   const admin = isUserAdmin(user);
 
-  const creds = await getFishApiKey();
-  if (!creds) {
+  const { free, paid } = await getFishKeys();
+  if (!free && !paid) {
     res.status(503).json({ error: "No Fish Audio API key configured. Add FISH_AUDIO_API_KEY in Secrets." });
     return;
   }
@@ -139,26 +151,38 @@ router.post("/tts", requireActiveUser, async (req, res) => {
       body.reference_id = voiceId;
     }
 
-    const response = await fetch(`${FISH_BASE}/tts`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${creds.apiKey}`,
-        "Content-Type": "application/json",
-        model,
-      },
-      body: JSON.stringify(body),
-    });
+    async function callFishTTS(apiKey: string) {
+      return fetch(`${FISH_BASE}/tts`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          model,
+        },
+        body: JSON.stringify(body),
+      });
+    }
 
-    if (!response.ok) {
-      const errText = await response.text();
-      logger.warn({ status: response.status, errText }, "Fish Audio TTS failed");
+    // Try free key first, fall back to paid if free returns 402 (not activated yet)
+    let response = free ? await callFishTTS(free.apiKey) : null;
+    let usedCreds: FishCreds | null = free ?? null;
+
+    if (response?.status === 402 && paid) {
+      logger.info("Free Fish Audio key returned 402 — falling back to paid key");
+      response = await callFishTTS(paid.apiKey);
+      usedCreds = paid;
+    }
+
+    if (!response || !response.ok) {
+      const errText = await response?.text() ?? "No response";
+      logger.warn({ status: response?.status, errText }, "Fish Audio TTS failed");
       if (!admin) await refundCredits(user.id, text.length);
       res.status(502).json({ error: "Fish Audio error: " + errText });
       return;
     }
 
     const audioBuffer = Buffer.from(await response.arrayBuffer());
-    await bumpKey(creds.id, creds.usageCount);
+    if (usedCreds) await bumpKey(usedCreds.id, usedCreds.usageCount);
 
     res.set({ "Content-Type": "audio/mpeg", "Content-Disposition": "attachment; filename=fishaudio-tts.mp3" });
     res.send(audioBuffer);
