@@ -138,7 +138,7 @@ export default function StudioPage() {
 
   const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState("");
-  const [voiceProvider, setVoiceProvider] = useState<"el" | "minimax" | "fishaudio">("el");
+  const [voiceProvider, setVoiceProvider] = useState<"el" | "minimax" | "fishaudio" | "edge">("el");
   const [modelId, setModelId] = useState("eleven_multilingual_v2");
   const [mmModel, setMmModel] = useState("speech-02-hd");
   const [faModel, setFaModel] = useState("s2.1-pro-free");
@@ -197,6 +197,19 @@ export default function StudioPage() {
   });
   const faVoices: FishVoice[] = faVoiceData?.voices ?? [];
 
+  const { data: edgeVoiceData } = useQuery<{ voices: { id: string; name: string; shortName: string; locale: string; gender: string }[] }>({
+    queryKey: ["edge-voices"],
+    queryFn: () => fetch("/api/edge/voices").then(r => r.json()),
+    staleTime: 3_600_000,
+  });
+  const edgeVoices = edgeVoiceData?.voices ?? [];
+  const edgeByLocale = edgeVoices.reduce<Record<string, typeof edgeVoices>>((acc, v) => {
+    const key = v.locale;
+    if (!acc[key]) acc[key] = [];
+    acc[key]!.push(v);
+    return acc;
+  }, {});
+
   const faByLang = faVoices.reduce<Record<string, FishVoice[]>>((acc, v) => {
     const key = v.lang ?? "Multi";
     if (!acc[key]) acc[key] = [];
@@ -210,8 +223,9 @@ export default function StudioPage() {
   );
 
   const generateSpeech = useGenerateSpeech();
-  const [mmGenerating, setMmGenerating] = useState(false);
-  const [faGenerating, setFaGenerating] = useState(false);
+  const [mmGenerating, setMmGenerating]     = useState(false);
+  const [faGenerating, setFaGenerating]     = useState(false);
+  const [edgeGenerating, setEdgeGenerating] = useState(false);
 
   const handleGenerate = async () => {
     if (!text.trim()) { toast({ title: "Text required", description: "Please enter some text.", variant: "destructive" }); return; }
@@ -251,6 +265,23 @@ export default function StudioPage() {
       return;
     }
 
+    if (voiceProvider === "edge") {
+      setEdgeGenerating(true); setLatestAudio(null);
+      try {
+        const res = await fetch("/api/edge/tts", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, voiceId }),
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as any).error || "Generation failed"); }
+        const blob = await res.blob();
+        setLatestAudio(URL.createObjectURL(blob));
+        toast({ title: "Generated!", description: "Your audio is ready." });
+      } catch (e: any) {
+        toast({ title: "Generation failed", description: e.message, variant: "destructive" });
+      } finally { setEdgeGenerating(false); }
+      return;
+    }
+
     generateSpeech.mutate(
       { data: { text, voiceId, stability, similarityBoost, modelId } },
       {
@@ -260,7 +291,7 @@ export default function StudioPage() {
     );
   };
 
-  const isGenerating = generateSpeech.isPending || mmGenerating || faGenerating;
+  const isGenerating = generateSpeech.isPending || mmGenerating || faGenerating || edgeGenerating;
   const expressionEnabled = voiceProvider === "minimax";
 
   const voicesByCategory = voices?.reduce((acc, voice) => {
@@ -277,15 +308,17 @@ export default function StudioPage() {
     return acc;
   }, {} as Record<string, MiniMaxVoice[]>);
 
-  const selectedElVoice = voiceProvider === "el" ? voices?.find((v) => v.voiceId === voiceId) : undefined;
-  const selectedMmVoice = voiceProvider === "minimax" ? mmVoices.find((v) => v.id === voiceId) : undefined;
-  const selectedFaVoice = voiceProvider === "fishaudio" ? faVoices.find((v) => v.id === voiceId) : undefined;
+  const selectedElVoice   = voiceProvider === "el"        ? voices?.find((v) => v.voiceId === voiceId) : undefined;
+  const selectedMmVoice   = voiceProvider === "minimax"   ? mmVoices.find((v) => v.id === voiceId)    : undefined;
+  const selectedFaVoice   = voiceProvider === "fishaudio" ? faVoices.find((v) => v.id === voiceId)    : undefined;
+  const selectedEdgeVoice = voiceProvider === "edge"      ? edgeVoices.find((v) => v.id === voiceId)  : undefined;
   const [voiceOpen, setVoiceOpen] = useState(false);
 
   const handleVoiceSelect = (composite: string) => {
     const colonIdx = composite.indexOf(":");
     const raw = composite.slice(0, colonIdx);
-    const provider: "el" | "minimax" | "fishaudio" = raw === "mm" ? "minimax" : raw === "fa" ? "fishaudio" : "el";
+    const provider: "el" | "minimax" | "fishaudio" | "edge" =
+      raw === "mm" ? "minimax" : raw === "fa" ? "fishaudio" : raw === "edge" ? "edge" : "el";
     const id = composite.slice(colonIdx + 1);
     setVoiceProvider(provider); setVoiceId(id); setVoiceOpen(false);
     setMobilePanel(false);
@@ -293,13 +326,12 @@ export default function StudioPage() {
 
   const selectedVoiceLabel = useMemo(() => {
     if (!voiceId) return null;
-    if (voiceProvider === "el" && selectedElVoice) return selectedElVoice.name;
-    if (voiceProvider === "minimax" && selectedMmVoice)
-      return selectedMmVoice.name + (selectedMmVoice.style ? ` · ${selectedMmVoice.style}` : "");
-    if (voiceProvider === "fishaudio" && selectedFaVoice)
-      return selectedFaVoice.name + (selectedFaVoice.style ? ` · ${selectedFaVoice.style}` : "");
+    if (voiceProvider === "el"        && selectedElVoice)   return selectedElVoice.name;
+    if (voiceProvider === "minimax"   && selectedMmVoice)   return selectedMmVoice.name + (selectedMmVoice.style ? ` · ${selectedMmVoice.style}` : "");
+    if (voiceProvider === "fishaudio" && selectedFaVoice)   return selectedFaVoice.name + (selectedFaVoice.style ? ` · ${selectedFaVoice.style}` : "");
+    if (voiceProvider === "edge"      && selectedEdgeVoice) return selectedEdgeVoice.name;
     return null;
-  }, [voiceId, voiceProvider, selectedElVoice, selectedMmVoice, selectedFaVoice]);
+  }, [voiceId, voiceProvider, selectedElVoice, selectedMmVoice, selectedFaVoice, selectedEdgeVoice]);
 
   const resetSettings = () => { setStability(0.5); setSimilarityBoost(0.75); setSpeed(1); setVolume(1); setPitch(0); };
 
@@ -459,6 +491,31 @@ export default function StudioPage() {
                                   <p className="text-[10px] text-[#9ca3af]">{v.style ?? v.lang ?? "Multi"}</p>
                                 </div>
                                 {voiceProvider === "fishaudio" && voiceId === v.id && <Check size={13} className="text-emerald-600 shrink-0" />}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        ))}
+                      </>
+                    )}
+                    {edgeVoices.length > 0 && (
+                      <>
+                        <CommandSeparator />
+                        <div className="px-3 pt-2.5 pb-1">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-sky-600 flex items-center gap-1">
+                            🪟 Edge TTS — Free (400+ voices)
+                          </p>
+                        </div>
+                        {Object.entries(edgeByLocale).slice(0, 20).map(([locale, locVoices]) => (
+                          <CommandGroup key={`edge-${locale}`} heading={locale}>
+                            {locVoices.map(v => (
+                              <CommandItem key={`edge:${v.id}`} value={`edge:${v.id}:${v.name} ${locale}`}
+                                onSelect={() => handleVoiceSelect(`edge:${v.id}`)} className="flex items-center gap-2 py-2 cursor-pointer">
+                                <div className="w-7 h-7 rounded-md bg-sky-50 flex items-center justify-center shrink-0 text-sky-600 font-bold text-xs">{v.name[0]}</div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
+                                  <p className="text-[10px] text-[#9ca3af]">{v.gender} · {locale}</p>
+                                </div>
+                                {voiceProvider === "edge" && voiceId === v.id && <Check size={13} className="text-sky-600 shrink-0" />}
                               </CommandItem>
                             ))}
                           </CommandGroup>

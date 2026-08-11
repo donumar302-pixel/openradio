@@ -9,8 +9,9 @@ import { useLocation } from "wouter";
 
 interface MiniMaxVoice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; }
 interface FishVoice    { id: string; name: string; lang?: string; languages?: string[]; style?: string; tags?: string[]; description?: string | null; preview?: string | null; likeCount?: number; taskCount?: number; }
+interface EdgeVoice    { id: string; name: string; shortName: string; locale: string; gender: string; provider: string; }
 
-type Tab    = "all" | "el" | "mm" | "fa";
+type Tab    = "all" | "el" | "mm" | "fa" | "edge";
 type Gender = "all" | "male" | "female";
 
 const FA_LANG_OPTIONS = [
@@ -62,12 +63,13 @@ function useAudioPreview() {
   return { playingId, toggle };
 }
 
-type Provider = "el" | "mm" | "fa";
+type Provider = "el" | "mm" | "fa" | "edge";
 
 const BADGE: Record<Provider, { label: string; cls: string; avatar: string }> = {
-  el: { label: "ElevenLabs", cls: "bg-orange-100 text-orange-600",  avatar: "bg-orange-500"  },
-  mm: { label: "Fire TTS",   cls: "bg-violet-100 text-violet-600",  avatar: "bg-violet-500"  },
-  fa: { label: "Fish Audio", cls: "bg-emerald-100 text-emerald-600", avatar: "bg-emerald-500" },
+  el:   { label: "ElevenLabs", cls: "bg-orange-100 text-orange-600",  avatar: "bg-orange-500"  },
+  mm:   { label: "Fire TTS",   cls: "bg-violet-100 text-violet-600",  avatar: "bg-violet-500"  },
+  fa:   { label: "Fish Audio", cls: "bg-emerald-100 text-emerald-600", avatar: "bg-emerald-500" },
+  edge: { label: "Edge TTS",   cls: "bg-sky-100 text-sky-600",         avatar: "bg-sky-500"     },
 };
 
 function VoiceCard({ id, name, tag, provider, preview, description, onUse, playingId, onPlay }: {
@@ -145,6 +147,14 @@ export default function VoiceLibraryPage() {
   const [faPage, setFaPage] = useState(1);
   const resetFaPage = (lang: string) => { setFaLang(lang); setFaPage(1); };
 
+  const [edgeLang, setEdgeLang] = useState("");
+  const { data: edgeData, isLoading: loadingEdge } = useQuery<{ voices: EdgeVoice[]; total: number }>({
+    queryKey: ["edge-voices", edgeLang],
+    queryFn:  () => fetch(`/api/edge/voices${edgeLang ? `?language=${edgeLang}` : ""}`).then(r => r.json()),
+    staleTime: 3_600_000,
+  });
+  const edgeVoices: EdgeVoice[] = edgeData?.voices ?? [];
+
   const { data: faData, isLoading: loadingFa } = useQuery<{ voices: FishVoice[]; total: number; totalPages: number }>({
     queryKey: ["fishaudio-voices", faLang, faPage],
     queryFn:  () => fetch(`/api/fishaudio/voices?page=${faPage}${faLang ? `&language=${faLang}` : ""}`).then(r => r.json()),
@@ -173,8 +183,15 @@ export default function VoiceLibraryPage() {
       lang: v.lang ?? "Multi",
       tags: v.tags ?? [],
     }));
-    return [...el, ...mm, ...fa];
-  }, [elVoices, mmVoices, faVoices]);
+    const edge = edgeVoices.map(v => ({
+      id: v.id, name: v.name, provider: "edge" as Provider,
+      tag: `${v.gender} · ${v.locale}`,
+      description: null, preview: null,
+      lang: v.locale.split("-")[0]?.toUpperCase() ?? "Multi",
+      tags: [] as string[],
+    }));
+    return [...el, ...mm, ...fa, ...edge];
+  }, [elVoices, mmVoices, faVoices, edgeVoices]);
 
   const elLangs = useMemo(() => {
     const s = new Set(elVoices.map(() => "English"));
@@ -191,14 +208,15 @@ export default function VoiceLibraryPage() {
     return ["all", ...Array.from(s).sort()];
   }, [allVoices]);
 
-  const langs = tab === "el" ? elLangs : tab === "mm" ? mmLangs : tab === "fa" ? [] : allLangs;
+  const langs = tab === "el" ? elLangs : tab === "mm" ? mmLangs : (tab === "fa" || tab === "edge") ? [] : allLangs;
 
   const filtered = useMemo(() => {
     return allVoices.filter(v => {
-      if (tab === "el" && v.provider !== "el") return false;
-      if (tab === "mm" && v.provider !== "mm") return false;
-      if (tab === "fa" && v.provider !== "fa") return false;
-      if (v.provider !== "fa" && langFilter !== "all" && v.lang !== langFilter) return false;
+      if (tab === "el"   && v.provider !== "el")   return false;
+      if (tab === "mm"   && v.provider !== "mm")   return false;
+      if (tab === "fa"   && v.provider !== "fa")   return false;
+      if (tab === "edge" && v.provider !== "edge") return false;
+      if (v.provider !== "fa" && v.provider !== "edge" && langFilter !== "all" && v.lang !== langFilter) return false;
       if (gender === "male"   && !/male|man|boy/i.test(v.name + v.tag))   return false;
       if (gender === "female" && !/female|woman|girl/i.test(v.name + v.tag)) return false;
       if (search.trim()) {
@@ -209,13 +227,14 @@ export default function VoiceLibraryPage() {
     });
   }, [allVoices, tab, langFilter, gender, search]);
 
-  const isLoading = loadingEl || loadingMm || loadingFa;
+  const isLoading = loadingEl || loadingMm || loadingFa || loadingEdge;
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
-    { id: "all", label: "All Voices", icon: <BookAudio size={14} />, count: allVoices.length },
-    { id: "el",  label: "ElevenLabs", icon: <Mic2 size={14} />,     count: elVoices.length },
-    { id: "mm",  label: "Fire TTS",   icon: <Zap size={14} />,      count: mmVoices.length },
-    { id: "fa",  label: "Fish Audio", icon: <span className="text-[11px]">🐟</span>, count: faVoices.length },
+    { id: "all",  label: "All Voices", icon: <BookAudio size={14} />, count: allVoices.length },
+    { id: "el",   label: "ElevenLabs", icon: <Mic2 size={14} />,      count: elVoices.length },
+    { id: "mm",   label: "Fire TTS",   icon: <Zap size={14} />,       count: mmVoices.length },
+    { id: "fa",   label: "Fish Audio", icon: <span className="text-[11px]">🐟</span>, count: faVoices.length },
+    { id: "edge", label: "Edge TTS",   icon: <span className="text-[11px]">🪟</span>, count: edgeVoices.length },
   ];
 
   return (

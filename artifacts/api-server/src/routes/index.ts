@@ -8,6 +8,7 @@ import generationsRouter from "./generations";
 import minimaxRouter from "./minimax";
 import fishAudioRouter from "./fishaudio";
 import plansRouter from "./plans";
+import edgeTtsRouter from "./edgetts";
 import { requireAdmin } from "../middleware/require-admin";
 
 const router: IRouter = Router();
@@ -21,5 +22,6 @@ router.use("/tts", ttsRouter);
 router.use("/generations", generationsRouter);
 router.use("/minimax", minimaxRouter);
 router.use("/fishaudio", fishAudioRouter);
+router.use("/edge", edgeTtsRouter);
 
 export default router;
