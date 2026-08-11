@@ -29,9 +29,9 @@ export default function RegisterPage() {
       <div className="w-full max-w-[400px]">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2.5 mb-10">
-          <img src="/logo.png" alt="Bunny TTS" className="w-9 h-9 object-contain" />
+          <img src="/logo.png" alt="OpenRadio" className="w-9 h-9 object-contain" />
           <span className="font-black text-[22px] tracking-tight text-gray-900">
-            Bunny<span className="text-[#f97316]">TTS</span>
+            Open<span className="text-[#f97316]">Radio</span>
           </span>
         </div>
 

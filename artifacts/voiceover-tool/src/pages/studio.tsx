@@ -634,7 +634,7 @@ export default function StudioPage() {
                   <Mic2 size={13} className="text-white" />
                 </div>
                 <audio controls className="flex-1 h-7" src={latestAudio} data-testid="audio-player" />
-                <a href={latestAudio} download="bunnytts.mp3">
+                <a href={latestAudio} download="openradio.mp3">
                   <button className="p-1 rounded hover:bg-orange-100 text-primary transition-colors"><Download size={14} /></button>
                 </a>
               </div>

@@ -28,10 +28,10 @@ function AdminNav({ onClose }: { onClose?: () => void }) {
       {/* Logo */}
       <div className="px-5 py-5 border-b border-white/5 shrink-0">
         <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="Bunny TTS" className="w-8 h-8 object-contain shrink-0" />
+          <img src="/logo.png" alt="OpenRadio" className="w-8 h-8 object-contain shrink-0" />
           <div>
             <div className="flex items-baseline gap-0.5">
-              <span className="font-black text-[15px] text-white">Bunny</span>
+              <span className="font-black text-[15px] text-white">OpenRadio</span>
               <span className="font-black text-[15px] text-primary">TTS</span>
             </div>
             <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest -mt-0.5">Admin</p>

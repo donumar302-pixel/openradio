@@ -403,7 +403,7 @@ export default function LandingPage() {
         </motion.div>
       </section>
 
-      {/* 2. Bunny Audio Voice Cards */}
+      {/* 2. OpenRadio Voice Cards */}
       <section className="relative px-4 sm:px-6 max-w-6xl mx-auto pb-28">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -413,7 +413,7 @@ export default function LandingPage() {
         >
           <div className="mb-10">
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-black leading-tight mb-3">
-              Experience Bunny Audio<br />
+              Experience OpenRadio<br />
               <span className="text-black/40 font-semibold text-xl sm:text-2xl">AI Voice — but this time, it's alive.</span>
             </h2>
             <Link
@@ -501,7 +501,7 @@ export default function LandingPage() {
               Your All-in-One Pro Audio Studio
             </h2>
             <p className="text-base text-black/50 font-medium max-w-lg mx-auto">
-              We build for creators — BunnyTTS empowers creators around the world with sound capabilities to improve productivity.
+              We build for creators — OpenRadio.io empowers creators around the world with sound capabilities to improve productivity.
             </p>
           </div>
 

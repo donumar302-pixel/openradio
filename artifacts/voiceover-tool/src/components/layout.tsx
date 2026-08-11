@@ -13,7 +13,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <span className="text-white font-bold text-lg leading-none">B</span>
             </div>
             <div className="flex items-baseline gap-0.5">
-              <span className="font-extrabold text-lg tracking-tight text-foreground">Bunny</span>
+              <span className="font-extrabold text-lg tracking-tight text-foreground">OpenRadio</span>
               <span className="font-extrabold text-lg tracking-tight text-primary">TTS</span>
             </div>
           </Link>
@@ -41,7 +41,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       <footer className="border-t border-border bg-secondary/40 py-4">
         <div className="container mx-auto px-4 text-center text-xs text-muted-foreground">
-          Bunny TTS &middot; <a href="https://flowbybunny.com" target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium">flowbybunny.com</a>
+          OpenRadio.io &middot; <a href="https://openradio.io" target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium">openradio.io</a>
         </div>
       </footer>
     </div>

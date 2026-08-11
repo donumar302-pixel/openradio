@@ -42,9 +42,9 @@ export function MarketingNav() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 shrink-0">
-          <img src="/logo.png" alt="Bunny TTS" className="w-12 h-12 object-contain" />
+          <img src="/logo.png" alt="OpenRadio" className="w-12 h-12 object-contain" />
           <span className="font-black text-[26px] tracking-tight text-gray-900">
-            Bunny<span className="text-[#f97316]">TTS</span>
+            Open<span className="text-[#f97316]">Radio</span>
           </span>
         </Link>
 
@@ -186,13 +186,13 @@ export function MarketingFooter() {
     <footer className="border-t border-black/[0.05] bg-white">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="Bunny TTS" className="w-9 h-9 object-contain" />
+          <img src="/logo.png" alt="OpenRadio" className="w-9 h-9 object-contain" />
           <span className="font-black text-[20px] tracking-tight text-gray-900">
-            Bunny<span className="text-[#f97316]">TTS</span>
+            Open<span className="text-[#f97316]">Radio</span>
           </span>
         </div>
         <p className="text-[13px] text-gray-400">
-          © {new Date().getFullYear()} BunnyTTS. All rights reserved.
+          © {new Date().getFullYear()} OpenRadio.io. All rights reserved.
         </p>
         <div className="flex items-center gap-5 text-[13px] font-medium text-gray-500">
           <Link href="/pricing" className="hover:text-gray-900">Pricing</Link>
