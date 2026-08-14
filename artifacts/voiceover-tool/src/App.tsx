@@ -18,6 +18,7 @@ import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import LandingPage from "@/pages/landing";
 import PricingPage from "@/pages/pricing";
+import ToolsPage from "@/pages/tools";
 import SpeechToSpeechPage from "@/pages/speech-to-speech";
 import SpeechToTextPage from "@/pages/speech-to-text";
 import AudioIsolationPage from "@/pages/audio-isolation";
@@ -72,6 +73,7 @@ function AppRoutes() {
       <Switch>
         <Route path="/" component={LandingPage} />
         <Route path="/pricing" component={PricingPage} />
+        <Route path="/tools" component={ToolsPage} />
         <Route path="/login" component={LoginPage} />
         <Route path="/register" component={RegisterPage} />
         <Route><Redirect to="/" /></Route>

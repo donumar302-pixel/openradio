@@ -108,6 +108,17 @@ export function MarketingNav() {
             )}
           </div>
 
+          {/* Tools */}
+          <Link
+            href="/tools"
+            className={
+              "px-4 py-2 rounded-full text-[14px] font-semibold transition-colors " +
+              (location === "/tools" ? "bg-black/[0.06] text-gray-900" : "text-gray-500 hover:text-gray-900")
+            }
+          >
+            Tools
+          </Link>
+
           {/* Pricing */}
           <Link
             href="/pricing"
@@ -161,6 +172,13 @@ export function MarketingNav() {
               </Link>
             ))}
           </div>
+          <Link
+            href="/tools"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2.5 rounded-xl text-[15px] font-semibold text-gray-700 hover:bg-black/5"
+          >
+            Tools
+          </Link>
           <Link
             href="/pricing"
             onClick={() => setOpen(false)}
