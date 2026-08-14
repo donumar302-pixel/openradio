@@ -14,7 +14,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
             <div className="flex items-baseline gap-0.5">
               <span className="font-extrabold text-lg tracking-tight text-foreground">OpenRadio</span>
-              <span className="font-extrabold text-lg tracking-tight text-primary">TTS</span>
+              
             </div>
           </Link>
 

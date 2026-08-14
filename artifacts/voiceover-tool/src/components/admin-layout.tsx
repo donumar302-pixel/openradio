@@ -32,7 +32,7 @@ function AdminNav({ onClose }: { onClose?: () => void }) {
           <div>
             <div className="flex items-baseline gap-0.5">
               <span className="font-black text-[15px] text-white">OpenRadio</span>
-              <span className="font-black text-[15px] text-primary">TTS</span>
+              
             </div>
             <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest -mt-0.5">Admin</p>
           </div>

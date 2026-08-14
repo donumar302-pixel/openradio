@@ -231,7 +231,6 @@ function SidebarContent() {
           <img src="/logo.png" alt="OpenRadio" className="w-8 h-8 object-contain shrink-0" />
           <div className="flex items-baseline gap-0.5">
             <span className="font-black text-[16px] tracking-tight text-foreground">OpenRadio</span>
-            <span className="font-black text-[16px] tracking-tight text-primary">TTS</span>
           </div>
         </div>
       </div>
@@ -297,7 +296,6 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
             </button>
             <div className="flex items-baseline gap-0.5">
               <span className="font-black text-[15px] tracking-tight text-foreground">OpenRadio</span>
-              <span className="font-black text-[15px] tracking-tight text-primary">TTS</span>
             </div>
           </div>
           {/* Desktop: empty left side */}
