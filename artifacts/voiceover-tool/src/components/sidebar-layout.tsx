@@ -55,7 +55,7 @@ function NavLink({ href, icon, label, badge, badgeColor, locked }: NavItem & { l
     <Link href={href}>
       <div className={cn(
         "flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] cursor-pointer transition-all select-none group",
-        active ? "bg-[#f3f4f6] text-foreground font-semibold" : "text-[#6b7280] hover:bg-[#f9fafb] hover:text-foreground"
+        active ? "bg-[#f3f4f6] text-foreground font-bold" : "text-[#6b7280] font-semibold hover:bg-[#f9fafb] hover:text-foreground"
       )}>
         <span className={cn("shrink-0", active ? "text-foreground" : "text-[#9ca3af] group-hover:text-[#6b7280]")}>{icon}</span>
         <span className="flex-1 truncate">{label}</span>
@@ -103,7 +103,7 @@ function AccountPanel({ user, logout, onClose }: { user: any; logout: () => void
     chevron?: boolean; red?: boolean; onClick?: () => void;
   }) {
     const cls = cn(
-      "w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium transition-colors cursor-pointer text-left",
+      "w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-semibold transition-colors cursor-pointer text-left",
       red ? "text-red-500 hover:bg-red-50" : "text-foreground hover:bg-[#f9fafb]"
     );
     const inner = (
