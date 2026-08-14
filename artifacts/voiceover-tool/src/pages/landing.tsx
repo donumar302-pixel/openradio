@@ -4,7 +4,7 @@ import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
 import { 
   Play, Pause, ArrowRight, Mic, Globe, 
   Wand2, AudioLines, Sparkles, Zap, Fingerprint,
-  MessageSquare, Headset, Shapes
+  MessageSquare, Headset, Shapes, Volume2, Cpu, Radio
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -56,7 +56,7 @@ const stagger = {
   visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
 };
 
-const ROTATING = ["Truly Alive", "Truly Human", "Truly Yours", "Full of Emotion", "Simply Unreal"];
+const ROTATING = ["Breathtakingly Real", "Uniquely Yours", "Full of Emotion", "Like No Other", "Truly Human"];
 
 const DEMO_VOICES = [
   { id: "d1", name: "Arthur (Narrator)", tags: ["English", "Adult", "Male", "Calm"], color: "bg-amber-200" },
@@ -85,7 +85,7 @@ function HeroDemoWidget() {
   const maxChars = 400;
 
   return (
-    <div className="w-full max-w-4xl mx-auto mt-10 mb-4">
+    <div className="w-full max-w-5xl mx-auto mt-14 mb-4">
       {/* Tab bar */}
       <div className="flex items-center justify-center gap-1 mb-5">
         {([["tts", "Text to Speech"], ["clone", "Voice Clone"]] as const).map(([id, label]) => (
@@ -235,6 +235,41 @@ const SCENARIOS = [
   },
 ];
 
+const PROVIDERS = [
+  {
+    id: "elevenlabs",
+    badge: "Premium",
+    title: "ElevenLabs Ultra-Realistic",
+    desc: "Industry-leading voice AI with lifelike, emotionally expressive output. Used by the world's top creators and studios.",
+    Icon: Volume2,
+    color: "from-orange-500 to-amber-400",
+  },
+  {
+    id: "minimax",
+    badge: "Premium",
+    title: "MiniMax Multilingual",
+    desc: "Powerful multilingual engine supporting 10+ languages with stunning voice quality and authentic emotional delivery.",
+    Icon: Cpu,
+    color: "from-orange-600 to-orange-400",
+  },
+  {
+    id: "edge",
+    badge: "Free",
+    title: "Microsoft Edge TTS",
+    desc: "400+ voices across 46+ languages — completely free. Instant generation, always included in every plan at zero credit cost.",
+    Icon: Zap,
+    color: "from-amber-500 to-orange-500",
+  },
+  {
+    id: "fish",
+    badge: "Premium",
+    title: "Fish Audio Models",
+    desc: "1,000+ community voice models. Clone any voice in seconds with professional-grade accuracy powering global creators.",
+    Icon: AudioLines,
+    color: "from-orange-500 to-red-500",
+  },
+];
+
 function ScenarioSelector() {
   const [active, setActive] = useState("entertainment");
   const scene = SCENARIOS.find(s => s.id === active)!;
@@ -371,15 +406,15 @@ export default function LandingPage() {
           initial="hidden"
           animate="visible"
           variants={stagger}
-          className="text-center max-w-4xl mx-auto"
+          className="text-center max-w-5xl mx-auto"
         >
-          <motion.div variants={fadeIn} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white shadow-sm border border-black/5 text-sm font-bold text-black mb-8">
-            <span className="flex h-2.5 w-2.5 rounded-full bg-orange-500 animate-pulse" />
+          <motion.div variants={fadeIn} className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-white shadow-lg border border-orange-500/15 text-base font-bold text-black mb-10">
+            <span className="flex h-3 w-3 rounded-full bg-orange-500 animate-pulse shadow shadow-orange-500/50" />
             The Next Generation of AI Audio
           </motion.div>
           
-          <motion.h1 variants={fadeIn} className="text-[40px] sm:text-6xl lg:text-7xl font-black tracking-[-0.03em] leading-[1.02] text-black mb-6">
-            Voices That Feel <br/>
+          <motion.h1 variants={fadeIn} className="text-[42px] sm:text-6xl lg:text-[80px] font-black tracking-[-0.03em] leading-[1.02] text-black mb-6">
+            The AI Voice That Sounds<br/>
             <RotatingWord />
           </motion.h1>
           
@@ -663,6 +698,57 @@ export default function LandingPage() {
             </motion.div>
           ))}
         </div>
+      </section>
+
+      {/* 3.25 Premium AI Models / Provider Cards */}
+      <section className="px-4 sm:px-6 max-w-7xl mx-auto pb-24">
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+        >
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-[42px] font-black tracking-tight text-black mb-3">
+              Powered by the World's Best AI
+            </h2>
+            <p className="text-base text-black/50 font-medium max-w-lg mx-auto">
+              Every engine hand-picked for quality — so you always get studio-grade output.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {PROVIDERS.map((p, i) => (
+              <motion.div
+                key={p.id}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.09, duration: 0.5, ease: "easeOut" }}
+                className={`relative rounded-3xl bg-gradient-to-br ${p.color} p-7 flex flex-col overflow-hidden min-h-[280px] shadow-lg`}
+              >
+                {/* badge */}
+                <div className="mb-5">
+                  <span className="bg-white/25 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-full border border-white/25">
+                    {p.badge}
+                  </span>
+                </div>
+                {/* title */}
+                <h3 className="text-xl sm:text-2xl font-black text-white leading-tight mb-3 pr-10">
+                  {p.title}
+                </h3>
+                {/* desc */}
+                <p className="text-white/75 text-sm font-medium leading-relaxed">
+                  {p.desc}
+                </p>
+                {/* decorative icon bottom-right */}
+                <div className="absolute bottom-5 right-5 w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center">
+                  <p.Icon size={28} className="text-white/70" />
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
       </section>
 
       {/* 3.5 Scenario Selector */}
