@@ -143,7 +143,7 @@ export interface PlanDefinition {
 export const PLAN_DEFINITIONS: PlanDefinition[] = [
   {
     id: "free",
-    name: "Free",
+    name: "Basic",
     credits: PLAN_CREDITS.free,
     durationDays: PLAN_DURATION_DAYS,
     highlight: false,
@@ -151,7 +151,7 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     features: [
       `${fmtCredits(PLAN_CREDITS.free)} characters / 30 days`,
       "Text to Speech (ElevenLabs)",
-      "Edge TTS — 400+ free voices",
+      "Edge TTS — 400+ voices",
       "Fire TTS — basic models",
       "MP3 downloads",
       "Community support",
@@ -167,16 +167,30 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     features: [
       `${fmtCredits(PLAN_CREDITS.starter)} characters / 30 days`,
       "Text to Speech — all models",
-      "Edge TTS — 400+ free voices",
+      "Edge TTS — 400+ voices",
       "Fire TTS — all models",
       "Voice Cloning",
       "Speech to Speech",
       "Speech to Text",
+      "MP3 downloads",
+      "Email support",
+    ],
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    credits: PLAN_CREDITS.pro,
+    durationDays: PLAN_DURATION_DAYS,
+    highlight: false,
+    cta: "Get Pro",
+    features: [
+      `${fmtCredits(PLAN_CREDITS.pro)} characters / 30 days`,
+      "Everything in Starter",
       "Audio Isolation",
       "Multilingual Dubbing",
       "Voice Library",
-      "MP3 downloads",
-      "Email support",
+      "Fish Audio — all models",
+      "Priority support",
     ],
   },
   {
@@ -188,8 +202,7 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     cta: "Get Pro Max",
     features: [
       `${fmtCredits(PLAN_CREDITS.max)} characters / 30 days`,
-      "Everything in Starter",
-      "Fish Audio — all models",
+      "Everything in Pro",
       "All premium & emotional voices",
       "Highest priority support",
       "Commercial license",
