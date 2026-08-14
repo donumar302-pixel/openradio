@@ -21,6 +21,8 @@ RUN pnpm --filter @workspace/voiceover-tool run build
 # Build API server
 RUN pnpm --filter @workspace/api-server run build
 
+ENV NODE_ENV=production
+
 EXPOSE 8080
 
 CMD ["node", "--enable-source-maps", "./artifacts/api-server/dist/index.mjs"]

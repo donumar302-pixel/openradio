@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import path from "path";
+import fs from "fs";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -71,9 +72,10 @@ app.use("/api/audio", express.static(audioDir));
 
 app.use("/api", router);
 
-// Serve frontend static files in production
-if (process.env.NODE_ENV === "production") {
-  const frontendDir = path.resolve(workspaceRoot, "artifacts/voiceover-tool/dist/public");
+// Serve frontend static files whenever a built frontend exists
+// (works on Railway even if NODE_ENV is not explicitly set)
+const frontendDir = path.resolve(workspaceRoot, "artifacts/voiceover-tool/dist/public");
+if (fs.existsSync(path.join(frontendDir, "index.html"))) {
   app.use(express.static(frontendDir));
   // SPA fallback — all non-API routes serve index.html
   app.get("*", (_req, res) => {
