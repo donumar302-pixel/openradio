@@ -161,6 +161,21 @@ export default function StudioPage() {
     return () => document.removeEventListener("mousedown", close);
   }, [openPopup]);
 
+  // Read ?voice=provider:id from URL on mount (from Voice Library "Use" button)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const voice = params.get("voice");
+    if (!voice) return;
+    const colonIdx = voice.indexOf(":");
+    if (colonIdx === -1) return;
+    const raw = voice.slice(0, colonIdx);
+    const provider: "el" | "minimax" | "fishaudio" | "edge" =
+      raw === "mm" ? "minimax" : raw === "fa" ? "fishaudio" : raw === "edge" ? "edge" : "el";
+    const id = voice.slice(colonIdx + 1);
+    setVoiceProvider(provider);
+    setVoiceId(id);
+  }, []);
+
   function insertAtCursor(before: string, after = "") {
     const el = textareaRef.current;
     if (!el) { setText(t => t + before + after); return; }
@@ -353,6 +368,29 @@ export default function StudioPage() {
       {/* Settings */}
       {rightTab === "settings" && (
         <div className="flex-1 overflow-y-auto">
+          {/* Platform */}
+          <div className="p-4 border-b border-[#f3f4f6]">
+            <span className="text-sm font-semibold text-foreground block mb-3">Platform</span>
+            <div className="grid grid-cols-2 gap-1.5">
+              {([
+                { id: "el" as const,        label: "ElevenLabs",  active: "text-orange-600 bg-orange-50 border-orange-300" },
+                { id: "minimax" as const,   label: "🔥 Fire TTS", active: "text-violet-600 bg-violet-50 border-violet-300" },
+                { id: "edge" as const,      label: "🪟 Edge Free", active: "text-sky-600 bg-sky-50 border-sky-300" },
+                { id: "fishaudio" as const, label: "🐟 Fish Audio", active: "text-emerald-600 bg-emerald-50 border-emerald-300" },
+              ] as const).map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => { setVoiceProvider(p.id); setVoiceId(""); }}
+                  className={cn(
+                    "px-2 py-2 rounded-lg text-xs font-bold border transition-all text-center",
+                    voiceProvider === p.id ? p.active : "border-[#e5e7eb] text-[#6b7280] hover:border-primary/40 hover:text-foreground"
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
           {/* Voice */}
           <div className="p-4 border-b border-[#f3f4f6]">
             <div className="flex items-center justify-between mb-3">
@@ -361,37 +399,44 @@ export default function StudioPage() {
                 <RotateCcw size={10} /> Reset Value
               </button>
             </div>
-            {(selectedElVoice || selectedMmVoice || selectedFaVoice) && (
+            {(selectedElVoice || selectedMmVoice || selectedFaVoice || selectedEdgeVoice) && (
               <div className={cn("flex items-center gap-3 p-2.5 border rounded-xl mb-3",
                 voiceProvider === "minimax" ? "border-violet-200 bg-violet-50"
                 : voiceProvider === "fishaudio" ? "border-emerald-200 bg-emerald-50"
+                : voiceProvider === "edge" ? "border-sky-200 bg-sky-50"
                 : "border-[#e5e7eb]"
               )}>
                 <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0 font-bold text-lg",
                   voiceProvider === "minimax" ? "bg-violet-100 text-violet-600"
                   : voiceProvider === "fishaudio" ? "bg-emerald-100 text-emerald-600"
+                  : voiceProvider === "edge" ? "bg-sky-100 text-sky-600"
                   : "bg-gradient-to-br from-primary/30 to-orange-200 text-primary"
                 )}>
-                  {(selectedElVoice?.name ?? selectedMmVoice?.name ?? selectedFaVoice?.name ?? "V")[0]}
+                  {(selectedElVoice?.name ?? selectedMmVoice?.name ?? selectedFaVoice?.name ?? selectedEdgeVoice?.name ?? "V")[0]}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold truncate">{selectedElVoice?.name ?? selectedMmVoice?.name ?? selectedFaVoice?.name}</p>
+                  <p className="text-sm font-bold truncate">{selectedElVoice?.name ?? selectedMmVoice?.name ?? selectedFaVoice?.name ?? selectedEdgeVoice?.name}</p>
                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                     <span className={cn("inline-block text-[10px] px-1.5 py-0.5 rounded font-semibold",
                       voiceProvider === "minimax" ? "bg-violet-100 text-violet-600"
                       : voiceProvider === "fishaudio" ? "bg-emerald-100 text-emerald-600"
+                      : voiceProvider === "edge" ? "bg-sky-100 text-sky-600"
                       : "bg-[#f3f4f6] text-[#6b7280]"
                     )}>
                       {voiceProvider === "minimax"
                         ? (selectedMmVoice?.isClone ? "Clone" : selectedMmVoice?.lang ?? "AI")
                         : voiceProvider === "fishaudio"
                           ? (selectedFaVoice?.lang ?? "Multi")
-                          : (selectedElVoice?.category ?? "voice")}
+                          : voiceProvider === "edge"
+                            ? (selectedEdgeVoice?.locale ?? "Multi")
+                            : (selectedElVoice?.category ?? "voice")}
                     </span>
                     {voiceProvider === "minimax" && <span className="flex items-center gap-0.5 text-[10px] text-violet-500 font-semibold"><Zap size={9} className="fill-violet-500" /> Fire TTS</span>}
                     {voiceProvider === "minimax" && selectedMmVoice?.style && <span className="text-[10px] text-[#9ca3af]">{selectedMmVoice.style}</span>}
                     {voiceProvider === "fishaudio" && <span className="text-[10px] text-emerald-600 font-semibold">🐟 Fish Audio</span>}
                     {voiceProvider === "fishaudio" && selectedFaVoice?.style && <span className="text-[10px] text-[#9ca3af]">{selectedFaVoice.style}</span>}
+                    {voiceProvider === "edge" && <span className="text-[10px] text-sky-600 font-semibold">🪟 Edge TTS · Free</span>}
+                    {voiceProvider === "edge" && selectedEdgeVoice?.gender && <span className="text-[10px] text-[#9ca3af]">{selectedEdgeVoice.gender}</span>}
                   </div>
                 </div>
                 {voiceProvider === "el" && <VoicePreviewBtn url={selectedElVoice?.previewUrl} />}
@@ -427,101 +472,74 @@ export default function StudioPage() {
                   <CommandInput placeholder="Search voices..." className="h-9 text-sm" />
                   <CommandList className="max-h-72">
                     <CommandEmpty className="py-6 text-center text-sm text-[#9ca3af]">No voice found.</CommandEmpty>
-                    {voicesByCategory && Object.keys(voicesByCategory).length > 0 && (
-                      <>
-                        <div className="px-3 pt-2.5 pb-1"><p className="text-[10px] font-black uppercase tracking-wider text-orange-500">Text to Speech</p></div>
-                        {Object.entries(voicesByCategory).map(([cat, items]) => (
-                          <CommandGroup key={`el-${cat}`} heading={cat.charAt(0).toUpperCase() + cat.slice(1)}>
-                            {items.map((v) => (
-                              <CommandItem key={`el:${v.voiceId}`} value={`el:${v.voiceId}:${v.name} ${cat}`}
-                                onSelect={() => handleVoiceSelect(`el:${v.voiceId}`)} className="flex items-center gap-2 py-2 cursor-pointer">
-                                <div className="w-7 h-7 rounded-md bg-orange-50 flex items-center justify-center shrink-0 text-primary font-bold text-xs">{v.name[0]}</div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
-                                  <p className="text-[10px] text-[#9ca3af] capitalize">{cat}</p>
-                                </div>
-                                {voiceProvider === "el" && voiceId === v.voiceId && <Check size={13} className="text-primary shrink-0" />}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
+
+                    {/* ElevenLabs voices */}
+                    {voiceProvider === "el" && voicesByCategory && Object.entries(voicesByCategory).map(([cat, items]) => (
+                      <CommandGroup key={`el-${cat}`} heading={cat.charAt(0).toUpperCase() + cat.slice(1)}>
+                        {items.map((v) => (
+                          <CommandItem key={`el:${v.voiceId}`} value={`el:${v.voiceId}:${v.name} ${cat}`}
+                            onSelect={() => handleVoiceSelect(`el:${v.voiceId}`)} className="flex items-center gap-2 py-2 cursor-pointer">
+                            <div className="w-7 h-7 rounded-md bg-orange-50 flex items-center justify-center shrink-0 text-primary font-bold text-xs">{v.name[0]}</div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
+                              <p className="text-[10px] text-[#9ca3af] capitalize">{cat}</p>
+                            </div>
+                            {voiceId === v.voiceId && <Check size={13} className="text-primary shrink-0" />}
+                          </CommandItem>
                         ))}
-                      </>
-                    )}
-                    {mmVoices.length > 0 && (
-                      <>
-                        {voicesByCategory && Object.keys(voicesByCategory).length > 0 && <CommandSeparator />}
-                        <div className="px-3 pt-2.5 pb-1">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-violet-500 flex items-center gap-1">
-                            <Zap size={9} className="fill-violet-500" /> Fire TTS (35+ langs)
-                          </p>
-                        </div>
-                        {Object.entries(mmByLang).map(([lang, langVoices]) => (
-                          <CommandGroup key={`mm-${lang}`} heading={lang}>
-                            {langVoices.map(v => (
-                              <CommandItem key={`mm:${v.id}`} value={`mm:${v.id}:${v.name} ${v.style ?? ""} ${lang}`}
-                                onSelect={() => handleVoiceSelect(`mm:${v.id}`)} className="flex items-center gap-2 py-2 cursor-pointer">
-                                <div className="w-7 h-7 rounded-md bg-violet-50 flex items-center justify-center shrink-0 text-violet-600 font-bold text-xs">{v.name[0]}</div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
-                                  <p className="text-[10px] text-[#9ca3af]">{v.isClone ? "Clone" : (v.style ?? lang)}</p>
-                                </div>
-                                {voiceProvider === "minimax" && voiceId === v.id && <Check size={13} className="text-violet-600 shrink-0" />}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
+                      </CommandGroup>
+                    ))}
+
+                    {/* Fire TTS / MiniMax voices */}
+                    {voiceProvider === "minimax" && Object.entries(mmByLang).map(([lang, langVoices]) => (
+                      <CommandGroup key={`mm-${lang}`} heading={lang}>
+                        {langVoices.map(v => (
+                          <CommandItem key={`mm:${v.id}`} value={`mm:${v.id}:${v.name} ${v.style ?? ""} ${lang}`}
+                            onSelect={() => handleVoiceSelect(`mm:${v.id}`)} className="flex items-center gap-2 py-2 cursor-pointer">
+                            <div className="w-7 h-7 rounded-md bg-violet-50 flex items-center justify-center shrink-0 text-violet-600 font-bold text-xs">{v.name[0]}</div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
+                              <p className="text-[10px] text-[#9ca3af]">{v.isClone ? "Clone" : (v.style ?? lang)}</p>
+                            </div>
+                            {voiceId === v.id && <Check size={13} className="text-violet-600 shrink-0" />}
+                          </CommandItem>
                         ))}
-                      </>
-                    )}
-                    {faVoices.length > 0 && (
-                      <>
-                        <CommandSeparator />
-                        <div className="px-3 pt-2.5 pb-1">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600 flex items-center gap-1">
-                            🐟 Fish Audio (83 langs)
-                          </p>
-                        </div>
-                        {Object.entries(faByLang).map(([lang, langVoices]) => (
-                          <CommandGroup key={`fa-${lang}`} heading={lang}>
-                            {langVoices.map(v => (
-                              <CommandItem key={`fa:${v.id}`} value={`fa:${v.id}:${v.name} ${v.style ?? ""} ${v.lang ?? ""}`}
-                                onSelect={() => handleVoiceSelect(`fa:${v.id}`)} className="flex items-center gap-2 py-2 cursor-pointer">
-                                <div className="w-7 h-7 rounded-md bg-emerald-50 flex items-center justify-center shrink-0 text-emerald-600 font-bold text-xs">{v.name[0]}</div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
-                                  <p className="text-[10px] text-[#9ca3af]">{v.style ?? v.lang ?? "Multi"}</p>
-                                </div>
-                                {voiceProvider === "fishaudio" && voiceId === v.id && <Check size={13} className="text-emerald-600 shrink-0" />}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
+                      </CommandGroup>
+                    ))}
+
+                    {/* Fish Audio voices */}
+                    {voiceProvider === "fishaudio" && Object.entries(faByLang).map(([lang, langVoices]) => (
+                      <CommandGroup key={`fa-${lang}`} heading={lang}>
+                        {langVoices.map(v => (
+                          <CommandItem key={`fa:${v.id}`} value={`fa:${v.id}:${v.name} ${v.style ?? ""} ${v.lang ?? ""}`}
+                            onSelect={() => handleVoiceSelect(`fa:${v.id}`)} className="flex items-center gap-2 py-2 cursor-pointer">
+                            <div className="w-7 h-7 rounded-md bg-emerald-50 flex items-center justify-center shrink-0 text-emerald-600 font-bold text-xs">{v.name[0]}</div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
+                              <p className="text-[10px] text-[#9ca3af]">{v.style ?? v.lang ?? "Multi"}</p>
+                            </div>
+                            {voiceId === v.id && <Check size={13} className="text-emerald-600 shrink-0" />}
+                          </CommandItem>
                         ))}
-                      </>
-                    )}
-                    {edgeVoices.length > 0 && (
-                      <>
-                        <CommandSeparator />
-                        <div className="px-3 pt-2.5 pb-1">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-sky-600 flex items-center gap-1">
-                            🪟 Edge TTS — Free (400+ voices)
-                          </p>
-                        </div>
-                        {Object.entries(edgeByLocale).slice(0, 20).map(([locale, locVoices]) => (
-                          <CommandGroup key={`edge-${locale}`} heading={locale}>
-                            {locVoices.map(v => (
-                              <CommandItem key={`edge:${v.id}`} value={`edge:${v.id}:${v.name} ${locale}`}
-                                onSelect={() => handleVoiceSelect(`edge:${v.id}`)} className="flex items-center gap-2 py-2 cursor-pointer">
-                                <div className="w-7 h-7 rounded-md bg-sky-50 flex items-center justify-center shrink-0 text-sky-600 font-bold text-xs">{v.name[0]}</div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
-                                  <p className="text-[10px] text-[#9ca3af]">{v.gender} · {locale}</p>
-                                </div>
-                                {voiceProvider === "edge" && voiceId === v.id && <Check size={13} className="text-sky-600 shrink-0" />}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
+                      </CommandGroup>
+                    ))}
+
+                    {/* Edge TTS voices */}
+                    {voiceProvider === "edge" && Object.entries(edgeByLocale).map(([locale, locVoices]) => (
+                      <CommandGroup key={`edge-${locale}`} heading={locale}>
+                        {locVoices.map(v => (
+                          <CommandItem key={`edge:${v.id}`} value={`edge:${v.id}:${v.name} ${locale}`}
+                            onSelect={() => handleVoiceSelect(`edge:${v.id}`)} className="flex items-center gap-2 py-2 cursor-pointer">
+                            <div className="w-7 h-7 rounded-md bg-sky-50 flex items-center justify-center shrink-0 text-sky-600 font-bold text-xs">{v.name[0]}</div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
+                              <p className="text-[10px] text-[#9ca3af]">{v.gender} · {locale}</p>
+                            </div>
+                            {voiceId === v.id && <Check size={13} className="text-sky-600 shrink-0" />}
+                          </CommandItem>
                         ))}
-                      </>
-                    )}
+                      </CommandGroup>
+                    ))}
                   </CommandList>
                 </Command>
               </PopoverContent>
@@ -601,43 +619,16 @@ export default function StudioPage() {
           >
             <SlidersHorizontal size={13} /> {mobilePanel ? "Hide" : "Settings"}
           </button>
-          {/* Model selector - unified: both ElevenLabs + Fire TTS models, grouped like voices */}
-          {(() => {
-            const isMm = voiceProvider === "minimax";
-            const isFa = voiceProvider === "fishaudio";
-            const value = isMm ? mmModel : isFa ? faModel : modelId;
-            const selected = (isMm ? MM_MODELS : isFa ? FA_MODELS : MODELS).find((m) => m.id === value);
+          {/* Model selector — only shows models for current platform */}
+          {voiceProvider !== "edge" && (() => {
+            const models = voiceProvider === "minimax" ? MM_MODELS : voiceProvider === "fishaudio" ? FA_MODELS : MODELS;
+            const value   = voiceProvider === "minimax" ? mmModel  : voiceProvider === "fishaudio" ? faModel  : modelId;
+            const selected = models.find(m => m.id === value);
             const handleModelChange = (id: string) => {
-              const isElModel = MODELS.some((m) => m.id === id);
-              const isMmModel = MM_MODELS.some((m) => m.id === id);
-              if (isElModel) {
-                setModelId(id);
-                if (voiceProvider !== "el") {
-                  setVoiceProvider("el");
-                  setVoiceId(voices?.[0]?.voiceId ?? "");
-                }
-              } else if (isMmModel) {
-                setMmModel(id);
-                if (voiceProvider !== "minimax") {
-                  setVoiceProvider("minimax");
-                  setVoiceId(mmVoices[0]?.id ?? "");
-                }
-              } else {
-                setFaModel(id);
-                if (voiceProvider !== "fishaudio") {
-                  setVoiceProvider("fishaudio");
-                  setVoiceId(faVoices[0]?.id ?? "default");
-                }
-              }
+              if (voiceProvider === "minimax") setMmModel(id);
+              else if (voiceProvider === "fishaudio") setFaModel(id);
+              else setModelId(id);
             };
-            const renderItem = (m: { id: string; label: string; badge: string | null }) => (
-              <SelectItem key={m.id} value={m.id} className="text-sm">
-                <div className="flex items-center gap-2">
-                  {m.label}
-                  {m.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary">{m.badge}</span>}
-                </div>
-              </SelectItem>
-            );
             return (
               <div className="hidden sm:flex items-center gap-2">
                 <span className="text-sm text-[#6b7280]">Model</span>
@@ -647,23 +638,24 @@ export default function StudioPage() {
                     {selected?.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-primary text-white ml-1">{selected.badge}</span>}
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel className="text-[11px] text-[#9ca3af]">Text to Speech</SelectLabel>
-                      {MODELS.map(renderItem)}
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel className="text-[11px] text-[#9ca3af] flex items-center gap-1"><Zap size={11} className="text-violet-400" /> Fire TTS</SelectLabel>
-                      {MM_MODELS.map(renderItem)}
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel className="text-[11px] text-[#9ca3af]">🐟 Fish Audio</SelectLabel>
-                      {FA_MODELS.map(renderItem)}
-                    </SelectGroup>
+                    {models.map(m => (
+                      <SelectItem key={m.id} value={m.id} className="text-sm">
+                        <div className="flex items-center gap-2">
+                          {m.label}
+                          {m.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary">{m.badge}</span>}
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             );
           })()}
+          {voiceProvider === "edge" && (
+            <div className="hidden sm:flex items-center gap-2">
+              <span className="text-xs font-bold text-sky-600 bg-sky-50 px-3 py-1.5 rounded-full border border-sky-200">🪟 Edge TTS — Free</span>
+            </div>
+          )}
         </div>
       </div>
 
