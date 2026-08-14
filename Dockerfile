@@ -7,14 +7,18 @@ WORKDIR /app
 # Copy workspace root config files
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 
-# Copy all workspace packages
+# Copy all workspace packages needed
 COPY artifacts/api-server/ ./artifacts/api-server/
+COPY artifacts/voiceover-tool/ ./artifacts/voiceover-tool/
 COPY lib/ ./lib/
 
-# Install dependencies from workspace root
+# Install dependencies
 RUN pnpm install --no-frozen-lockfile --ignore-scripts
 
-# Build the API server
+# Build frontend first
+RUN pnpm --filter @workspace/voiceover-tool run build
+
+# Build API server
 RUN pnpm --filter @workspace/api-server run build
 
 EXPOSE 8080

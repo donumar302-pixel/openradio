@@ -71,4 +71,14 @@ app.use("/api/audio", express.static(audioDir));
 
 app.use("/api", router);
 
+// Serve frontend static files in production
+if (process.env.NODE_ENV === "production") {
+  const frontendDir = path.resolve(workspaceRoot, "artifacts/voiceover-tool/dist/public");
+  app.use(express.static(frontendDir));
+  // SPA fallback — all non-API routes serve index.html
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(frontendDir, "index.html"));
+  });
+}
+
 export default app;
