@@ -28,7 +28,7 @@ function AdminNav({ onClose }: { onClose?: () => void }) {
       {/* Logo */}
       <div className="px-5 py-5 border-b border-white/5 shrink-0">
         <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="OpenRadio" className="w-8 h-8 object-contain shrink-0" />
+          <img src="/logo.png" alt="OpenRadio" className="w-11 h-11 object-contain shrink-0" />
           <div>
             <div className="flex items-baseline gap-0.5">
               <span className="font-black text-[15px] text-white">OpenRadio</span>

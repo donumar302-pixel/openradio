@@ -186,7 +186,7 @@ export function MarketingFooter() {
     <footer className="border-t border-black/[0.05] bg-white">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="OpenRadio" className="w-9 h-9 object-contain" />
+          <img src="/logo.png" alt="OpenRadio" className="w-11 h-11 object-contain" />
           <span className="font-black text-[20px] tracking-tight text-gray-900">
             Open<span className="text-[#f97316]">Radio</span>
           </span>
