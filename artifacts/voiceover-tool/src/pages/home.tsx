@@ -3,72 +3,66 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import {
   Mic2, AudioWaveform, MessageSquareText, Radio,
-  Languages, Copy, Clock, ChevronRight,
-  Play, Plus, Volume2,
+  Languages, Copy, Clock, Play, Plus, Volume2,
+  ArrowUpRight, Zap, Sparkles, ChevronRight,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-/* ── Tool cards (top strip) ──────────────────────────────────── */
+/* ── Tool cards ─────────────────────────────────────────────── */
 const TOOLS = [
   {
     href: "/studio",
-    icon: <Mic2 size={22} />,
+    icon: Mic2,
     name: "Text to Speech",
     desc: "Convert any text to natural-sounding speech in seconds",
-    iconBg: "bg-orange-50", iconColor: "text-orange-500",
+    iconBg: "bg-orange-100", iconColor: "text-orange-500",
   },
   {
     href: "/voice-cloning",
-    icon: <Copy size={22} />,
+    icon: Copy,
     name: "Voice Cloning",
     desc: "Create a digital copy of any voice for free",
-    iconBg: "bg-green-50", iconColor: "text-green-500",
+    iconBg: "bg-emerald-100", iconColor: "text-emerald-500",
     badge: "Free",
   },
   {
     href: "/speech-to-speech",
-    icon: <AudioWaveform size={22} />,
+    icon: AudioWaveform,
     name: "Speech to Speech",
     desc: "Transform any voice into a completely different one",
-    iconBg: "bg-blue-50", iconColor: "text-blue-500",
+    iconBg: "bg-blue-100", iconColor: "text-blue-500",
   },
   {
     href: "/audio-isolation",
-    icon: <Radio size={22} />,
+    icon: Radio,
     name: "Audio Isolation",
     desc: "Remove background noise and keep crystal clear voice",
-    iconBg: "bg-emerald-50", iconColor: "text-emerald-500",
+    iconBg: "bg-violet-100", iconColor: "text-violet-500",
   },
   {
     href: "/dubbing",
-    icon: <Languages size={22} />,
+    icon: Languages,
     name: "Dubbing",
     desc: "Dub any video into 29+ languages automatically",
-    iconBg: "bg-rose-50", iconColor: "text-rose-500",
+    iconBg: "bg-rose-100", iconColor: "text-rose-500",
   },
   {
     href: "/speech-to-text",
-    icon: <MessageSquareText size={22} />,
+    icon: MessageSquareText,
     name: "Speech to Text",
     desc: "Transcribe audio and video files in any language",
-    iconBg: "bg-sky-50", iconColor: "text-sky-500",
+    iconBg: "bg-sky-100", iconColor: "text-sky-500",
   },
 ];
 
-/* ── Generation item ─────────────────────────────────────────── */
+/* ── Types ───────────────────────────────────────────────────── */
 interface Generation {
-  id: number;
-  text: string;
-  voiceName: string;
-  audioUrl: string;
-  modelId: string | null;
-  characterCount: number;
-  createdAt: string;
+  id: number; text: string; voiceName: string;
+  audioUrl: string; modelId: string | null;
+  characterCount: number; createdAt: string;
 }
-
-interface VoiceClone {
-  id: string; name: string; isClone?: boolean; lang?: string;
-}
+interface VoiceClone { id: string; name: string; isClone?: boolean; lang?: string; }
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -81,6 +75,23 @@ function timeAgo(iso: string) {
   return "Just now";
 }
 
+/* ── Animated waveform bars ──────────────────────────────────── */
+function WaveBars() {
+  return (
+    <div className="flex items-end gap-[3px] h-5">
+      {[3, 6, 4, 7, 5, 3, 6].map((h, i) => (
+        <motion.span
+          key={i}
+          className="w-[3px] rounded-full bg-orange-400/70"
+          animate={{ height: [`${h * 3}px`, `${(h + 4) * 3}px`, `${h * 3}px`] }}
+          transition={{ duration: 0.8 + i * 0.1, repeat: Infinity, ease: "easeInOut", delay: i * 0.1 }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ── Main ────────────────────────────────────────────────────── */
 export default function Home() {
   const { user } = useAuth();
 
@@ -100,77 +111,135 @@ export default function Home() {
   const myClones = voiceData?.clones ?? [];
 
   return (
-    <div className="min-h-full bg-[#fafafa]">
-      <div className="max-w-5xl mx-auto px-4 sm:px-7 py-6 sm:py-8 space-y-8 sm:space-y-10">
+    <div className="min-h-full bg-[#f7f7f6]">
+      <div className="max-w-5xl mx-auto px-4 sm:px-7 py-7 sm:py-9 space-y-8">
 
-        {/* ── Greeting ── */}
-        <div>
-          <h1 className="text-[28px] font-black tracking-tight text-foreground mb-1">
-            Home
-          </h1>
-          <p className="text-[#9ca3af] text-[14px]">
-            Welcome back, <span className="font-semibold text-foreground">{user?.name ?? "there"}</span>. What would you like to create today?
-          </p>
-        </div>
+        {/* ── Feature Banner ───────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45 }}
+          className="relative bg-white border border-black/8 rounded-2xl overflow-hidden flex flex-col sm:flex-row items-stretch shadow-sm"
+        >
+          {/* Left color strip with animated waveform */}
+          <div className="sm:w-48 w-full h-24 sm:h-auto relative bg-gradient-to-br from-orange-500 to-amber-400 flex flex-col items-center justify-center gap-2 px-4 py-4 flex-shrink-0">
+            <WaveBars />
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+              <span className="text-white/90 text-[11px] font-black tracking-wider uppercase">Live</span>
+            </div>
+          </div>
 
-        {/* ── Tool cards strip ── */}
-        <div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {TOOLS.map(tool => (
-              <Link key={tool.href} href={tool.href}>
-                <div className="group bg-white border border-[#f0f0f0] rounded-2xl p-5 cursor-pointer hover:border-[#e0e0e0] hover:shadow-md transition-all">
-                  {/* Icon */}
-                  <div className={cn(
-                    "w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-105",
-                    tool.iconBg, tool.iconColor
-                  )}>
-                    {tool.icon}
-                  </div>
-                  {/* Name + badge */}
-                  <div className="flex items-start gap-1.5 mb-1.5 flex-wrap">
-                    <p className="text-[14px] font-bold text-foreground leading-snug">{tool.name}</p>
-                    {tool.badge && (
-                      <span className={cn(
-                        "text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 mt-0.5",
-                        tool.badge === "Free" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-500"
-                      )}>
-                        {tool.badge}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[12px] text-[#9ca3af] leading-snug">{tool.desc}</p>
-                </div>
-              </Link>
-            ))}
+          {/* Center content */}
+          <div className="flex-1 px-5 py-4 sm:py-5 flex flex-col justify-center">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-black tracking-widest text-orange-500 uppercase">What's New</span>
+              <span className="bg-sky-100 text-sky-600 text-[9px] font-black px-2 py-0.5 rounded-full border border-sky-200">FREE</span>
+            </div>
+            <h2 className="text-base font-black text-black leading-snug">🪟 Edge TTS — 400+ Free Voices Added</h2>
+            <p className="text-sm text-black/45 font-medium mt-0.5">
+              Microsoft's free TTS engine is now live. Switch to Edge in Studio for unlimited free generations — no credits deducted, ever.
+            </p>
+          </div>
 
-            {/* New project card */}
+          {/* Right CTA */}
+          <div className="px-5 pb-4 sm:pb-0 flex items-center flex-shrink-0">
             <Link href="/studio">
-              <div className="group bg-white border-2 border-dashed border-[#e5e7eb] rounded-2xl p-5 cursor-pointer hover:border-orange-300 hover:bg-orange-50/30 transition-all flex flex-col items-center justify-center min-h-[130px] text-center">
-                <div className="w-11 h-11 rounded-xl bg-[#f9fafb] group-hover:bg-orange-100 flex items-center justify-center mb-3 transition-colors">
-                  <Plus size={20} className="text-[#9ca3af] group-hover:text-orange-500 transition-colors" />
-                </div>
-                <p className="text-[13px] font-bold text-[#6b7280] group-hover:text-foreground transition-colors">New Project</p>
-                <p className="text-[11px] text-[#9ca3af] mt-1">Start generating audio</p>
-              </div>
+              <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-black hover:bg-gray-800 text-white rounded-xl text-sm font-bold transition-colors">
+                Try Free <Zap size={13} className="fill-yellow-400 text-yellow-400" />
+              </button>
             </Link>
           </div>
-        </div>
+        </motion.div>
 
-        {/* ── Generation History ── */}
-        <div>
+        {/* ── Greeting ─────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.08 }}
+        >
+          <h1 className="text-2xl sm:text-[28px] font-black tracking-tight text-black leading-tight">
+            Welcome back, <span className="text-orange-500">{user?.name?.split(" ")[0] ?? "there"}</span> —
+          </h1>
+          <p className="text-base text-black/40 font-semibold mt-0.5">what would you like to create today?</p>
+        </motion.div>
+
+        {/* ── Tool Cards Grid ───────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.13 }}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+        >
+          {TOOLS.map((tool, i) => (
+            <motion.div
+              key={tool.href + tool.name}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + i * 0.05 }}
+            >
+              <Link href={tool.href}>
+                <div className="group relative bg-white border border-black/8 rounded-2xl p-5 flex items-start gap-3.5 cursor-pointer hover:shadow-md hover:border-black/15 transition-all">
+                  {/* Icon */}
+                  <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5", tool.iconBg, tool.iconColor)}>
+                    <tool.icon size={20} />
+                  </div>
+
+                  {/* Text */}
+                  <div className="flex-1 min-w-0 pr-6">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <span className="text-[14px] font-black text-black leading-snug">{tool.name}</span>
+                      {tool.badge && (
+                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600 uppercase tracking-wide">
+                          {tool.badge}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[12px] text-black/45 font-medium leading-snug">{tool.desc}</p>
+                  </div>
+
+                  {/* Arrow */}
+                  <div className="absolute top-4 right-4 w-7 h-7 rounded-full bg-black/[0.04] group-hover:bg-black flex items-center justify-center transition-all">
+                    <ArrowUpRight size={13} className="text-black/30 group-hover:text-white transition-colors" />
+                  </div>
+                </div>
+              </Link>
+            </motion.div>
+          ))}
+
+          {/* New Project card */}
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
+            <Link href="/studio">
+              <div className="group bg-white border-2 border-dashed border-black/12 rounded-2xl p-5 cursor-pointer hover:border-orange-300 hover:bg-orange-50/40 transition-all flex flex-col items-center justify-center min-h-[88px] text-center">
+                <div className="w-9 h-9 rounded-xl bg-black/[0.04] group-hover:bg-orange-100 flex items-center justify-center mb-2 transition-colors">
+                  <Plus size={18} className="text-black/25 group-hover:text-orange-500 transition-colors" />
+                </div>
+                <p className="text-[13px] font-black text-black/35 group-hover:text-black transition-colors">New Project</p>
+                <p className="text-[11px] text-black/25 mt-0.5">Start generating audio</p>
+              </div>
+            </Link>
+          </motion.div>
+        </motion.div>
+
+        {/* ── Generation History ────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.22 }}
+        >
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Clock size={16} className="text-[#9ca3af]" />
-              <h2 className="text-[16px] font-bold text-foreground">Generation History</h2>
+            <div className="flex items-center gap-2.5">
+              <Clock size={15} className="text-black/30" />
+              <h2 className="text-[15px] font-black text-black">Generation History</h2>
               {genData?.total != null && genData.total > 0 && (
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#f3f4f6] text-[#6b7280]">
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-black/6 text-black/40">
                   {genData.total}
                 </span>
               )}
             </div>
             {recentGenerations.length > 0 && (
               <Link href="/studio">
-                <button className="flex items-center gap-1 text-[12px] font-semibold text-[#6b7280] hover:text-foreground transition-colors">
+                <button className="flex items-center gap-1 text-[12px] font-bold text-black/35 hover:text-black transition-colors">
                   View all <ChevronRight size={13} />
                 </button>
               </Link>
@@ -178,14 +247,14 @@ export default function Home() {
           </div>
 
           {recentGenerations.length === 0 ? (
-            <div className="bg-white border border-[#f0f0f0] rounded-2xl p-12 flex flex-col items-center text-center">
-              <div className="w-14 h-14 rounded-2xl bg-[#f9fafb] flex items-center justify-center mb-4">
-                <Clock size={24} className="text-[#d1d5db]" />
+            <div className="bg-white border border-black/8 rounded-2xl p-10 flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-2xl bg-black/4 flex items-center justify-center mb-3">
+                <Sparkles size={22} className="text-black/20" />
               </div>
-              <p className="text-[15px] font-bold text-foreground mb-1">No history yet</p>
-              <p className="text-[13px] text-[#9ca3af] mb-5">Generate your first audio to see it here</p>
+              <p className="text-[14px] font-black text-black mb-1">No history yet</p>
+              <p className="text-[12px] text-black/40 font-medium mb-5">Generate your first audio to see it here</p>
               <Link href="/studio">
-                <button className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-[13px] font-bold hover:bg-primary/90 transition-colors shadow-sm">
+                <button className="flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-[13px] font-bold transition-colors shadow shadow-orange-500/20">
                   <Mic2 size={14} /> Open Studio
                 </button>
               </Link>
@@ -193,26 +262,24 @@ export default function Home() {
           ) : (
             <div className="space-y-2">
               {recentGenerations.map(gen => (
-                <div key={gen.id} className="bg-white border border-[#f0f0f0] rounded-xl px-4 sm:px-5 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 hover:border-[#e0e0e0] hover:shadow-sm transition-all">
-                  {/* Top row: icon + info + time */}
+                <div key={gen.id} className="bg-white border border-black/8 rounded-xl px-4 sm:px-5 py-3 sm:py-3.5 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 hover:border-black/15 hover:shadow-sm transition-all">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
-                      <Play size={14} className="text-primary fill-primary" />
+                    <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
+                      <Play size={13} className="text-orange-500 fill-orange-500 ml-0.5" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[14px] font-semibold text-foreground truncate">
+                      <p className="text-[13px] font-semibold text-black truncate">
                         {gen.text.length > 80 ? gen.text.slice(0, 80) + "…" : gen.text}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span className="text-[12px] text-[#9ca3af]">{gen.voiceName}</span>
-                        <span className="text-[12px] text-[#d1d5db]">·</span>
-                        <span className="text-[12px] text-[#9ca3af]">{gen.characterCount} chars</span>
-                        <span className="text-[11px] text-[#9ca3af] font-medium sm:hidden">{timeAgo(gen.createdAt)}</span>
+                        <span className="text-[11px] text-black/35">{gen.voiceName}</span>
+                        <span className="text-black/20">·</span>
+                        <span className="text-[11px] text-black/35">{gen.characterCount} chars</span>
+                        <span className="text-[10px] text-black/30 font-medium sm:hidden">{timeAgo(gen.createdAt)}</span>
                       </div>
                     </div>
-                    <span className="hidden sm:block text-[11px] text-[#9ca3af] font-medium shrink-0">{timeAgo(gen.createdAt)}</span>
+                    <span className="hidden sm:block text-[11px] text-black/30 font-medium shrink-0">{timeAgo(gen.createdAt)}</span>
                   </div>
-                  {/* Audio player */}
                   {gen.audioUrl && (
                     <audio controls className="h-7 w-full sm:w-36 shrink-0" src={gen.audioUrl} />
                   )}
@@ -220,66 +287,69 @@ export default function Home() {
               ))}
             </div>
           )}
-        </div>
+        </motion.div>
 
-        {/* ── My Voices ── */}
-        <div className="pb-8">
+        {/* ── My Voices ────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.28 }}
+          className="pb-8"
+        >
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Volume2 size={16} className="text-[#9ca3af]" />
-              <h2 className="text-[16px] font-bold text-foreground">My Voices</h2>
+            <div className="flex items-center gap-2.5">
+              <Volume2 size={15} className="text-black/30" />
+              <h2 className="text-[15px] font-black text-black">My Voices</h2>
               {myClones.length > 0 && (
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#f3f4f6] text-[#6b7280]">
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-black/6 text-black/40">
                   {myClones.length}
                 </span>
               )}
             </div>
             <Link href="/voice-cloning">
-              <button className="flex items-center gap-1.5 text-[12px] font-semibold text-[#6b7280] hover:text-foreground transition-colors">
-                <Plus size={13} /> Add Voice
+              <button className="flex items-center gap-1.5 text-[12px] font-bold text-black/35 hover:text-black transition-colors">
+                <Plus size={12} /> Add Voice
               </button>
             </Link>
           </div>
 
           {myClones.length === 0 ? (
-            <div className="bg-white border border-[#f0f0f0] rounded-2xl p-10 flex flex-col items-center text-center">
-              <div className="w-14 h-14 rounded-2xl bg-[#f9fafb] flex items-center justify-center mb-4">
-                <Volume2 size={24} className="text-[#d1d5db]" />
+            <div className="bg-white border border-black/8 rounded-2xl p-10 flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-2xl bg-black/4 flex items-center justify-center mb-3">
+                <Volume2 size={22} className="text-black/20" />
               </div>
-              <p className="text-[15px] font-bold text-foreground mb-1">No voices yet</p>
-              <p className="text-[13px] text-[#9ca3af] mb-5">Clone a voice for free — upload a 10-second sample</p>
+              <p className="text-[14px] font-black text-black mb-1">No voices yet</p>
+              <p className="text-[12px] text-black/40 font-medium mb-5">Clone a voice for free — upload a 10-second sample</p>
               <Link href="/voice-cloning">
-                <button className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 text-white rounded-xl text-[13px] font-bold hover:bg-violet-700 transition-colors shadow-sm">
+                <button className="flex items-center gap-2 px-5 py-2.5 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-[13px] font-bold transition-colors shadow shadow-violet-500/20">
                   <Copy size={14} /> Clone a Voice
                 </button>
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {myClones.map((voice) => (
                 <Link key={voice.id} href="/voice-cloning">
-                  <div className="bg-white border border-[#f0f0f0] rounded-2xl p-4 cursor-pointer hover:border-violet-200 hover:shadow-md transition-all group">
-                    <div className="w-12 h-12 rounded-xl bg-violet-100 flex items-center justify-center mb-3 text-violet-600 font-black text-[18px] group-hover:bg-violet-200 transition-colors">
+                  <div className="bg-white border border-black/8 rounded-2xl p-4 cursor-pointer hover:border-violet-200 hover:shadow-md transition-all group">
+                    <div className="w-11 h-11 rounded-xl bg-violet-100 flex items-center justify-center mb-3 text-violet-600 font-black text-lg group-hover:bg-violet-200 transition-colors">
                       {voice.name[0].toUpperCase()}
                     </div>
-                    <p className="text-[13px] font-bold text-foreground truncate">{voice.name}</p>
-                    <p className="text-[11px] text-[#9ca3af] mt-0.5">Custom Clone</p>
+                    <p className="text-[13px] font-bold text-black truncate">{voice.name}</p>
+                    <p className="text-[11px] text-black/35 mt-0.5">Custom Clone</p>
                   </div>
                 </Link>
               ))}
-
-              {/* Add new voice card */}
               <Link href="/voice-cloning">
-                <div className="bg-white border-2 border-dashed border-[#e5e7eb] rounded-2xl p-4 cursor-pointer hover:border-violet-300 hover:bg-violet-50/30 transition-all flex flex-col items-center justify-center min-h-[100px] text-center group">
-                  <div className="w-10 h-10 rounded-xl bg-[#f9fafb] group-hover:bg-violet-100 flex items-center justify-center mb-2 transition-colors">
-                    <Plus size={18} className="text-[#9ca3af] group-hover:text-violet-500 transition-colors" />
+                <div className="bg-white border-2 border-dashed border-black/12 rounded-2xl p-4 cursor-pointer hover:border-violet-300 hover:bg-violet-50/30 transition-all flex flex-col items-center justify-center min-h-[100px] text-center group">
+                  <div className="w-9 h-9 rounded-xl bg-black/4 group-hover:bg-violet-100 flex items-center justify-center mb-2 transition-colors">
+                    <Plus size={16} className="text-black/25 group-hover:text-violet-500 transition-colors" />
                   </div>
-                  <p className="text-[12px] font-bold text-[#9ca3af] group-hover:text-foreground transition-colors">Add Voice</p>
+                  <p className="text-[12px] font-black text-black/30 group-hover:text-black transition-colors">Add Voice</p>
                 </div>
               </Link>
             </div>
           )}
-        </div>
+        </motion.div>
 
       </div>
     </div>
