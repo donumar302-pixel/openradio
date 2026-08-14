@@ -24,7 +24,6 @@ const TOOLS = [
     name: "Voice Cloning",
     desc: "Create a digital copy of any voice for free",
     iconBg: "bg-emerald-100", iconColor: "text-emerald-500",
-    badge: "Free",
   },
   {
     href: "/speech-to-speech",
@@ -113,44 +112,6 @@ export default function Home() {
   return (
     <div className="min-h-full bg-[#f7f7f6]">
       <div className="max-w-5xl mx-auto px-4 sm:px-7 py-7 sm:py-9 space-y-8">
-
-        {/* ── Feature Banner ───────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45 }}
-          className="relative bg-white border border-black/8 rounded-2xl overflow-hidden flex flex-col sm:flex-row items-stretch shadow-sm"
-        >
-          {/* Left color strip with animated waveform */}
-          <div className="sm:w-48 w-full h-24 sm:h-auto relative bg-gradient-to-br from-orange-500 to-amber-400 flex flex-col items-center justify-center gap-2 px-4 py-4 flex-shrink-0">
-            <WaveBars />
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              <span className="text-white/90 text-[11px] font-black tracking-wider uppercase">Live</span>
-            </div>
-          </div>
-
-          {/* Center content */}
-          <div className="flex-1 px-5 py-4 sm:py-5 flex flex-col justify-center">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[10px] font-black tracking-widest text-orange-500 uppercase">What's New</span>
-              <span className="bg-sky-100 text-sky-600 text-[9px] font-black px-2 py-0.5 rounded-full border border-sky-200">FREE</span>
-            </div>
-            <h2 className="text-base font-black text-black leading-snug">🪟 Edge TTS — 400+ Free Voices Added</h2>
-            <p className="text-sm text-black/45 font-medium mt-0.5">
-              Microsoft's free TTS engine is now live. Switch to Edge in Studio for unlimited free generations — no credits deducted, ever.
-            </p>
-          </div>
-
-          {/* Right CTA */}
-          <div className="px-5 pb-4 sm:pb-0 flex items-center flex-shrink-0">
-            <Link href="/studio">
-              <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-black hover:bg-gray-800 text-white rounded-xl text-sm font-bold transition-colors">
-                Try Free <Zap size={13} className="fill-yellow-400 text-yellow-400" />
-              </button>
-            </Link>
-          </div>
-        </motion.div>
 
         {/* ── Greeting ─────────────────────────────────────────── */}
         <motion.div

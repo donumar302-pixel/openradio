@@ -80,15 +80,14 @@ export default function VoiceCloningPage() {
       <div>
         <div className="flex items-center gap-2 mb-1">
           <h1 className="text-2xl font-bold text-foreground">Voice Cloning</h1>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-600">Free</span>
         </div>
-        <p className="text-[#6b7280] text-sm">Upload a voice sample and create a custom AI clone. Cloning is completely free — charges only apply when generating audio.</p>
+        <p className="text-[#6b7280] text-sm">Upload a voice sample and create a custom AI clone. Charges only apply when generating audio.</p>
       </div>
 
       {/* Info cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { title: "Free to Clone", desc: "Creating voice clones costs $0", color: "bg-green-50 border-green-200 text-green-700" },
+          { title: "Clone Any Voice", desc: "Create a custom AI clone easily", color: "bg-green-50 border-green-200 text-green-700" },
           { title: "Min. 10 Seconds", desc: "Short audio sample is enough", color: "bg-blue-50 border-blue-200 text-blue-700" },
           { title: "Ready in Seconds", desc: "Clone is available instantly", color: "bg-violet-50 border-violet-200 text-violet-700" },
         ].map(c => (

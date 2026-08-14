@@ -375,7 +375,7 @@ export default function StudioPage() {
               {([
                 { id: "el" as const,        label: "ElevenLabs",  active: "text-orange-600 bg-orange-50 border-orange-300" },
                 { id: "minimax" as const,   label: "🔥 Fire TTS", active: "text-violet-600 bg-violet-50 border-violet-300" },
-                { id: "edge" as const,      label: "🪟 Edge Free", active: "text-sky-600 bg-sky-50 border-sky-300" },
+                { id: "edge" as const,      label: "🪟 Edge TTS", active: "text-sky-600 bg-sky-50 border-sky-300" },
                 { id: "fishaudio" as const, label: "🐟 Fish Audio", active: "text-emerald-600 bg-emerald-50 border-emerald-300" },
               ] as const).map(p => (
                 <button
@@ -435,7 +435,7 @@ export default function StudioPage() {
                     {voiceProvider === "minimax" && selectedMmVoice?.style && <span className="text-[10px] text-[#9ca3af]">{selectedMmVoice.style}</span>}
                     {voiceProvider === "fishaudio" && <span className="text-[10px] text-emerald-600 font-semibold">🐟 Fish Audio</span>}
                     {voiceProvider === "fishaudio" && selectedFaVoice?.style && <span className="text-[10px] text-[#9ca3af]">{selectedFaVoice.style}</span>}
-                    {voiceProvider === "edge" && <span className="text-[10px] text-sky-600 font-semibold">🪟 Edge TTS · Free</span>}
+                    {voiceProvider === "edge" && <span className="text-[10px] text-sky-600 font-semibold">🪟 Edge TTS</span>}
                     {voiceProvider === "edge" && selectedEdgeVoice?.gender && <span className="text-[10px] text-[#9ca3af]">{selectedEdgeVoice.gender}</span>}
                   </div>
                 </div>
@@ -550,7 +550,6 @@ export default function StudioPage() {
           <div className="p-4 border-b border-[#f3f4f6]">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-foreground">Voice Modifier</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#f3f4f6] text-[#6b7280]">Free</span>
             </div>
           </div>
 
@@ -653,7 +652,7 @@ export default function StudioPage() {
           })()}
           {voiceProvider === "edge" && (
             <div className="hidden sm:flex items-center gap-2">
-              <span className="text-xs font-bold text-sky-600 bg-sky-50 px-3 py-1.5 rounded-full border border-sky-200">🪟 Edge TTS — Free</span>
+              <span className="text-xs font-bold text-sky-600 bg-sky-50 px-3 py-1.5 rounded-full border border-sky-200">🪟 Edge TTS</span>
             </div>
           )}
         </div>
