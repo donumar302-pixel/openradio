@@ -229,7 +229,7 @@ function SidebarContent() {
       {/* Logo */}
       <div className="px-5 py-5 shrink-0">
         <div className="flex items-center">
-          <BrandWordmark textClass="font-black text-[16px] tracking-tight text-foreground" imgClass="h-[1.4em] w-auto" />
+          <BrandWordmark textClass="font-black text-[19px] tracking-tight text-foreground" imgClass="h-[1.2em] w-auto" />
         </div>
       </div>
 
@@ -292,7 +292,7 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
             <button onClick={() => setMobileOpen(true)} className="text-[#6b7280]">
               <Menu size={20} />
             </button>
-            <BrandWordmark textClass="font-black text-[15px] tracking-tight text-foreground" imgClass="h-[1.4em] w-auto" />
+            <BrandWordmark textClass="font-black text-[17px] tracking-tight text-foreground" imgClass="h-[1.2em] w-auto" />
           </div>
           {/* Desktop: empty left side */}
           <div className="hidden lg:block" />

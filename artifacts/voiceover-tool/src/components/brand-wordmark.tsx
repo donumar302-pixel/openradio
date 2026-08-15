@@ -14,9 +14,9 @@ export function BrandWordmark({
   return (
     <span className={`inline-flex items-center leading-none ${textClass}`}>
       <img
-        src="/logo.png"
+        src="/logo-transparent.png"
         alt="O"
-        className={`${imgClass} object-contain inline-block mr-[0.02em]`}
+        className={`${imgClass} object-contain inline-block mr-[0.04em]`}
       />
       <span>pen</span>
       <span className={accentClass}>Radio</span>

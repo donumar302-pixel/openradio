@@ -30,7 +30,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-[400px]">
         {/* Logo */}
         <div className="flex items-center justify-center mb-10">
-          <BrandWordmark textClass="font-black text-[22px] tracking-tight text-gray-900" imgClass="h-[1.3em] w-auto" />
+          <BrandWordmark textClass="font-black text-[26px] tracking-tight text-gray-900" imgClass="h-[1.15em] w-auto" />
         </div>
 
         {/* Card */}

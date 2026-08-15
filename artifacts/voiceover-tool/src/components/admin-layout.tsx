@@ -29,7 +29,7 @@ function AdminNav({ onClose }: { onClose?: () => void }) {
       {/* Logo */}
       <div className="px-5 py-5 border-b border-white/5 shrink-0">
         <div>
-          <BrandWordmark textClass="font-black text-[15px] text-white" imgClass="h-[1.4em] w-auto" />
+          <BrandWordmark textClass="font-black text-[17px] text-white" imgClass="h-[1.2em] w-auto" />
           <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mt-0.5">Admin</p>
         </div>
       </div>

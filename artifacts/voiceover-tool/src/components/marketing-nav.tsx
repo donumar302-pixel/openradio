@@ -43,7 +43,7 @@ export function MarketingNav() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center shrink-0">
-          <BrandWordmark textClass="font-black text-[26px] tracking-tight text-gray-900" imgClass="h-[1.3em] w-auto" />
+          <BrandWordmark textClass="font-black text-[30px] tracking-tight text-gray-900" imgClass="h-[1.15em] w-auto" />
         </Link>
 
         {/* Desktop nav */}

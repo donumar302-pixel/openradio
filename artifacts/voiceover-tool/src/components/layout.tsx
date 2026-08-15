@@ -10,7 +10,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-50 w-full border-b border-border bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-sm">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center group" data-testid="link-home">
-            <BrandWordmark textClass="font-extrabold text-lg tracking-tight text-foreground" imgClass="h-[1.35em] w-auto" />
+            <BrandWordmark textClass="font-extrabold text-xl tracking-tight text-foreground" imgClass="h-[1.15em] w-auto" />
           </Link>
 
           <nav className="flex items-center gap-1">
