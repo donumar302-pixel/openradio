@@ -49,20 +49,20 @@ function AdminRoutes() {
   return (
     <AdminLayout>
       <Switch>
-        <Route path="/admin" component={AdminDashboard} />
-        <Route path="/admin/users" component={AdminUsers} />
-        <Route path="/admin/orders" component={AdminOrders} />
-        <Route path="/admin/keys" component={AdminKeys} />
-        <Route path="/admin/keys/new" component={AdminKeysNew} />
-        <Route path="/admin/generations" component={AdminGenerations} />
-        <Route path="/admin/clones" component={AdminClones} />
-        <Route path="/admin/analytics" component={AdminAnalytics} />
-        <Route path="/admin/promos" component={AdminPromos} />
-        <Route path="/admin/notifications" component={AdminNotifications} />
-        <Route path="/admin/support" component={AdminSupport} />
-        <Route path="/admin/settings" component={AdminSettings} />
-        <Route path="/admin/abuse" component={AdminAbuse} />
-        <Route><Redirect to="/admin" /></Route>
+        <Route path="/adminarea" component={AdminDashboard} />
+        <Route path="/adminarea/users" component={AdminUsers} />
+        <Route path="/adminarea/orders" component={AdminOrders} />
+        <Route path="/adminarea/keys" component={AdminKeys} />
+        <Route path="/adminarea/keys/new" component={AdminKeysNew} />
+        <Route path="/adminarea/generations" component={AdminGenerations} />
+        <Route path="/adminarea/clones" component={AdminClones} />
+        <Route path="/adminarea/analytics" component={AdminAnalytics} />
+        <Route path="/adminarea/promos" component={AdminPromos} />
+        <Route path="/adminarea/notifications" component={AdminNotifications} />
+        <Route path="/adminarea/support" component={AdminSupport} />
+        <Route path="/adminarea/settings" component={AdminSettings} />
+        <Route path="/adminarea/abuse" component={AdminAbuse} />
+        <Route><Redirect to="/adminarea" /></Route>
       </Switch>
     </AdminLayout>
   );
@@ -98,7 +98,7 @@ function AppRoutes() {
     );
   }
 
-  if (location.startsWith("/admin")) {
+  if (location.startsWith("/adminarea")) {
     if (!isAdmin) {
       return <Redirect to="/" />;
     }

@@ -49,7 +49,7 @@ export default function AdminKeysNew() {
           toast({ title: "API Key added!", description: "The key has been securely saved." });
           queryClient.invalidateQueries({ queryKey: getListApiKeysQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetAdminStatsQueryKey() });
-          setLocation("/admin");
+          setLocation("/adminarea");
         },
         onError: (error: any) => {
           toast({
@@ -65,7 +65,7 @@ export default function AdminKeysNew() {
   return (
     <div className="container mx-auto px-4 py-10 max-w-xl">
       <div className="mb-8">
-        <Link href="/admin">
+        <Link href="/adminarea">
           <Button variant="ghost" className="pl-0 hover:bg-transparent hover:text-primary mb-4 font-semibold" data-testid="link-back-admin">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Admin
           </Button>
@@ -161,7 +161,7 @@ export default function AdminKeysNew() {
 
             </CardContent>
             <CardFooter className="bg-secondary/20 border-t border-border py-4 flex justify-end gap-3">
-              <Link href="/admin">
+              <Link href="/adminarea">
                 <Button variant="outline" type="button" data-testid="btn-cancel">Cancel</Button>
               </Link>
               <Button

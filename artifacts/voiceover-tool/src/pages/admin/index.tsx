@@ -73,16 +73,16 @@ export default function AdminDashboard() {
   const fmt = (n: number | undefined) => (n ?? 0).toLocaleString();
 
   const statCards = [
-    { label: "Total Users", value: fmt(stats?.totalUsers), icon: Users, accent: "text-primary", href: "/admin/users" },
-    { label: "Paid Users", value: fmt(stats?.paidUsers), icon: TrendingUp, accent: "text-violet-400", href: "/admin/users" },
+    { label: "Total Users", value: fmt(stats?.totalUsers), icon: Users, accent: "text-primary", href: "/adminarea/users" },
+    { label: "Paid Users", value: fmt(stats?.paidUsers), icon: TrendingUp, accent: "text-violet-400", href: "/adminarea/users" },
     { label: "Revenue (est.)", value: `$${fmt(stats?.revenueUsd)}`, icon: DollarSign, accent: "text-emerald-400" },
     { label: "New Users", value: fmt(stats?.newUsersToday), icon: UserPlus, accent: "text-blue-400", sub: `${fmt(stats?.newUsersWeek)} this week` },
     { label: "Generations (24h)", value: fmt(stats?.generations24h), icon: Mic2, accent: "text-blue-400", sub: `${fmt(stats?.totalGenerations)} total` },
     { label: "Characters Used", value: fmt(stats?.totalCharacters), icon: Hash, accent: "text-violet-400" },
-    { label: "Pending Orders", value: fmt(stats?.pendingOrders), icon: Clock, accent: "text-amber-400", href: "/admin/orders" },
-    { label: "Open Tickets", value: fmt(stats?.openTickets), icon: LifeBuoy, accent: "text-pink-400", href: "/admin/support" },
-    { label: "Active API Keys", value: fmt(stats?.activeKeys), icon: Key, accent: "text-green-400", href: "/admin/keys" },
-    { label: "Suspended Users", value: fmt(stats?.suspendedUsers), icon: Ban, accent: "text-red-400", href: "/admin/users" },
+    { label: "Pending Orders", value: fmt(stats?.pendingOrders), icon: Clock, accent: "text-amber-400", href: "/adminarea/orders" },
+    { label: "Open Tickets", value: fmt(stats?.openTickets), icon: LifeBuoy, accent: "text-pink-400", href: "/adminarea/support" },
+    { label: "Active API Keys", value: fmt(stats?.activeKeys), icon: Key, accent: "text-green-400", href: "/adminarea/keys" },
+    { label: "Suspended Users", value: fmt(stats?.suspendedUsers), icon: Ban, accent: "text-red-400", href: "/adminarea/users" },
   ];
 
   return (
@@ -149,7 +149,7 @@ export default function AdminDashboard() {
               <Users size={14} className="text-primary" />
               <p className="text-[13px] font-bold text-white">Recent Users</p>
             </div>
-            <Link href="/admin/users">
+            <Link href="/adminarea/users">
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/15 text-primary hover:bg-primary/25 cursor-pointer">{stats?.totalUsers ?? 0}</span>
             </Link>
           </div>
@@ -181,7 +181,7 @@ export default function AdminDashboard() {
               <ShoppingCart size={14} className="text-amber-400" />
               <p className="text-[13px] font-bold text-white">Recent Orders</p>
             </div>
-            <Link href="/admin/orders">
+            <Link href="/adminarea/orders">
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400/15 text-amber-400 hover:bg-amber-400/25 cursor-pointer">
                 {(orders as any[]).filter((o: any) => o.status === "pending").length} pending
               </span>

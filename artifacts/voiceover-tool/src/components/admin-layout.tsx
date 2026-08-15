@@ -12,18 +12,18 @@ import { useAuth } from "@/hooks/use-auth";
 interface AdminNavItem { label: string; href: string; icon: React.ReactNode; }
 
 const navItems: AdminNavItem[] = [
-  { label: "Overview",      href: "/admin",              icon: <LayoutDashboard size={16} /> },
-  { label: "Users",         href: "/admin/users",        icon: <Users size={16} /> },
-  { label: "Orders",        href: "/admin/orders",       icon: <ShoppingCart size={16} /> },
-  { label: "API Keys",      href: "/admin/keys",         icon: <Key size={16} /> },
-  { label: "Generations",   href: "/admin/generations",  icon: <Mic2 size={16} /> },
-  { label: "Voice Clones",  href: "/admin/clones",       icon: <Copy size={16} /> },
-  { label: "Analytics",     href: "/admin/analytics",    icon: <BarChart2 size={16} /> },
-  { label: "Promo Codes",   href: "/admin/promos",       icon: <Ticket size={16} /> },
-  { label: "Notifications", href: "/admin/notifications", icon: <Bell size={16} /> },
-  { label: "Support",       href: "/admin/support",      icon: <LifeBuoy size={16} /> },
-  { label: "Abuse",         href: "/admin/abuse",        icon: <ShieldAlert size={16} /> },
-  { label: "Settings",      href: "/admin/settings",     icon: <Settings size={16} /> },
+  { label: "Overview",      href: "/adminarea",              icon: <LayoutDashboard size={16} /> },
+  { label: "Users",         href: "/adminarea/users",        icon: <Users size={16} /> },
+  { label: "Orders",        href: "/adminarea/orders",       icon: <ShoppingCart size={16} /> },
+  { label: "API Keys",      href: "/adminarea/keys",         icon: <Key size={16} /> },
+  { label: "Generations",   href: "/adminarea/generations",  icon: <Mic2 size={16} /> },
+  { label: "Voice Clones",  href: "/adminarea/clones",       icon: <Copy size={16} /> },
+  { label: "Analytics",     href: "/adminarea/analytics",    icon: <BarChart2 size={16} /> },
+  { label: "Promo Codes",   href: "/adminarea/promos",       icon: <Ticket size={16} /> },
+  { label: "Notifications", href: "/adminarea/notifications", icon: <Bell size={16} /> },
+  { label: "Support",       href: "/adminarea/support",      icon: <LifeBuoy size={16} /> },
+  { label: "Abuse",         href: "/adminarea/abuse",        icon: <ShieldAlert size={16} /> },
+  { label: "Settings",      href: "/adminarea/settings",     icon: <Settings size={16} /> },
 ];
 
 function AdminNav({ onClose }: { onClose?: () => void }) {
@@ -43,7 +43,7 @@ function AdminNav({ onClose }: { onClose?: () => void }) {
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
         {navItems.map(item => {
-          const active = location === item.href || (item.href !== "/admin" && location.startsWith(item.href));
+          const active = location === item.href || (item.href !== "/adminarea" && location.startsWith(item.href));
           return (
             <Link key={item.href} href={item.href} onClick={onClose}>
               <div className={cn(
