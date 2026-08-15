@@ -200,25 +200,58 @@ export function MarketingNav() {
 export function MarketingFooter() {
   return (
     <footer className="border-t border-black/[0.05] bg-white">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="OpenRadio" className="w-11 h-11 object-contain" />
-            <span className="font-black text-[20px] tracking-tight text-gray-900">
-              Open<span className="text-[#f97316]">Radio</span>
-            </span>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-14 pb-8">
+        {/* Columns */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-12">
+          {/* Brand */}
+          <div className="col-span-2 md:col-span-1">
+            <div className="flex items-center gap-2 mb-3">
+              <img src="/logo.png" alt="OpenRadio" className="w-10 h-10 object-contain" />
+              <span className="font-black text-[19px] tracking-tight text-gray-900">
+                Open<span className="text-[#f97316]">Radio</span>
+              </span>
+            </div>
+            <p className="text-[13px] text-gray-400 leading-relaxed max-w-[220px]">
+              AI voice studio — text to speech, voice cloning and more, all in one place.
+            </p>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[13px] font-medium text-gray-500">
-            <Link href="/pricing" className="hover:text-gray-900">Pricing</Link>
-            <Link href="/tools" className="hover:text-gray-900">Tools</Link>
-            <Link href="/privacy" className="hover:text-gray-900">Privacy Policy</Link>
-            <Link href="/terms" className="hover:text-gray-900">Terms of Service</Link>
-            <Link href="/refund-policy" className="hover:text-gray-900">Refund Policy</Link>
-            <Link href="/cookies" className="hover:text-gray-900">Cookie Policy</Link>
-            <Link href="/contact" className="hover:text-gray-900">Contact</Link>
+
+          {/* Product */}
+          <div>
+            <h4 className="text-[14px] font-black text-gray-900 mb-4">Product</h4>
+            <ul className="space-y-2.5 text-[13px] font-medium text-gray-500">
+              <li><Link href="/tools" className="hover:text-gray-900">Text to Speech</Link></li>
+              <li><Link href="/tools" className="hover:text-gray-900">Voice Cloning</Link></li>
+              <li><Link href="/tools" className="hover:text-gray-900">All Tools</Link></li>
+              <li><Link href="/pricing" className="hover:text-gray-900">Pricing</Link></li>
+            </ul>
+          </div>
+
+          {/* Support */}
+          <div>
+            <h4 className="text-[14px] font-black text-gray-900 mb-4">Support</h4>
+            <ul className="space-y-2.5 text-[13px] font-medium text-gray-500">
+              <li><Link href="/privacy" className="hover:text-gray-900">Privacy Policy</Link></li>
+              <li><Link href="/terms" className="hover:text-gray-900">Terms of Service</Link></li>
+              <li><Link href="/refund-policy" className="hover:text-gray-900">Refund Policy</Link></li>
+              <li><Link href="/cookies" className="hover:text-gray-900">Cookie Policy</Link></li>
+            </ul>
+          </div>
+
+          {/* Contact */}
+          <div>
+            <h4 className="text-[14px] font-black text-gray-900 mb-4">Contact Us</h4>
+            <ul className="space-y-2.5 text-[13px] font-medium text-gray-500">
+              <li><Link href="/contact" className="hover:text-gray-900">Contact & Feedback</Link></li>
+              <li><a href="mailto:support@openradio.io" className="hover:text-gray-900">support@openradio.io</a></li>
+              <li><Link href="/register" className="hover:text-gray-900">Get Started Free</Link></li>
+              <li><Link href="/login" className="hover:text-gray-900">Sign in</Link></li>
+            </ul>
           </div>
         </div>
-        <div className="mt-8 pt-6 border-t border-black/[0.05] flex flex-col sm:flex-row items-center justify-between gap-2">
+
+        {/* Bottom bar */}
+        <div className="pt-6 border-t border-black/[0.05] flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-[13px] text-gray-400">
             © {new Date().getFullYear()} OpenRadio.io. All rights reserved.
           </p>
