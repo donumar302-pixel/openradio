@@ -488,14 +488,26 @@ export default function LandingPage() {
 
                   {/* Dotted waveform — center */}
                   <div className="absolute inset-0 flex items-center justify-center px-4">
-                    <div className="flex items-end gap-[3px] h-8 opacity-30">
-                      {Array.from({ length: 20 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className={`w-[3px] rounded-full bg-black transition-all duration-150 ${isPlaying ? "animate-pulse" : ""}`}
-                          style={{ height: `${Math.round(20 + Math.sin(i * 0.9) * 14 + Math.cos(i * 0.4) * 8)}px` }}
-                        />
-                      ))}
+                    <div className={`flex items-center gap-[3px] h-8 ${isPlaying ? "opacity-60" : "opacity-30"}`}>
+                      {Array.from({ length: 20 }).map((_, i) => {
+                        const base = Math.round(20 + Math.sin(i * 0.9) * 14 + Math.cos(i * 0.4) * 8);
+                        return (
+                          <motion.div
+                            key={i}
+                            className="w-[3px] rounded-full bg-black"
+                            style={{ height: `${base}px`, originY: 0.5 }}
+                            animate={isPlaying ? {
+                              scaleY: [1, 0.35 + ((i * 7) % 10) / 14, 1.25, 0.5 + ((i * 3) % 8) / 16, 1],
+                            } : { scaleY: 1 }}
+                            transition={isPlaying ? {
+                              duration: 0.7 + ((i * 13) % 10) / 20,
+                              repeat: Infinity,
+                              ease: "easeInOut",
+                              delay: (i % 5) * 0.08,
+                            } : { duration: 0.2 }}
+                          />
+                        );
+                      })}
                     </div>
                   </div>
 
