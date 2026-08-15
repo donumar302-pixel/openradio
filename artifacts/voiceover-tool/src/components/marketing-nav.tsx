@@ -243,7 +243,7 @@ export function MarketingFooter() {
             <h4 className="text-[14px] font-black text-gray-900 mb-4">Contact Us</h4>
             <ul className="space-y-2.5 text-[13px] font-medium text-gray-500">
               <li><Link href="/contact" className="hover:text-gray-900">Contact & Feedback</Link></li>
-              <li><a href="mailto:hello@openradio.io" className="hover:text-gray-900">hello@openradio.io</a></li>
+              <li><a href="mailto:hellojian@openradio.io" className="hover:text-gray-900">hellojian@openradio.io</a></li>
               <li><Link href="/register" className="hover:text-gray-900">Get Started Free</Link></li>
               <li><Link href="/login" className="hover:text-gray-900">Sign in</Link></li>
             </ul>
