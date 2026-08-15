@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { tts, getVoices } from "edge-tts";
+import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
 import { db, usersTable } from "@workspace/db";
 import { eq, sql, gte, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
@@ -8,14 +8,29 @@ import { requireActiveUser, isUserAdmin } from "../middleware/require-active-use
 const router = Router();
 
 // Cache voices list for 1 hour
-let voicesCache: Awaited<ReturnType<typeof getVoices>> | null = null;
+let voicesCache: Awaited<ReturnType<MsEdgeTTS["getVoices"]>> | null = null;
 let voicesCachedAt = 0;
 
 async function getCachedVoices() {
   if (voicesCache && Date.now() - voicesCachedAt < 3_600_000) return voicesCache;
-  voicesCache = await getVoices();
+  voicesCache = await new MsEdgeTTS().getVoices();
   voicesCachedAt = Date.now();
   return voicesCache;
+}
+
+async function synthesize(text: string, voice: string, rate?: string, pitch?: string): Promise<Buffer> {
+  const tts = new MsEdgeTTS();
+  await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+  const { audioStream } = await tts.toStream(text, {
+    ...(rate  && { rate }),
+    ...(pitch && { pitch }),
+  } as any);
+  const chunks: Buffer[] = [];
+  return new Promise<Buffer>((resolve, reject) => {
+    audioStream.on("data", (c: Buffer) => chunks.push(c));
+    audioStream.on("end", () => resolve(Buffer.concat(chunks)));
+    audioStream.on("error", reject);
+  });
 }
 
 async function reserveCredits(userId: number, amount: number): Promise<boolean> {
@@ -86,11 +101,7 @@ router.post("/tts", requireActiveUser, async (req, res) => {
   const voice = (voiceId ?? "en-US-AriaNeural").replace(/^edge:/, "");
 
   try {
-    const audioBuffer = await tts(text, {
-      voice,
-      ...(rate  && { rate }),
-      ...(pitch && { pitch }),
-    });
+    const audioBuffer = await synthesize(text, voice, rate, pitch);
 
     res.set({
       "Content-Type": "audio/mpeg",
