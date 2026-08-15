@@ -22,6 +22,10 @@ export const usersTable = pgTable("users", {
   planExpiresAt: timestamp("plan_expires_at"),
   status: text("status").notNull().default("active"),
   isAdmin: boolean("is_admin").notNull().default(false),
+  isReseller: boolean("is_reseller").notNull().default(false),
+  resellerCredits: integer("reseller_credits").notNull().default(0),
+  resellerExpiresAt: timestamp("reseller_expires_at"),
+  resellerId: integer("reseller_id"), // set on users created by a reseller
   signupIp: text("signup_ip"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [uniqueIndex("users_email_idx").on(t.email)]);

@@ -8,6 +8,7 @@ export interface AuthUser {
   name: string;
   email: string;
   isAdmin: boolean;
+  isReseller: boolean;
   plan: string;
   credits: number;
   creditsUsed: number;
@@ -90,6 +91,7 @@ export function useAuth() {
     isLoading,
     isAuthenticated: !!user && !isError,
     isAdmin: !!user?.isAdmin,
+    isReseller: !!user?.isReseller,
     login,
     register,
     loginPending: loginMutationRaw.isPending,

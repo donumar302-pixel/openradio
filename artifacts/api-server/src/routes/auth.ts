@@ -197,6 +197,7 @@ router.get("/me", async (req, res) => {
     name: user.name,
     email: user.email,
     isAdmin: user.isAdmin || isAdminEmail(user.email),
+    isReseller: user.isReseller,
     plan: user.plan,
     credits: user.credits,
     creditsUsed: user.creditsUsed,

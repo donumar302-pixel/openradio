@@ -9,6 +9,10 @@ import { logger } from "./logger";
 export async function ensureSchema(): Promise<void> {
   const statements = [
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS signup_ip text`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_reseller boolean NOT NULL DEFAULT false`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS reseller_credits integer NOT NULL DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS reseller_expires_at timestamp`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS reseller_id integer`,
     `CREATE TABLE IF NOT EXISTS promo_codes (
       id serial PRIMARY KEY,
       code text NOT NULL,

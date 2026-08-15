@@ -786,4 +786,88 @@ function maskKey(key: string): string {
   return key.slice(0, 4) + "..." + key.slice(-4);
 }
 
+/* ═══════════════ Resellers ═══════════════ */
+
+router.get("/resellers", async (_req, res) => {
+  const resellers = await db.select({
+    id: usersTable.id,
+    name: usersTable.name,
+    email: usersTable.email,
+    resellerCredits: usersTable.resellerCredits,
+    resellerExpiresAt: usersTable.resellerExpiresAt,
+    status: usersTable.status,
+    createdAt: usersTable.createdAt,
+  }).from(usersTable).where(eq(usersTable.isReseller, true)).orderBy(desc(usersTable.createdAt));
+
+  const counts = await db.select({ resellerId: usersTable.resellerId, n: count() })
+    .from(usersTable).where(sql`${usersTable.resellerId} IS NOT NULL`).groupBy(usersTable.resellerId);
+  const countMap = new Map(counts.map(c => [c.resellerId, Number(c.n)]));
+  res.json(resellers.map(r => ({ ...r, userCount: countMap.get(r.id) ?? 0 })));
+});
+
+router.post("/resellers", async (req, res) => {
+  const name = String(req.body?.name ?? "").trim();
+  const email = String(req.body?.email ?? "").trim().toLowerCase();
+  const password = String(req.body?.password ?? "");
+  const credits = Number(req.body?.credits);
+  const expiresAt = req.body?.expiresAt ? new Date(String(req.body.expiresAt)) : null;
+
+  if (!name || !email || !/^\S+@\S+\.\S+$/.test(email)) { res.status(400).json({ error: "Valid name and email required" }); return; }
+  if (password.length < 6) { res.status(400).json({ error: "Password must be at least 6 characters" }); return; }
+  if (!Number.isFinite(credits) || credits <= 0 || !Number.isInteger(credits)) {
+    res.status(400).json({ error: "Credits must be a positive whole number" }); return;
+  }
+  if (expiresAt && isNaN(expiresAt.getTime())) { res.status(400).json({ error: "Invalid expiry date" }); return; }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  try {
+    const [reseller] = await db.insert(usersTable).values({
+      name, email, passwordHash,
+      isReseller: true,
+      resellerCredits: credits,
+      resellerExpiresAt: expiresAt,
+      plan: "free",
+      credits: 0,
+    }).returning();
+    res.status(201).json({ id: reseller.id, name: reseller.name, email: reseller.email, resellerCredits: reseller.resellerCredits });
+  } catch (e: any) {
+    if (e?.code === "23505") { res.status(400).json({ error: "This email is already registered" }); return; }
+    throw e;
+  }
+});
+
+/* Add (or subtract with negative) credits to a reseller's pool */
+router.post("/resellers/:id/credits", async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  const credits = Number(req.body?.credits);
+  if (isNaN(id) || !Number.isFinite(credits) || !Number.isInteger(credits) || credits === 0) {
+    res.status(400).json({ error: "Credits must be a non-zero whole number" }); return;
+  }
+  const updated = await db.update(usersTable)
+    .set({ resellerCredits: sql`GREATEST(${usersTable.resellerCredits} + ${credits}, 0)` })
+    .where(and(eq(usersTable.id, id), eq(usersTable.isReseller, true)))
+    .returning({ resellerCredits: usersTable.resellerCredits });
+  if (updated.length === 0) { res.status(404).json({ error: "Reseller not found" }); return; }
+  res.json({ ok: true, resellerCredits: updated[0].resellerCredits });
+});
+
+/* Update reseller expiry */
+router.patch("/resellers/:id", async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const updates: Record<string, unknown> = {};
+  if ("expiresAt" in (req.body ?? {})) {
+    const expiresAt = req.body.expiresAt ? new Date(String(req.body.expiresAt)) : null;
+    if (expiresAt && isNaN(expiresAt.getTime())) { res.status(400).json({ error: "Invalid expiry date" }); return; }
+    updates.resellerExpiresAt = expiresAt;
+  }
+  if (req.body?.status === "active" || req.body?.status === "blocked") updates.status = req.body.status;
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
+  const updated = await db.update(usersTable).set(updates)
+    .where(and(eq(usersTable.id, id), eq(usersTable.isReseller, true)))
+    .returning({ id: usersTable.id });
+  if (updated.length === 0) { res.status(404).json({ error: "Reseller not found" }); return; }
+  res.json({ ok: true });
+});
+
 export default router;

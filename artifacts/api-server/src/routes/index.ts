@@ -10,6 +10,7 @@ import fishAudioRouter from "./fishaudio";
 import plansRouter from "./plans";
 import edgeTtsRouter from "./edgetts";
 import accountExtrasRouter from "./account-extras";
+import resellerRouter from "./reseller";
 import { requireAdmin } from "../middleware/require-admin";
 import { requireFeature } from "../middleware/require-feature";
 
@@ -26,5 +27,6 @@ router.use("/minimax", requireFeature("minimax"), minimaxRouter);
 router.use("/fishaudio", requireFeature("fishaudio"), fishAudioRouter);
 router.use("/edge", requireFeature("edge"), edgeTtsRouter);
 router.use(accountExtrasRouter);
+router.use("/reseller", resellerRouter);
 
 export default router;

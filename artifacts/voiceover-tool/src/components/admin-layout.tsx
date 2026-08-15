@@ -4,7 +4,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Users, Key, Mic2, Copy, BarChart2,
   LogOut, ChevronRight, Menu, ShoppingCart,
-  Ticket, Bell, LifeBuoy, ShieldAlert, Settings,
+  Ticket, Bell, LifeBuoy, ShieldAlert, Settings, Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -19,6 +19,7 @@ const navItems: AdminNavItem[] = [
   { label: "Generations",   href: "/adminarea/generations",  icon: <Mic2 size={16} /> },
   { label: "Voice Clones",  href: "/adminarea/clones",       icon: <Copy size={16} /> },
   { label: "Analytics",     href: "/adminarea/analytics",    icon: <BarChart2 size={16} /> },
+  { label: "Resellers",     href: "/adminarea/resellers",    icon: <Store size={16} /> },
   { label: "Promo Codes",   href: "/adminarea/promos",       icon: <Ticket size={16} /> },
   { label: "Notifications", href: "/adminarea/notifications", icon: <Bell size={16} /> },
   { label: "Support",       href: "/adminarea/support",      icon: <LifeBuoy size={16} /> },

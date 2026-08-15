@@ -20,6 +20,8 @@ import AdminSupport from "@/pages/admin/support";
 import AdminSettings from "@/pages/admin/settings";
 import AdminAbuse from "@/pages/admin/abuse";
 import SupportPage from "@/pages/support";
+import AdminResellers from "@/pages/admin/resellers";
+import ResellerPanel from "@/pages/reseller/index";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import LandingPage from "@/pages/landing";
@@ -62,6 +64,7 @@ function AdminRoutes() {
         <Route path="/adminarea/support" component={AdminSupport} />
         <Route path="/adminarea/settings" component={AdminSettings} />
         <Route path="/adminarea/abuse" component={AdminAbuse} />
+        <Route path="/adminarea/resellers" component={AdminResellers} />
         <Route><Redirect to="/adminarea" /></Route>
       </Switch>
     </AdminLayout>
@@ -69,7 +72,7 @@ function AdminRoutes() {
 }
 
 function AppRoutes() {
-  const { isAuthenticated, isAdmin, isLoading } = useAuth();
+  const { isAuthenticated, isAdmin, isReseller, isLoading } = useAuth();
   const [location] = useLocation();
 
   if (isLoading) {
@@ -103,6 +106,13 @@ function AppRoutes() {
       return <Redirect to="/" />;
     }
     return <AdminRoutes />;
+  }
+
+  if (location.startsWith("/reseller")) {
+    if (!isReseller) {
+      return <Redirect to="/" />;
+    }
+    return <ResellerPanel />;
   }
 
   if (location === "/pricing") {
