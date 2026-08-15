@@ -22,6 +22,7 @@ import AdminAbuse from "@/pages/admin/abuse";
 import SupportPage from "@/pages/support";
 import AdminResellers from "@/pages/admin/resellers";
 import ResellerPanel from "@/pages/reseller/index";
+import ResellerLogin from "@/pages/reseller/login";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import LandingPage from "@/pages/landing";
@@ -96,6 +97,7 @@ function AppRoutes() {
         <Route path="/refund-policy" component={RefundPage} />
         <Route path="/cookies" component={CookiesPage} />
         <Route path="/contact" component={ContactPage} />
+        <Route path="/reseller" component={ResellerLogin} />
         <Route><Redirect to="/" /></Route>
       </Switch>
     );

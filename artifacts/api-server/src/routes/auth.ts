@@ -67,6 +67,7 @@ router.post("/login", async (req, res) => {
     name: user.name,
     email: user.email,
     isAdmin: user.isAdmin || isAdminEmail(user.email),
+    isReseller: user.isReseller,
     createdAt: user.createdAt.toISOString(),
   });
 });
