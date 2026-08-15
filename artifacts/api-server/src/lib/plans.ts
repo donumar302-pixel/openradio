@@ -77,21 +77,15 @@ export function planAllowsFeature(plan: string, feature: FeatureKey): boolean {
 
 // Ordered model id lists per provider (must match the frontend dropdowns).
 export const ELEVENLABS_MODEL_IDS = [
-  "eleven_multilingual_v2",
+  "eleven_v3",
   "eleven_turbo_v2_5",
-  "eleven_turbo_v2",
-  "eleven_monolingual_v1",
 ];
 export const MINIMAX_MODEL_IDS = [
   "speech-02-hd",
-  "speech-02-turbo",
 ];
 
 export const FISH_AUDIO_MODEL_IDS = [
   "s2.1-pro-free",
-  "s2.1-pro",
-  "s2-pro",
-  "s1",
 ];
 
 // Free users only get the first N models of each provider.

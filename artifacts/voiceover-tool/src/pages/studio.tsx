@@ -17,23 +17,26 @@ import { cn } from "@/lib/utils";
 interface MiniMaxVoice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; }
 interface FishVoice { id: string; name: string; lang?: string; style?: string; }
 
+const asset = (p: string) => `${import.meta.env.BASE_URL}${p}`.replace(/([^:]\/)\/+/g, "$1");
+
+const PROVIDER_LOGOS: Record<string, string> = {
+  el: asset("providers/elevenlabs.png"),
+  minimax: asset("providers/minimax.png"),
+  edge: asset("providers/edge.png"),
+  fishaudio: asset("providers/fishaudio.png"),
+};
+
 const MODELS = [
-  { id: "eleven_multilingual_v2", label: "Multilingual v2", badge: "Best" },
-  { id: "eleven_turbo_v2_5",      label: "Turbo v2.5",      badge: "Fast" },
-  { id: "eleven_turbo_v2",        label: "Turbo v2",        badge: null },
-  { id: "eleven_monolingual_v1",  label: "English v1",      badge: null },
+  { id: "eleven_v3",         label: "Eleven v3",         badge: "Best" },
+  { id: "eleven_turbo_v2_5", label: "Multilingual v2.5", badge: "Fast" },
 ];
 
 const MM_MODELS = [
-  { id: "speech-02-hd",    label: "Fire HD",    badge: "Best" },
-  { id: "speech-02-turbo", label: "Fire Turbo", badge: "Fast" },
+  { id: "speech-02-hd", label: "Fire HD", badge: "Best" },
 ];
 
 const FA_MODELS = [
-  { id: "s2.1-pro-free", label: "Fish Standard", badge: null },
-  { id: "s2.1-pro",      label: "Fish Pro",      badge: "Best" },
-  { id: "s2-pro",        label: "Fish S2",       badge: null },
-  { id: "s1",            label: "Fish S1",       badge: null },
+  { id: "s2.1-pro-free", label: "Fish Pro", badge: "Best" },
 ];
 
 const FA_LANGUAGES = [
@@ -139,7 +142,7 @@ export default function StudioPage() {
   const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState("");
   const [voiceProvider, setVoiceProvider] = useState<"el" | "minimax" | "fishaudio" | "edge">("el");
-  const [modelId, setModelId] = useState("eleven_multilingual_v2");
+  const [modelId, setModelId] = useState("eleven_v3");
   const [mmModel, setMmModel] = useState("speech-02-hd");
   const [faModel, setFaModel] = useState("s2.1-pro-free");
   const [faLang, setFaLang] = useState("");
@@ -374,18 +377,19 @@ export default function StudioPage() {
             <div className="grid grid-cols-2 gap-1.5">
               {([
                 { id: "el" as const,        label: "ElevenLabs",  active: "text-orange-600 bg-orange-50 border-orange-300" },
-                { id: "minimax" as const,   label: "🔥 Fire TTS", active: "text-violet-600 bg-violet-50 border-violet-300" },
-                { id: "edge" as const,      label: "🪟 Edge TTS", active: "text-sky-600 bg-sky-50 border-sky-300" },
-                { id: "fishaudio" as const, label: "🐟 Fish Audio", active: "text-emerald-600 bg-emerald-50 border-emerald-300" },
+                { id: "minimax" as const,   label: "Fire TTS",    active: "text-violet-600 bg-violet-50 border-violet-300" },
+                { id: "edge" as const,      label: "Edge TTS",    active: "text-sky-600 bg-sky-50 border-sky-300" },
+                { id: "fishaudio" as const, label: "Fish Audio",  active: "text-emerald-600 bg-emerald-50 border-emerald-300" },
               ] as const).map(p => (
                 <button
                   key={p.id}
                   onClick={() => { setVoiceProvider(p.id); setVoiceId(""); }}
                   className={cn(
-                    "px-2 py-2 rounded-lg text-xs font-bold border transition-all text-center",
+                    "px-2 py-2 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-1.5",
                     voiceProvider === p.id ? p.active : "border-[#e5e7eb] text-[#6b7280] hover:border-primary/40 hover:text-foreground"
                   )}
                 >
+                  <img src={PROVIDER_LOGOS[p.id]} alt="" className="w-4 h-4 rounded-sm object-contain shrink-0" />
                   {p.label}
                 </button>
               ))}
@@ -433,9 +437,9 @@ export default function StudioPage() {
                     </span>
                     {voiceProvider === "minimax" && <span className="flex items-center gap-0.5 text-[10px] text-violet-500 font-semibold"><Zap size={9} className="fill-violet-500" /> Fire TTS</span>}
                     {voiceProvider === "minimax" && selectedMmVoice?.style && <span className="text-[10px] text-[#9ca3af]">{selectedMmVoice.style}</span>}
-                    {voiceProvider === "fishaudio" && <span className="text-[10px] text-emerald-600 font-semibold">🐟 Fish Audio</span>}
+                    {voiceProvider === "fishaudio" && <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-semibold"><img src={PROVIDER_LOGOS.fishaudio} alt="" className="w-3 h-3 rounded-sm object-contain" /> Fish Audio</span>}
                     {voiceProvider === "fishaudio" && selectedFaVoice?.style && <span className="text-[10px] text-[#9ca3af]">{selectedFaVoice.style}</span>}
-                    {voiceProvider === "edge" && <span className="text-[10px] text-sky-600 font-semibold">🪟 Edge TTS</span>}
+                    {voiceProvider === "edge" && <span className="flex items-center gap-1 text-[10px] text-sky-600 font-semibold"><img src={PROVIDER_LOGOS.edge} alt="" className="w-3 h-3 rounded-sm object-contain" /> Edge TTS</span>}
                     {voiceProvider === "edge" && selectedEdgeVoice?.gender && <span className="text-[10px] text-[#9ca3af]">{selectedEdgeVoice.gender}</span>}
                   </div>
                 </div>
@@ -618,16 +622,12 @@ export default function StudioPage() {
           >
             <SlidersHorizontal size={13} /> {mobilePanel ? "Hide" : "Settings"}
           </button>
-          {/* Model selector — only shows models for current platform */}
-          {voiceProvider !== "edge" && (() => {
-            const models = voiceProvider === "minimax" ? MM_MODELS : voiceProvider === "fishaudio" ? FA_MODELS : MODELS;
-            const value   = voiceProvider === "minimax" ? mmModel  : voiceProvider === "fishaudio" ? faModel  : modelId;
+          {/* Model selector — only ElevenLabs has multiple models */}
+          {voiceProvider === "el" && (() => {
+            const models = MODELS;
+            const value = modelId;
             const selected = models.find(m => m.id === value);
-            const handleModelChange = (id: string) => {
-              if (voiceProvider === "minimax") setMmModel(id);
-              else if (voiceProvider === "fishaudio") setFaModel(id);
-              else setModelId(id);
-            };
+            const handleModelChange = (id: string) => setModelId(id);
             return (
               <div className="hidden sm:flex items-center gap-2">
                 <span className="text-sm text-[#6b7280]">Model</span>
@@ -650,9 +650,16 @@ export default function StudioPage() {
               </div>
             );
           })()}
-          {voiceProvider === "edge" && (
+          {voiceProvider !== "el" && (
             <div className="hidden sm:flex items-center gap-2">
-              <span className="text-xs font-bold text-sky-600 bg-sky-50 px-3 py-1.5 rounded-full border border-sky-200">🪟 Edge TTS</span>
+              <span className={cn("flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border",
+                voiceProvider === "minimax" ? "text-violet-600 bg-violet-50 border-violet-200"
+                : voiceProvider === "fishaudio" ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                : "text-sky-600 bg-sky-50 border-sky-200"
+              )}>
+                <img src={PROVIDER_LOGOS[voiceProvider]} alt="" className="w-3.5 h-3.5 rounded-sm object-contain" />
+                {voiceProvider === "minimax" ? "Fire HD" : voiceProvider === "fishaudio" ? "Fish Pro" : "Edge TTS"}
+              </span>
             </div>
           )}
         </div>

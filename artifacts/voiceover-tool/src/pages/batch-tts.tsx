@@ -11,10 +11,8 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
 const MODELS = [
-  { id: "eleven_multilingual_v2", label: "Multilingual v2" },
-  { id: "eleven_turbo_v2_5",      label: "Turbo v2.5" },
-  { id: "eleven_turbo_v2",        label: "Turbo v2" },
-  { id: "eleven_monolingual_v1",  label: "English v1" },
+  { id: "eleven_v3",         label: "Eleven v3" },
+  { id: "eleven_turbo_v2_5", label: "Multilingual v2.5" },
 ];
 
 const MAX_LINES = 100;
@@ -72,7 +70,7 @@ export default function BatchTtsPage() {
   const { toast } = useToast();
   const [lines, setLines] = useState<LineItem[]>([]);
   const [voiceId, setVoiceId] = useState("");
-  const [modelId, setModelId] = useState("eleven_multilingual_v2");
+  const [modelId, setModelId] = useState("eleven_v3");
   const [isRunning, setIsRunning] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const stopRef = useRef(false);

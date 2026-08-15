@@ -201,7 +201,7 @@ const SCENARIOS = [
   {
     id: "multilingual",
     label: "Multilingual Dubbing",
-    desc: "Reach global audiences instantly. Dub your content into 30+ languages with authentic, native-sounding voices that match the original emotion and pacing.",
+    desc: "Reach global audiences instantly. Dub your content into 70+ languages with authentic, native-sounding voices that match the original emotion and pacing.",
     img: "scenarios/multilingual-dubbing.png",
     tag: "Multilingual Dubbing",
   },
@@ -242,6 +242,8 @@ const PROVIDERS = [
     title: "ElevenLabs Ultra-Realistic",
     desc: "Industry-leading voice AI with lifelike, emotionally expressive output. Used by the world's top creators and studios.",
     Icon: Volume2,
+    logo: asset("providers/elevenlabs.png"),
+    stat: "70+ languages",
     color: "from-orange-500 to-amber-400",
   },
   {
@@ -250,6 +252,8 @@ const PROVIDERS = [
     title: "MiniMax Multilingual",
     desc: "Powerful multilingual engine supporting 10+ languages with stunning voice quality and authentic emotional delivery.",
     Icon: Cpu,
+    logo: asset("providers/minimax.png"),
+    stat: "30+ languages",
     color: "from-orange-600 to-orange-400",
   },
   {
@@ -258,6 +262,8 @@ const PROVIDERS = [
     title: "Microsoft Edge TTS",
     desc: "400+ voices across 46+ languages — completely free. Instant generation, always included in every plan at zero credit cost.",
     Icon: Zap,
+    logo: asset("providers/edge.png"),
+    stat: "46+ languages",
     color: "from-amber-500 to-orange-500",
   },
   {
@@ -266,6 +272,8 @@ const PROVIDERS = [
     title: "Fish Audio Models",
     desc: "1,000+ community voice models. Clone any voice in seconds with professional-grade accuracy powering global creators.",
     Icon: AudioLines,
+    logo: asset("providers/fishaudio.png"),
+    stat: "13+ languages",
     color: "from-orange-500 to-red-500",
   },
 ];
@@ -602,8 +610,8 @@ export default function LandingPage() {
                 <h3 className="text-2xl sm:text-3xl font-black text-white">Voice Library</h3>
               </div>
               <div className="relative z-10 mt-auto pt-24">
-                <span className="text-5xl font-black text-white">200+</span>
-                <span className="text-white/70 text-lg font-bold ml-2">Voices</span>
+                <span className="text-5xl font-black text-white">1,500+</span>
+                <span className="text-white/70 text-lg font-bold ml-2">Voices · 70+ Languages</span>
               </div>
             </div>
 
@@ -739,8 +747,11 @@ export default function LandingPage() {
                 transition={{ delay: i * 0.09, duration: 0.5, ease: "easeOut" }}
                 className={`relative rounded-3xl bg-gradient-to-br ${p.color} p-7 flex flex-col overflow-hidden min-h-[280px] shadow-lg`}
               >
-                {/* badge */}
-                <div className="mb-5">
+                {/* logo + badge */}
+                <div className="mb-5 flex items-center justify-between">
+                  <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                    <img src={p.logo} alt={p.title} className="w-7 h-7 rounded-md object-contain" />
+                  </div>
                   <span className="bg-white/25 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-full border border-white/25">
                     {p.badge}
                   </span>
@@ -753,7 +764,10 @@ export default function LandingPage() {
                 <p className="text-white/75 text-sm font-medium leading-relaxed">
                   {p.desc}
                 </p>
-                {/* decorative icon bottom-right */}
+                {/* stat bottom-left + decorative icon bottom-right */}
+                <div className="absolute bottom-5 left-7">
+                  <span className="text-white/90 text-xs font-black tracking-wide uppercase">{p.stat}</span>
+                </div>
                 <div className="absolute bottom-5 right-5 w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center">
                   <p.Icon size={28} className="text-white/70" />
                 </div>
@@ -883,10 +897,10 @@ export default function LandingPage() {
               Go Global Instantly.
             </h2>
             <p className="text-base sm:text-lg text-orange-50 font-medium mb-8 leading-relaxed">
-              Translate and dub your content into 30+ languages with native-level fluency. Maintain the original emotional tone and voice identity across every language.
+              Translate and dub your content into 70+ languages with native-level fluency — over 1,500 voices across ElevenLabs, Fire TTS, Edge TTS and Fish Audio. Maintain the original emotional tone and voice identity across every language.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
-              {['English', 'Spanish', 'French', 'German', 'Japanese', 'Hindi', '+24 More'].map((lang, i) => (
+              {['English', 'Urdu', 'Hindi', 'Arabic', 'Spanish', 'French', 'German', 'Japanese', '+62 More'].map((lang, i) => (
                 <div key={i} className="px-5 py-2.5 bg-white/20 backdrop-blur-sm rounded-full font-bold text-white border border-white/20">
                   {lang}
                 </div>
