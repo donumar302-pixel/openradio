@@ -40,7 +40,13 @@ app.use(
     },
   }),
 );
-app.use(cors({ origin: true, credentials: true }));
+// Production is single-origin (API serves the frontend), so no cross-origin
+// access is needed there. Reflecting every origin with credentials would let
+// malicious sites make authenticated requests — only allow it in development.
+const isProduction = process.env.NODE_ENV === "production";
+if (!isProduction) {
+  app.use(cors({ origin: true, credentials: true }));
+}
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -58,7 +64,9 @@ app.use(
       httpOnly: true,
       secure: true,
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-      sameSite: "none",
+      // Production is same-origin → "lax" blocks CSRF. Dev runs inside the
+      // Replit HTTPS iframe preview, which requires "none".
+      sameSite: isProduction ? "lax" : "none",
     },
   }),
 );
