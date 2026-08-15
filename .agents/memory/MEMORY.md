@@ -5,4 +5,5 @@
 - [Fish Audio integration](fish-audio-integration.md) — 3rd TTS engine; model passed as HTTP header not body; "default" voiceId = no reference_id sent; env var FISH_AUDIO_API_KEY or DB provider "fishaudio".
 - [Railway hosting](railway-hosting.md) — prod runs on Railway from GitHub main via root Dockerfile; Replit = code editing only; Express 5 `app.get("*")` crash + Root Directory/skip gotchas.
 - [Google OAuth login](google-oauth.md) — email-linked (no googleId column), session regenerated on login, APP_ORIGIN for redirect URI; Railway needs the Google secrets set manually.
+- [Admin panel & startup migrations](admin-panel.md) — prod schema changes must be mirrored in api-server ensureSchema() (Railway never runs drizzle push); settings kill-switches; admin-protection rules.
 - [Landing voice samples & MiniMax balance](landing-voice-samples.md) — demo mp3s via Replit-managed TTS into public/voices/; MiniMax has insufficient balance; stagger/sticky-nav gotchas.
