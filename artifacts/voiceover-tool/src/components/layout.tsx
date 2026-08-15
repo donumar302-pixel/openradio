@@ -1,3 +1,4 @@
+import { BrandWordmark } from "@/components/brand-wordmark";
 import { Link, useLocation } from "wouter";
 import { Mic2 } from "lucide-react";
 
@@ -8,14 +9,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-[100dvh] flex flex-col bg-background text-foreground">
       <header className="sticky top-0 z-50 w-full border-b border-border bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-sm">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5 group" data-testid="link-home">
-            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-md shadow-primary/30 group-hover:shadow-primary/50 transition-shadow">
-              <span className="text-white font-bold text-lg leading-none">B</span>
-            </div>
-            <div className="flex items-baseline gap-0.5">
-              <span className="font-extrabold text-lg tracking-tight text-foreground">OpenRadio</span>
-              
-            </div>
+          <Link href="/" className="flex items-center group" data-testid="link-home">
+            <BrandWordmark textClass="font-extrabold text-lg tracking-tight text-foreground" imgClass="h-[1.35em] w-auto" />
           </Link>
 
           <nav className="flex items-center gap-1">

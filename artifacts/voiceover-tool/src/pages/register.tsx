@@ -1,3 +1,4 @@
+import { BrandWordmark } from "@/components/brand-wordmark";
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -28,11 +29,8 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-[#fafaf9] flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-[400px]">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-2.5 mb-10">
-          <img src="/logo.png" alt="OpenRadio" className="w-11 h-11 object-contain" />
-          <span className="font-black text-[22px] tracking-tight text-gray-900">
-            Open<span className="text-[#f97316]">Radio</span>
-          </span>
+        <div className="flex items-center justify-center mb-10">
+          <BrandWordmark textClass="font-black text-[22px] tracking-tight text-gray-900" imgClass="h-[1.3em] w-auto" />
         </div>
 
         {/* Card */}

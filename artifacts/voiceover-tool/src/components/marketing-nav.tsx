@@ -1,3 +1,4 @@
+import { BrandWordmark } from "@/components/brand-wordmark";
 import { Link, useLocation } from "wouter";
 import { useState, useRef } from "react";
 import { Menu, X, LogIn, Wand2, Mic, AudioLines, ChevronDown } from "lucide-react";
@@ -41,11 +42,8 @@ export function MarketingNav() {
     <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/70 border-b border-black/[0.04]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 shrink-0">
-          <img src="/logo.png" alt="OpenRadio" className="w-12 h-12 object-contain" />
-          <span className="font-black text-[26px] tracking-tight text-gray-900">
-            Open<span className="text-[#f97316]">Radio</span>
-          </span>
+        <Link href="/" className="flex items-center shrink-0">
+          <BrandWordmark textClass="font-black text-[26px] tracking-tight text-gray-900" imgClass="h-[1.3em] w-auto" />
         </Link>
 
         {/* Desktop nav */}

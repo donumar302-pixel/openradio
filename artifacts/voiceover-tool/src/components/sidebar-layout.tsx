@@ -1,3 +1,4 @@
+import { BrandWordmark } from "@/components/brand-wordmark";
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -227,11 +228,8 @@ function SidebarContent() {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="px-5 py-5 shrink-0">
-        <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="OpenRadio" className="w-11 h-11 object-contain shrink-0" />
-          <div className="flex items-baseline gap-0.5">
-            <span className="font-black text-[16px] tracking-tight text-foreground">OpenRadio</span>
-          </div>
+        <div className="flex items-center">
+          <BrandWordmark textClass="font-black text-[16px] tracking-tight text-foreground" imgClass="h-[1.4em] w-auto" />
         </div>
       </div>
 
@@ -294,9 +292,7 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
             <button onClick={() => setMobileOpen(true)} className="text-[#6b7280]">
               <Menu size={20} />
             </button>
-            <div className="flex items-baseline gap-0.5">
-              <span className="font-black text-[15px] tracking-tight text-foreground">OpenRadio</span>
-            </div>
+            <BrandWordmark textClass="font-black text-[15px] tracking-tight text-foreground" imgClass="h-[1.4em] w-auto" />
           </div>
           {/* Desktop: empty left side */}
           <div className="hidden lg:block" />

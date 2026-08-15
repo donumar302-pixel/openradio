@@ -1,3 +1,4 @@
+import { BrandWordmark } from "@/components/brand-wordmark";
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
@@ -27,15 +28,9 @@ function AdminNav({ onClose }: { onClose?: () => void }) {
     <div className="flex flex-col h-full bg-[#0f1117]">
       {/* Logo */}
       <div className="px-5 py-5 border-b border-white/5 shrink-0">
-        <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="OpenRadio" className="w-11 h-11 object-contain shrink-0" />
-          <div>
-            <div className="flex items-baseline gap-0.5">
-              <span className="font-black text-[15px] text-white">OpenRadio</span>
-              
-            </div>
-            <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest -mt-0.5">Admin</p>
-          </div>
+        <div>
+          <BrandWordmark textClass="font-black text-[15px] text-white" imgClass="h-[1.4em] w-auto" />
+          <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mt-0.5">Admin</p>
         </div>
       </div>
 
