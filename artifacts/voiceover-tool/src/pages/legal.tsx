@@ -22,7 +22,7 @@ function LegalLayout({ title, updated, children }: { title: string; updated: str
 }
 
 const UPDATED = "August 15, 2026";
-const CONTACT_EMAIL = "support@openradio.io";
+const CONTACT_EMAIL = "hello@openradio.io";
 
 /* ── Privacy Policy ─────────────────────────────────────────────────── */
 export function PrivacyPage() {
