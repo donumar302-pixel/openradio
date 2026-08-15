@@ -28,7 +28,7 @@ router.post("/register", async (req, res) => {
   const passwordHash = await bcrypt.hash(password, 10);
   const [user] = await db.insert(usersTable).values({ name, email: email.toLowerCase(), passwordHash, credits: planCredits("free") }).returning();
 
-  req.session.userId = user.id;
+  await loginSession(req, user.id);
 
   res.status(201).json({
     id: user.id,
@@ -60,7 +60,7 @@ router.post("/login", async (req, res) => {
     return;
   }
 
-  req.session.userId = user.id;
+  await loginSession(req, user.id);
 
   res.json({
     id: user.id,
@@ -72,8 +72,23 @@ router.post("/login", async (req, res) => {
 });
 
 /* ── Google OAuth ── */
+// Prefer a canonical configured origin (e.g. https://www.openradio.io) over
+// request headers; fall back to the request host for dev environments.
 function googleRedirectUri(req: { protocol: string; get(name: string): string | undefined }) {
-  return `${req.protocol}://${req.get("host")}/api/auth/google/callback`;
+  const origin = process.env.APP_ORIGIN?.replace(/\/+$/, "");
+  const base = origin || `${req.protocol}://${req.get("host")}`;
+  return `${base}/api/auth/google/callback`;
+}
+
+// Regenerate the session on privilege change to prevent session fixation.
+function loginSession(req: { session: any }, userId: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((err: unknown) => {
+      if (err) return reject(err);
+      req.session.userId = userId;
+      req.session.save((err2: unknown) => (err2 ? reject(err2) : resolve()));
+    });
+  });
 }
 
 router.get("/google", (req, res) => {
@@ -150,7 +165,7 @@ router.get("/google/callback", async (req, res) => {
         .returning();
     }
 
-    sess.userId = user.id;
+    await loginSession(req, user.id);
     res.redirect("/");
   } catch (err) {
     console.error("Google OAuth error:", err);
