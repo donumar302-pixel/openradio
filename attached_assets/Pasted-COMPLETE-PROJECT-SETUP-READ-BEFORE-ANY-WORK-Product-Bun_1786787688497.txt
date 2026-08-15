@@ -1,0 +1,27 @@
+COMPLETE PROJECT SETUP — READ BEFORE ANY WORK:
+
+Product: BunnyFlow (flowbybunny.com) — Google Flow access platform with plans, resellers, white-label tenant sites, Chrome extension, TTS tools, and an AI assistant.
+
+1. Architecture (pnpm monorepo on Replit):
+
+artifacts/flow-platform → React + Vite frontend (pages like pricing, dashboard, extension, admin, reseller)
+artifacts/api-server → Express backend (all /api routes, auth, billing, extension endpoints)
+lib/db → shared database package: Drizzle ORM + PostgreSQL, schema at lib/db/src/schema/index.ts
+2. Hosting — Replit is ONLY for code editing:
+
+Production = Railway. Railway auto-deploys from GitHub repo donumar302-pixel/bunnyflow-platform, branch main. NEVER use Replit Publish for production.
+Deploy command after committing: git push "https://oauth2:${GITHUB_TOKEN}@github.com/donumar302-pixel/bunnyflow-platform.git" main (use this exact oauth2 syntax; Bearer-header auth can fail). Railway is live in 1–2 minutes.
+A separate small Railway worker runs in Asia region for the Dola video job queue (geo-blocked service) — it talks to the main app via /api/dola HMAC-leased jobs.
+3. Database:
+
+Production PostgreSQL runs on Railway (data was originally migrated from Neon). Connection via DATABASE_URL env var — prod value lives in Railway's dashboard, not Replit.
+ORM is Drizzle. Schema changes: edit lib/db/src/schema/index.ts, then apply with pnpm --filter @workspace/db run push (drizzle-kit push) against the target DB.
+Warning: Replit's local DB is a stale replica — never diagnose production data/bugs from it. For prod data, query the Railway database.
+4. Environment/secrets:
+
+Production secrets (SMTP, Stripe, DATABASE_URL, API keys, etc.) live on Railway's dashboard. Replit secrets only affect local dev. Any new secret must be added on Railway too, then redeploy.
+5. Local dev on Replit:
+
+Workflows run api-server and the Vite frontend. Trap: port 80 serves a stale built dist through api-server — the real Vite dev server is port 3001; verify frontend edits there (curl http://localhost:3001/src/pages/<file>.tsx).
+6. Workflow for every change: edit code on Replit → verify locally → commit → push to GitHub → Railway deploys → confirm on flowbybunny.com.
+
