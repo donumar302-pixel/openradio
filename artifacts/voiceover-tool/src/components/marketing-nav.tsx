@@ -200,20 +200,31 @@ export function MarketingNav() {
 export function MarketingFooter() {
   return (
     <footer className="border-t border-black/[0.05] bg-white">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="OpenRadio" className="w-11 h-11 object-contain" />
-          <span className="font-black text-[20px] tracking-tight text-gray-900">
-            Open<span className="text-[#f97316]">Radio</span>
-          </span>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <img src="/logo.png" alt="OpenRadio" className="w-11 h-11 object-contain" />
+            <span className="font-black text-[20px] tracking-tight text-gray-900">
+              Open<span className="text-[#f97316]">Radio</span>
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[13px] font-medium text-gray-500">
+            <Link href="/pricing" className="hover:text-gray-900">Pricing</Link>
+            <Link href="/tools" className="hover:text-gray-900">Tools</Link>
+            <Link href="/privacy" className="hover:text-gray-900">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-gray-900">Terms of Service</Link>
+            <Link href="/refund-policy" className="hover:text-gray-900">Refund Policy</Link>
+            <Link href="/cookies" className="hover:text-gray-900">Cookie Policy</Link>
+            <Link href="/contact" className="hover:text-gray-900">Contact</Link>
+          </div>
         </div>
-        <p className="text-[13px] text-gray-400">
-          © {new Date().getFullYear()} OpenRadio.io. All rights reserved.
-        </p>
-        <div className="flex items-center gap-5 text-[13px] font-medium text-gray-500">
-          <Link href="/pricing" className="hover:text-gray-900">Pricing</Link>
-          <Link href="/login" className="hover:text-gray-900">Sign in</Link>
-          <Link href="/register" className="hover:text-gray-900">Get Started</Link>
+        <div className="mt-8 pt-6 border-t border-black/[0.05] flex flex-col sm:flex-row items-center justify-between gap-2">
+          <p className="text-[13px] text-gray-400">
+            © {new Date().getFullYear()} OpenRadio.io. All rights reserved.
+          </p>
+          <p className="text-[13px] font-semibold text-gray-500">
+            Made in Pakistan <span aria-hidden>🇵🇰</span>
+          </p>
         </div>
       </div>
     </footer>

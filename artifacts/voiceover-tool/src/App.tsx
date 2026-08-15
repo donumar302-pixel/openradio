@@ -19,6 +19,7 @@ import RegisterPage from "@/pages/register";
 import LandingPage from "@/pages/landing";
 import PricingPage from "@/pages/pricing";
 import ToolsPage from "@/pages/tools";
+import { PrivacyPage, TermsPage, RefundPage, CookiesPage, ContactPage } from "@/pages/legal";
 import SpeechToSpeechPage from "@/pages/speech-to-speech";
 import SpeechToTextPage from "@/pages/speech-to-text";
 import AudioIsolationPage from "@/pages/audio-isolation";
@@ -76,6 +77,11 @@ function AppRoutes() {
         <Route path="/tools" component={ToolsPage} />
         <Route path="/login" component={LoginPage} />
         <Route path="/register" component={RegisterPage} />
+        <Route path="/privacy" component={PrivacyPage} />
+        <Route path="/terms" component={TermsPage} />
+        <Route path="/refund-policy" component={RefundPage} />
+        <Route path="/cookies" component={CookiesPage} />
+        <Route path="/contact" component={ContactPage} />
         <Route><Redirect to="/" /></Route>
       </Switch>
     );
@@ -91,6 +97,12 @@ function AppRoutes() {
   if (location === "/pricing") {
     return <PricingPage />;
   }
+
+  if (location === "/privacy") return <PrivacyPage />;
+  if (location === "/terms") return <TermsPage />;
+  if (location === "/refund-policy") return <RefundPage />;
+  if (location === "/cookies") return <CookiesPage />;
+  if (location === "/contact") return <ContactPage />;
 
   return (
     <SidebarLayout>
