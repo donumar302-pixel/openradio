@@ -9,6 +9,7 @@ import {
 import { eq, count, sum, desc, and, sql, or, ilike, inArray, isNotNull, ne } from "drizzle-orm";
 import { getSetting, setSetting, knownSettingKeys } from "../lib/settings";
 import { isUserAdmin } from "../middleware/require-active-user";
+import { isAdminEmail } from "../lib/admin";
 import { PLAN_PRICE_USD, type PlanId } from "../lib/plans";
 import {
   CreateApiKeyBody,
@@ -813,6 +814,7 @@ router.post("/resellers", async (req, res) => {
   const expiresAt = req.body?.expiresAt ? new Date(String(req.body.expiresAt)) : null;
 
   if (!name || !email || !/^\S+@\S+\.\S+$/.test(email)) { res.status(400).json({ error: "Valid name and email required" }); return; }
+  if (isAdminEmail(email)) { res.status(400).json({ error: "This email is reserved for an admin account" }); return; }
   if (password.length < 6) { res.status(400).json({ error: "Password must be at least 6 characters" }); return; }
   if (!Number.isFinite(credits) || credits <= 0 || !Number.isInteger(credits)) {
     res.status(400).json({ error: "Credits must be a positive whole number" }); return;

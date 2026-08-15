@@ -4,7 +4,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { AdminLayout } from "@/components/admin-layout";
 
 type Reseller = {
   id: number;
@@ -292,7 +291,7 @@ export default function AdminResellers() {
   });
 
   return (
-    <AdminLayout>
+    <>
       <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -413,6 +412,6 @@ export default function AdminResellers() {
           pending={patchMutation.isPending}
         />
       )}
-    </AdminLayout>
+    </>
   );
 }

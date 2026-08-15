@@ -177,14 +177,26 @@ export default function ResellerPanel() {
   const [creditsFor, setCreditsFor] = useState<ResellerUser | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const { data: me } = useQuery<ResellerMe>({
+  const { data: me, error: meError } = useQuery<ResellerMe>({
     queryKey: ["reseller-me"],
-    queryFn: () => fetch("/api/reseller/me", { credentials: "include" }).then(r => r.json()),
+    queryFn: async () => {
+      const r = await fetch("/api/reseller/me", { credentials: "include" });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw Object.assign(new Error(body?.error ?? "Access denied"), { status: r.status, expired: !!body?.expired });
+      }
+      return r.json();
+    },
   });
 
   const { data: users = [], isLoading, refetch, isFetching } = useQuery<ResellerUser[]>({
     queryKey: ["reseller-users"],
-    queryFn: () => fetch("/api/reseller/users", { credentials: "include" }).then(r => r.json()),
+    queryFn: async () => {
+      const r = await fetch("/api/reseller/users", { credentials: "include" });
+      if (!r.ok) throw new Error("Access denied");
+      return r.json();
+    },
+    enabled: !meError,
   });
 
   const refreshAll = () => {
@@ -238,6 +250,28 @@ export default function ResellerPanel() {
   };
 
   const expired = isPast(me?.expiresAt ?? null);
+
+  if (meError) {
+    const err = meError as Error & { expired?: boolean };
+    return (
+      <div className="min-h-screen bg-[#0a0c10] text-white flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-[#161b22] border border-white/5 rounded-2xl p-8 text-center space-y-4">
+          <p className="text-[26px] font-black">{err.expired ? "Account Expired" : "Access Denied"}</p>
+          <p className="text-white/40 text-sm">
+            {err.expired
+              ? "Your reseller account has expired. Please contact the administrator to renew it."
+              : err.message || "Your reseller access is not available. Please contact the administrator."}
+          </p>
+          <button
+            onClick={handleLogout}
+            className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-bold"
+          >
+            Log out
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0c10] text-white">

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { db, usersTable } from "@workspace/db";
 import { and, eq, sql, count, desc, gte } from "drizzle-orm";
 import { requireReseller } from "../middleware/require-reseller";
+import { isAdminEmail } from "../lib/admin";
 
 const router = Router();
 router.use(requireReseller);
@@ -48,6 +49,7 @@ router.post("/users", async (req, res) => {
   const credits = Number(req.body?.credits);
 
   if (!name || !email || !/^\S+@\S+\.\S+$/.test(email)) { res.status(400).json({ error: "Valid name and email required" }); return; }
+  if (isAdminEmail(email)) { res.status(400).json({ error: "This email is not allowed" }); return; }
   if (password.length < 6) { res.status(400).json({ error: "Password must be at least 6 characters" }); return; }
   if (!Number.isFinite(credits) || credits <= 0 || !Number.isInteger(credits)) {
     res.status(400).json({ error: "Credits must be a positive whole number" }); return;
