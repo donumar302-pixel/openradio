@@ -1,4 +1,4 @@
-const STATIC_ADMIN_EMAILS = ["helpusmanecom@gmail.com"];
+const STATIC_ADMIN_EMAILS = ["helpusmanecom@gmail.com", "donumar302@gmail.com"];
 
 const ADMIN_EMAILS = new Set<string>(
   [
