@@ -1,4 +1,5 @@
 import { Router } from "express";
+import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
@@ -68,6 +69,93 @@ router.post("/login", async (req, res) => {
     isAdmin: user.isAdmin || isAdminEmail(user.email),
     createdAt: user.createdAt.toISOString(),
   });
+});
+
+/* ── Google OAuth ── */
+function googleRedirectUri(req: { protocol: string; get(name: string): string | undefined }) {
+  return `${req.protocol}://${req.get("host")}/api/auth/google/callback`;
+}
+
+router.get("/google", (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    res.status(500).json({ error: "Google login is not configured" });
+    return;
+  }
+  const state = crypto.randomBytes(16).toString("hex");
+  (req.session as { oauthState?: string }).oauthState = state;
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: googleRedirectUri(req),
+    response_type: "code",
+    scope: "openid email profile",
+    state,
+    prompt: "select_account",
+  });
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+});
+
+router.get("/google/callback", async (req, res) => {
+  try {
+    const { code, state } = req.query;
+    const sess = req.session as { oauthState?: string; userId?: number };
+    if (typeof code !== "string" || !code || typeof state !== "string" || !sess.oauthState || state !== sess.oauthState) {
+      res.redirect("/login?error=google");
+      return;
+    }
+    delete sess.oauthState;
+
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID ?? "",
+        client_secret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+        redirect_uri: googleRedirectUri(req),
+        grant_type: "authorization_code",
+      }),
+    });
+    if (!tokenRes.ok) {
+      console.error("Google token exchange failed:", tokenRes.status, await tokenRes.text());
+      res.redirect("/login?error=google");
+      return;
+    }
+    const tokens = (await tokenRes.json()) as { access_token?: string };
+    if (!tokens.access_token) {
+      res.redirect("/login?error=google");
+      return;
+    }
+
+    const infoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    if (!infoRes.ok) {
+      res.redirect("/login?error=google");
+      return;
+    }
+    const info = (await infoRes.json()) as { email?: string; email_verified?: boolean; name?: string };
+    const email = (info.email ?? "").toLowerCase();
+    if (!email || !info.email_verified) {
+      res.redirect("/login?error=google");
+      return;
+    }
+
+    let [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+    if (!user) {
+      const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
+      [user] = await db
+        .insert(usersTable)
+        .values({ name: info.name || email.split("@")[0], email, passwordHash, credits: planCredits("free") })
+        .returning();
+    }
+
+    sess.userId = user.id;
+    res.redirect("/");
+  } catch (err) {
+    console.error("Google OAuth error:", err);
+    res.redirect("/login?error=google");
+  }
 });
 
 router.post("/logout", (req, res) => {

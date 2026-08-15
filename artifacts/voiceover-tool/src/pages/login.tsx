@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { GoogleAuthButton } from "@/components/google-auth-button";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -10,7 +11,11 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("error") === "google"
+      ? "Google sign-in failed. Please try again."
+      : ""
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +40,14 @@ export default function LoginPage() {
         {/* Card */}
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-8 py-8">
           <h1 className="text-[22px] font-bold text-gray-900 text-center mb-6">Welcome back</h1>
+
+          <GoogleAuthButton label="Continue with Google" />
+
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-[12px] font-medium text-gray-400">or</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
 
           {error && (
             <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-[13px] font-medium">

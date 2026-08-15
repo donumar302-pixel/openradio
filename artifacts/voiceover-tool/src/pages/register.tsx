@@ -1,4 +1,5 @@
 import { BrandWordmark } from "@/components/brand-wordmark";
+import { GoogleAuthButton } from "@/components/google-auth-button";
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -36,6 +37,14 @@ export default function RegisterPage() {
         {/* Card */}
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-8 py-8">
           <h1 className="text-[22px] font-bold text-gray-900 text-center mb-6">Create an account</h1>
+
+          <GoogleAuthButton label="Sign up with Google" />
+
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-[12px] font-medium text-gray-400">or</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
 
           {error && (
             <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-[13px] font-medium">
