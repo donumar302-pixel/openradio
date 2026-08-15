@@ -35,6 +35,7 @@ router.get("/users", async (req, res) => {
     credits: usersTable.credits,
     creditsUsed: usersTable.creditsUsed,
     status: usersTable.status,
+    expiresAt: usersTable.planExpiresAt,
     createdAt: usersTable.createdAt,
   }).from(usersTable).where(eq(usersTable.resellerId, r.id)).orderBy(desc(usersTable.createdAt));
   res.json(users);
@@ -58,6 +59,9 @@ router.post("/users", async (req, res) => {
     res.status(400).json({ error: `Not enough credits. You have ${r.resellerCredits.toLocaleString()} left.` }); return;
   }
 
+  const expiresAt = parseUserExpiry(req.body?.expiresAt, res);
+  if (expiresAt === undefined) return; // response already sent
+
   const passwordHash = await bcrypt.hash(password, 10);
   try {
     const result = await db.transaction(async (tx) => {
@@ -70,6 +74,7 @@ router.post("/users", async (req, res) => {
       const [user] = await tx.insert(usersTable).values({
         name, email, passwordHash, credits,
         plan: "pro",
+        planExpiresAt: expiresAt,
         resellerId: r.id,
         signupIp: req.ip ?? null,
       }).returning();
@@ -88,15 +93,39 @@ router.post("/users", async (req, res) => {
   }
 });
 
-/* ── PATCH /users/:id — suspend / unsuspend own user ── */
+/* Max 31 days ahead ("1 month or less"). Returns Date, null (no expiry not
+   allowed → defaults handled by caller), or undefined when a 400 was sent. */
+function parseUserExpiry(raw: unknown, res: import("express").Response): Date | null | undefined {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const d = new Date(String(raw));
+  if (isNaN(d.getTime())) { res.status(400).json({ error: "Invalid expiry date" }); return undefined; }
+  const now = Date.now();
+  if (d.getTime() <= now) { res.status(400).json({ error: "Expiry must be in the future" }); return undefined; }
+  const maxMs = now + 31 * 24 * 60 * 60 * 1000;
+  if (d.getTime() > maxMs) { res.status(400).json({ error: "Expiry can be at most 1 month from today" }); return undefined; }
+  return d;
+}
+
+/* ── PATCH /users/:id — suspend / unsuspend / change expiry of own user ── */
 router.patch("/users/:id", async (req, res) => {
   const r = req.resellerUser!;
   const id = parseInt(String(req.params.id));
-  const status = String(req.body?.status ?? "");
-  if (isNaN(id) || (status !== "active" && status !== "blocked")) {
-    res.status(400).json({ error: "Invalid request" }); return;
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid request" }); return; }
+
+  const updates: Record<string, unknown> = {};
+  if (req.body?.status !== undefined) {
+    const status = String(req.body.status);
+    if (status !== "active" && status !== "blocked") { res.status(400).json({ error: "Invalid status" }); return; }
+    updates.status = status;
   }
-  const updated = await db.update(usersTable).set({ status })
+  if ("expiresAt" in (req.body ?? {})) {
+    const expiresAt = parseUserExpiry(req.body.expiresAt, res);
+    if (expiresAt === undefined) return;
+    updates.planExpiresAt = expiresAt;
+  }
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
+
+  const updated = await db.update(usersTable).set(updates)
     .where(and(eq(usersTable.id, id), eq(usersTable.resellerId, r.id), eq(usersTable.isAdmin, false)))
     .returning({ id: usersTable.id });
   if (updated.length === 0) { res.status(404).json({ error: "User not found" }); return; }
