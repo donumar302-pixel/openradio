@@ -77,8 +77,9 @@ app.use("/api", router);
 const frontendDir = path.resolve(workspaceRoot, "artifacts/voiceover-tool/dist/public");
 if (fs.existsSync(path.join(frontendDir, "index.html"))) {
   app.use(express.static(frontendDir));
-  // SPA fallback — all non-API routes serve index.html
-  app.get("*", (_req, res) => {
+  // SPA fallback — all non-API GET routes serve index.html
+  app.use((req, res, next) => {
+    if (req.method !== "GET" || req.path.startsWith("/api")) return next();
     res.sendFile(path.join(frontendDir, "index.html"));
   });
 }
