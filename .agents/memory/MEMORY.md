@@ -7,4 +7,5 @@
 - [Google OAuth login](google-oauth.md) — email-linked (no googleId column), session regenerated on login, APP_ORIGIN for redirect URI; Railway needs the Google secrets set manually.
 - [Admin panel & startup migrations](admin-panel.md) — prod schema changes must be mirrored in api-server ensureSchema() (Railway never runs drizzle push); settings kill-switches; admin-protection rules.
 - [Reseller system](reseller-system.md) — reseller flags live on users table; conditional pool-decrement transactions; block admin-allowlist emails at every account-creation endpoint.
+- [Edge TTS package](edge-tts.md) — use `msedge-tts`; old `edge-tts` gets Microsoft 403 (Sec-MS-GEC token), and `@andresaya/edge-tts` is blocked by the package firewall.
 - [Landing voice samples & MiniMax balance](landing-voice-samples.md) — demo mp3s via Replit-managed TTS into public/voices/; MiniMax has insufficient balance; stagger/sticky-nav gotchas.
