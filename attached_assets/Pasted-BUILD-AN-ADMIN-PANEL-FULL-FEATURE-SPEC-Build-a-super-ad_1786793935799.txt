@@ -1,0 +1,45 @@
+BUILD AN ADMIN PANEL — FULL FEATURE SPEC:
+
+Build a super-admin panel (single admin page with sidebar tabs) + backend admin API. Auth: admin logs in with email/password at /api/admin/login, gets a token stored in localStorage, sent on every request as x-admin-key header; backend middleware requireAdmin validates it on all /api/admin/* routes.
+
+Tabs/Sections:
+
+Overview — dashboard summary: total users, active paid users, platform health, capacity and key operational metrics at a glance.
+
+Analytics — signup stats (daily/monthly), user growth, usage/generation stats, payment revenue stats, plan distribution charts, signup monitoring.
+
+Users (core section) — paginated + searchable user list with plan/status filters. Per-user actions:
+
+Edit profile, plan, expiry date, credits
+Reset password
+View audit log, order history, device info
+Reset credits / reset device (device-limit unlock)
+Suspend / unsuspend
+Delete user
+Bulk actions: suspend/unsuspend/delete multiple users
+Clear automation/abuse flags, reset trial-abuse blocks
+Orders — list/search all orders, view payment proof screenshots, create/edit/approve/reject/delete orders, view a user's full order history. Approving an order activates the user's plan.
+
+Payments Report — read-only report of successful card (Stripe) payments, deduplicated, with monthly totals and user search.
+
+Withdrawals — review and process withdrawal requests (referral/reseller earnings) with statuses.
+
+Resellers — create/edit/activate/deactivate/delete reseller accounts; set quotas, plans, credentials; view each reseller's users (including deleted-user records); reseller billing/owed balance, per-plan rates, payment submissions with proof screenshots, approve/reject payments. Resellers get their own separate portal (login, create/edit users, renew/change plans, billing, submit payments).
+
+White Labels — create/edit/deactivate branded tenant panels: custom domain, brand name, logo, color, admin credentials, support contacts. Includes wholesale billing: fixed per-plan wholesale rates, tenant owed-balance tracking with limits, activation blocking when over limit, per-tenant usage drill-down, payment proof review/approve/reject. Each tenant owner gets a separate child-admin panel (own users, orders, pricing they set themselves, payment methods, usage & billing, brand settings).
+
+Support — support ticket inbox: reply, update status, delete.
+
+Refunds — review/approve/reject/delete refund requests.
+
+Anti-Abuse — trial-abuse/signup monitoring (multiple accounts from same device/IP), stats, inspect/reset blocks.
+
+Automation Watch — list users flagged for bot-like usage patterns, clear flags.
+
+Promo Codes — create/manage promo codes, view redemption history.
+
+Notifications — send dashboard notifications to users (all or targeted), read/unread tracking.
+
+Settings — platform-wide config editable from UI (stored in DB, not env): branding, announcement banner, API keys for AI models, capacity limits, email settings, referral/payment toggles, feature kill-switches.
+
+General rules: all admin actions audited where sensitive; suspend takes effect quickly (cached checks must clear cache); payment approvals are the only thing that activates plans; all lists paginated and searchable.
