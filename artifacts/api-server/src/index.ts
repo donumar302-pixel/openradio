@@ -2,10 +2,6 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureSchema } from "./lib/ensure-schema";
 
-ensureSchema().catch((err) => {
-  logger.error({ err }, "Failed to ensure schema");
-});
-
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
@@ -20,11 +16,20 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+// Ensure new tables/columns exist before serving any requests — Railway
+// never runs drizzle push, so this is the only prod migration path.
+ensureSchema()
+  .then(() => {
+    app.listen(port, (err) => {
+      if (err) {
+        logger.error({ err }, "Error listening on port");
+        process.exit(1);
+      }
 
-  logger.info({ port }, "Server listening");
-});
+      logger.info({ port }, "Server listening");
+    });
+  })
+  .catch((err) => {
+    logger.error({ err }, "Failed to ensure schema — refusing to start");
+    process.exit(1);
+  });

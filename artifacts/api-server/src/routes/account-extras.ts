@@ -29,25 +29,34 @@ router.post("/promo/redeem", requireActiveUser, async (req, res) => {
   if (promo.expiresAt && promo.expiresAt.getTime() < Date.now()) {
     res.status(400).json({ error: "This promo code has expired" }); return;
   }
-  if (promo.maxRedemptions != null && promo.redemptionCount >= promo.maxRedemptions) {
-    res.status(400).json({ error: "This promo code has reached its limit" }); return;
-  }
 
-  // Unique index (code_id, user_id) guarantees one redemption per user.
+  // Atomic redemption: conditional counter increment enforces the cap under
+  // concurrency; the unique (code_id, user_id) index enforces one per user.
+  // All three writes commit or roll back together.
   try {
-    await db.insert(promoRedemptionsTable).values({ codeId: promo.id, userId: user.id });
+    const result = await db.transaction(async (tx) => {
+      const claimed = await tx.update(promoCodesTable)
+        .set({ redemptionCount: sql`${promoCodesTable.redemptionCount} + 1` })
+        .where(and(
+          eq(promoCodesTable.id, promo.id),
+          eq(promoCodesTable.isActive, true),
+          sql`(${promoCodesTable.expiresAt} IS NULL OR ${promoCodesTable.expiresAt} > now())`,
+          sql`(${promoCodesTable.maxRedemptions} IS NULL OR ${promoCodesTable.redemptionCount} < ${promoCodesTable.maxRedemptions})`,
+        )).returning({ id: promoCodesTable.id });
+      if (claimed.length === 0) return { limit: true as const };
+      await tx.insert(promoRedemptionsTable).values({ codeId: promo.id, userId: user.id });
+      const [updated] = await tx.update(usersTable)
+        .set({ credits: sql`${usersTable.credits} + ${promo.credits}` })
+        .where(eq(usersTable.id, user.id)).returning({ credits: usersTable.credits });
+      return { credits: updated.credits };
+    });
+    if ("limit" in result) {
+      res.status(400).json({ error: "This promo code has reached its limit" }); return;
+    }
+    res.json({ ok: true, creditsAdded: promo.credits, credits: result.credits });
   } catch {
-    res.status(400).json({ error: "You have already used this promo code" }); return;
+    res.status(400).json({ error: "You have already used this promo code" });
   }
-
-  await db.update(promoCodesTable)
-    .set({ redemptionCount: sql`${promoCodesTable.redemptionCount} + 1` })
-    .where(eq(promoCodesTable.id, promo.id));
-  const [updated] = await db.update(usersTable)
-    .set({ credits: sql`${usersTable.credits} + ${promo.credits}` })
-    .where(eq(usersTable.id, user.id)).returning({ credits: usersTable.credits });
-
-  res.json({ ok: true, creditsAdded: promo.credits, credits: updated.credits });
 });
 
 /* ── Notifications ───────────────────────────────────────────────────── */

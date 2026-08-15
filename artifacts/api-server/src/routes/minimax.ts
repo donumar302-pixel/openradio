@@ -6,6 +6,7 @@ import { eq, asc, and, sql, gte } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { requireActiveUser, isUserAdmin } from "../middleware/require-active-user";
 import { planAllowsFeature, modelAllowedForPlan } from "../lib/plans";
+import { requireFeature } from "../middleware/require-feature";
 
 const router = Router();
 
@@ -195,7 +196,7 @@ router.post("/tts", requireActiveUser, async (req, res) => {
 });
 
 /* ── POST /voice-clone ────────────────────────────────────────────────── */
-router.post("/voice-clone", requireActiveUser, async (req, res, next) => {
+router.post("/voice-clone", requireFeature("voice-cloning"), requireActiveUser, async (req, res, next) => {
   const user = req.appUser!;
   if (!isUserAdmin(user) && !planAllowsFeature(user.plan, "voice-cloning")) {
     res.status(403).json({ error: "Voice Cloning is a paid feature. Please upgrade your plan." });
@@ -264,7 +265,7 @@ router.post("/voice-clone", requireActiveUser, async (req, res, next) => {
 });
 
 /* ── DELETE /voice-clone/:id ──────────────────────────────────────────── */
-router.delete("/voice-clone/:id", requireActiveUser, async (req, res) => {
+router.delete("/voice-clone/:id", requireFeature("voice-cloning"), requireActiveUser, async (req, res) => {
   const id = parseInt(String(req.params.id), 10);
   if (Number.isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });

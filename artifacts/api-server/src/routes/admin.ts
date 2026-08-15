@@ -8,6 +8,7 @@ import {
 } from "@workspace/db";
 import { eq, count, sum, desc, and, sql, or, ilike, inArray, isNotNull, ne } from "drizzle-orm";
 import { getSetting, setSetting, knownSettingKeys } from "../lib/settings";
+import { isUserAdmin } from "../middleware/require-active-user";
 import { PLAN_PRICE_USD, type PlanId } from "../lib/plans";
 import {
   CreateApiKeyBody,
@@ -247,21 +248,42 @@ router.post("/users/:id/reset-password", async (req, res) => {
   res.json({ ok: true });
 });
 
+// Effective admins include the email allowlist, not just is_admin — never
+// let suspend/delete touch them (or the acting admin themself).
+async function protectedUserIds(ids: number[], selfId: number | undefined): Promise<Set<number>> {
+  const rows = ids.length
+    ? await db.select({ id: usersTable.id, email: usersTable.email, isAdmin: usersTable.isAdmin })
+        .from(usersTable).where(inArray(usersTable.id, ids))
+    : [];
+  const protectedIds = new Set<number>();
+  for (const r of rows) if (isUserAdmin(r) || r.id === selfId) protectedIds.add(r.id);
+  if (selfId != null) protectedIds.add(selfId);
+  return protectedIds;
+}
+
 router.post("/users/bulk", async (req, res) => {
-  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Number.isFinite) : [];
+  const rawIds: number[] = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Number.isFinite) : [];
   const action = String(req.body?.action ?? "");
-  if (ids.length === 0) { res.status(400).json({ error: "ids required" }); return; }
-  if (action === "suspend") {
-    await db.update(usersTable).set({ status: "blocked" })
-      .where(and(inArray(usersTable.id, ids), eq(usersTable.isAdmin, false)));
-  } else if (action === "unsuspend") {
-    await db.update(usersTable).set({ status: "active" }).where(inArray(usersTable.id, ids));
-  } else if (action === "delete") {
-    await db.delete(usersTable).where(and(inArray(usersTable.id, ids), eq(usersTable.isAdmin, false)));
-  } else {
+  if (rawIds.length === 0) { res.status(400).json({ error: "ids required" }); return; }
+  if (!["suspend", "unsuspend", "delete"].includes(action)) {
     res.status(400).json({ error: "action must be suspend, unsuspend or delete" }); return;
   }
-  res.json({ ok: true, count: ids.length });
+
+  let ids = [...new Set(rawIds)];
+  if (action !== "unsuspend") {
+    const protectedIds = await protectedUserIds(ids, req.session.userId);
+    ids = ids.filter(id => !protectedIds.has(id));
+  }
+  if (ids.length === 0) { res.json({ ok: true, count: 0, skippedAdmins: rawIds.length }); return; }
+
+  if (action === "suspend") {
+    await db.update(usersTable).set({ status: "blocked" }).where(inArray(usersTable.id, ids));
+  } else if (action === "unsuspend") {
+    await db.update(usersTable).set({ status: "active" }).where(inArray(usersTable.id, ids));
+  } else {
+    await db.delete(usersTable).where(inArray(usersTable.id, ids));
+  }
+  res.json({ ok: true, count: ids.length, skippedAdmins: rawIds.length - ids.length });
 });
 
 router.patch("/users/:id", async (req, res) => {
@@ -278,6 +300,9 @@ router.patch("/users/:id", async (req, res) => {
   if (plan !== undefined) updates.plan = plan;
   if (status !== undefined) {
     if (status !== "active" && status !== "blocked") { res.status(400).json({ error: "status must be 'active' or 'blocked'" }); return; }
+    if (status === "blocked" && (isUserAdmin(current) || current.id === req.session.userId)) {
+      res.status(400).json({ error: "Admin accounts cannot be suspended" }); return;
+    }
     updates.status = status;
   }
 
@@ -333,6 +358,11 @@ router.patch("/users/:id", async (req, res) => {
 router.delete("/users/:id", async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [target] = await db.select({ id: usersTable.id, email: usersTable.email, isAdmin: usersTable.isAdmin })
+    .from(usersTable).where(eq(usersTable.id, id));
+  if (target && (isUserAdmin(target) || target.id === req.session.userId)) {
+    res.status(400).json({ error: "Admin accounts cannot be deleted" }); return;
+  }
   await db.delete(usersTable).where(eq(usersTable.id, id));
   res.status(204).send();
 });
@@ -597,11 +627,16 @@ router.post("/notifications", async (req, res) => {
     const rows = await db.select({ id: usersTable.id }).from(usersTable);
     userIds = rows.map(r => r.id);
   } else if (Array.isArray(target)) {
-    userIds = target.map(Number).filter(Number.isFinite);
+    // Deduplicate and keep only ids that actually exist.
+    const requested = [...new Set(target.map(Number).filter(Number.isFinite))] as number[];
+    const rows = requested.length
+      ? await db.select({ id: usersTable.id }).from(usersTable).where(inArray(usersTable.id, requested))
+      : [];
+    userIds = rows.map(r => r.id);
   } else {
     res.status(400).json({ error: "target must be 'all' or an array of user ids" }); return;
   }
-  if (userIds.length === 0) { res.status(400).json({ error: "No target users" }); return; }
+  if (userIds.length === 0) { res.status(400).json({ error: "No matching users found" }); return; }
 
   const CHUNK = 500;
   for (let i = 0; i < userIds.length; i += CHUNK) {
