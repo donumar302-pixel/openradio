@@ -4,4 +4,5 @@
 - [Voice provider prefix mapping](voice-provider-prefix.md) — dropdown keys are "el:"/"mm:"/"fa:" but runtime provider must be "el"/"minimax"/"fishaudio"; always map explicitly in handleVoiceSelect.
 - [Fish Audio integration](fish-audio-integration.md) — 3rd TTS engine; model passed as HTTP header not body; "default" voiceId = no reference_id sent; env var FISH_AUDIO_API_KEY or DB provider "fishaudio".
 - [Railway hosting](railway-hosting.md) — prod runs on Railway from GitHub main via root Dockerfile; Replit = code editing only; Express 5 `app.get("*")` crash + Root Directory/skip gotchas.
+- [Google OAuth login](google-oauth.md) — email-linked (no googleId column), session regenerated on login, APP_ORIGIN for redirect URI; Railway needs the Google secrets set manually.
 - [Landing voice samples & MiniMax balance](landing-voice-samples.md) — demo mp3s via Replit-managed TTS into public/voices/; MiniMax has insufficient balance; stagger/sticky-nav gotchas.
