@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Settings, User, Shield, Save, Eye, EyeOff, Check } from "lucide-react";
+import { Settings, User, Shield, Save, Eye, EyeOff, Check, Gift } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,34 @@ export default function SettingsPage() {
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
+
+  const [promoCode, setPromoCode] = useState("");
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoMsg, setPromoMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const handleRedeemPromo = async () => {
+    if (!promoCode.trim()) return;
+    setPromoLoading(true);
+    setPromoMsg(null);
+    try {
+      const res = await fetch("/api/promo/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ code: promoCode.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Invalid promo code");
+      setPromoCode("");
+      setPromoMsg({ ok: true, text: `+${data.creditsAdded.toLocaleString()} credits added` });
+      toast({ title: "Promo applied", description: `+${data.creditsAdded.toLocaleString()} credits added.` });
+      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+    } catch (e: any) {
+      setPromoMsg({ ok: false, text: e.message });
+    } finally {
+      setPromoLoading(false);
+    }
+  };
 
   const handleEmailSave = async () => {
     if (!email.trim() || email === user?.email) return;
@@ -145,6 +173,39 @@ export default function SettingsPage() {
             readOnly
             className="bg-[#f9fafb] text-[#6b7280]"
           />
+        </div>
+      </div>
+
+      {/* Promo code */}
+      <div className="bg-white rounded-2xl border border-[#e5e7eb] p-6 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Gift size={16} className="text-primary" />
+          <h2 className="font-bold text-base">Have a promo code?</h2>
+        </div>
+        <p className="text-muted-foreground text-sm -mt-1">Redeem a code to add free credits to your account.</p>
+        <div className="space-y-1.5">
+          <div className="flex gap-2">
+            <Input
+              value={promoCode}
+              onChange={e => { setPromoCode(e.target.value); setPromoMsg(null); }}
+              onKeyDown={e => { if (e.key === "Enter") handleRedeemPromo(); }}
+              placeholder="Enter promo code"
+              className="flex-1 uppercase"
+            />
+            <Button
+              onClick={handleRedeemPromo}
+              disabled={!promoCode.trim() || promoLoading}
+              size="sm"
+              className="shrink-0 px-4 font-semibold"
+            >
+              {promoLoading ? "Applying..." : "Apply"}
+            </Button>
+          </div>
+          {promoMsg && (
+            <p className={cn("text-xs font-semibold", promoMsg.ok ? "text-green-600" : "text-red-500")}>
+              {promoMsg.text}
+            </p>
+          )}
         </div>
       </div>
 

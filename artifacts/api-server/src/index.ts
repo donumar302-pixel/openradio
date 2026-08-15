@@ -1,5 +1,10 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { ensureSchema } from "./lib/ensure-schema";
+
+ensureSchema().catch((err) => {
+  logger.error({ err }, "Failed to ensure schema");
+});
 
 const rawPort = process.env["PORT"];
 

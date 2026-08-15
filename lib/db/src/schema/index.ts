@@ -22,6 +22,7 @@ export const usersTable = pgTable("users", {
   planExpiresAt: timestamp("plan_expires_at"),
   status: text("status").notNull().default("active"),
   isAdmin: boolean("is_admin").notNull().default(false),
+  signupIp: text("signup_ip"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [uniqueIndex("users_email_idx").on(t.email)]);
 
@@ -83,3 +84,65 @@ export const ordersTable = pgTable("orders", {
 });
 
 export type Order = typeof ordersTable.$inferSelect;
+
+/* ── Promo codes ─────────────────────────────────────────────────────── */
+export const promoCodesTable = pgTable("promo_codes", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull(),
+  credits: integer("credits").notNull().default(0),
+  maxRedemptions: integer("max_redemptions"),
+  redemptionCount: integer("redemption_count").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("promo_codes_code_idx").on(t.code)]);
+
+export type PromoCode = typeof promoCodesTable.$inferSelect;
+
+export const promoRedemptionsTable = pgTable("promo_redemptions", {
+  id: serial("id").primaryKey(),
+  codeId: integer("code_id").notNull(),
+  userId: integer("user_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("promo_redemptions_code_user_idx").on(t.codeId, t.userId)]);
+
+/* ── Notifications (fanned out per user) ─────────────────────────────── */
+export const notificationsTable = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [index("notifications_user_idx").on(t.userId)]);
+
+export type Notification = typeof notificationsTable.$inferSelect;
+
+/* ── Support tickets ─────────────────────────────────────────────────── */
+export const supportTicketsTable = pgTable("support_tickets", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  subject: text("subject").notNull(),
+  status: text("status").notNull().default("open"), // open | answered | closed
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("support_tickets_user_idx").on(t.userId)]);
+
+export type SupportTicket = typeof supportTicketsTable.$inferSelect;
+
+export const supportMessagesTable = pgTable("support_messages", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull(),
+  sender: text("sender").notNull(), // "user" | "admin"
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [index("support_messages_ticket_idx").on(t.ticketId)]);
+
+export type SupportMessage = typeof supportMessagesTable.$inferSelect;
+
+/* ── Platform settings (key/value, JSON string values) ───────────────── */
+export const appSettingsTable = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

@@ -10,7 +10,15 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /* ── Tool cards ─────────────────────────────────────────────── */
-const TOOLS = [
+const TOOLS: {
+  href: string;
+  icon: React.ComponentType<{ size?: number }>;
+  name: string;
+  desc: string;
+  iconBg: string;
+  iconColor: string;
+  badge?: string;
+}[] = [
   {
     href: "/studio",
     icon: Mic2,

@@ -1,7 +1,14 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { apiKeysTable, generationsTable, usersTable, voiceClonesTable, ordersTable } from "@workspace/db";
-import { eq, count, sum, desc, and, sql } from "drizzle-orm";
+import {
+  apiKeysTable, generationsTable, usersTable, voiceClonesTable, ordersTable,
+  promoCodesTable, promoRedemptionsTable, notificationsTable,
+  supportTicketsTable, supportMessagesTable,
+} from "@workspace/db";
+import { eq, count, sum, desc, and, sql, or, ilike, inArray, isNotNull, ne } from "drizzle-orm";
+import { getSetting, setSetting, knownSettingKeys } from "../lib/settings";
+import { PLAN_PRICE_USD, type PlanId } from "../lib/plans";
 import {
   CreateApiKeyBody,
   UpdateApiKeyBody,
@@ -105,7 +112,7 @@ router.post("/keys/bulk", async (req, res) => {
 });
 
 router.patch("/keys/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const { label, isActive, creditLimit, creditsUsed } = req.body;
   const updates: Record<string, any> = {};
@@ -127,7 +134,7 @@ router.patch("/keys/:id", async (req, res) => {
 });
 
 router.delete("/keys/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(apiKeysTable).where(eq(apiKeysTable.id, id));
   res.status(204).send();
@@ -184,28 +191,81 @@ function serializeUser(u: any) {
 }
 
 router.get("/users", async (req, res) => {
-  const users = await db.select().from(usersTable).orderBy(desc(usersTable.createdAt));
+  const search = String(req.query.search ?? "").trim();
+  const plan = String(req.query.plan ?? "").trim();
+  const status = String(req.query.status ?? "").trim();
+  const page = Math.max(1, parseInt(String(req.query.page ?? "1")) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(String(req.query.pageSize ?? "25")) || 25));
 
-  const stats = await db.select({
+  const conditions = [];
+  if (search) conditions.push(or(ilike(usersTable.name, `%${search}%`), ilike(usersTable.email, `%${search}%`)));
+  if (plan) conditions.push(eq(usersTable.plan, plan));
+  if (status) conditions.push(eq(usersTable.status, status));
+  const where = conditions.length ? and(...conditions) : undefined;
+
+  const [totalRow] = await db.select({ n: count() }).from(usersTable).where(where);
+  const users = await db.select().from(usersTable).where(where)
+    .orderBy(desc(usersTable.createdAt))
+    .limit(pageSize).offset((page - 1) * pageSize);
+
+  const ids = users.map(u => u.id);
+  const stats = ids.length ? await db.select({
     userId: generationsTable.userId,
     genCount: count(),
     chars: sum(generationsTable.characterCount),
-  }).from(generationsTable).groupBy(generationsTable.userId);
+  }).from(generationsTable)
+    .where(inArray(generationsTable.userId, ids))
+    .groupBy(generationsTable.userId) : [];
 
   const statMap: Record<number, { genCount: number; chars: number }> = {};
   for (const s of stats) {
     if (s.userId != null) statMap[s.userId] = { genCount: Number(s.genCount), chars: Number(s.chars ?? 0) };
   }
 
-  res.json(users.map(u => ({
-    ...serializeUser(u),
-    generationCount: statMap[u.id]?.genCount ?? 0,
-    charactersUsed: statMap[u.id]?.chars ?? 0,
-  })));
+  res.json({
+    total: totalRow.n,
+    page,
+    pageSize,
+    users: users.map(u => ({
+      ...serializeUser(u),
+      signupIp: u.signupIp,
+      generationCount: statMap[u.id]?.genCount ?? 0,
+      charactersUsed: statMap[u.id]?.chars ?? 0,
+    })),
+  });
+});
+
+router.post("/users/:id/reset-password", async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  const password = String(req.body?.password ?? "");
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (password.length < 6) { res.status(400).json({ error: "Password must be at least 6 characters" }); return; }
+  const passwordHash = await bcrypt.hash(password, 10);
+  const [updated] = await db.update(usersTable).set({ passwordHash })
+    .where(eq(usersTable.id, id)).returning({ id: usersTable.id });
+  if (!updated) { res.status(404).json({ error: "User not found" }); return; }
+  res.json({ ok: true });
+});
+
+router.post("/users/bulk", async (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Number.isFinite) : [];
+  const action = String(req.body?.action ?? "");
+  if (ids.length === 0) { res.status(400).json({ error: "ids required" }); return; }
+  if (action === "suspend") {
+    await db.update(usersTable).set({ status: "blocked" })
+      .where(and(inArray(usersTable.id, ids), eq(usersTable.isAdmin, false)));
+  } else if (action === "unsuspend") {
+    await db.update(usersTable).set({ status: "active" }).where(inArray(usersTable.id, ids));
+  } else if (action === "delete") {
+    await db.delete(usersTable).where(and(inArray(usersTable.id, ids), eq(usersTable.isAdmin, false)));
+  } else {
+    res.status(400).json({ error: "action must be suspend, unsuspend or delete" }); return;
+  }
+  res.json({ ok: true, count: ids.length });
 });
 
 router.patch("/users/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const [current] = await db.select().from(usersTable).where(eq(usersTable.id, id));
@@ -271,7 +331,7 @@ router.patch("/users/:id", async (req, res) => {
 });
 
 router.delete("/users/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(usersTable).where(eq(usersTable.id, id));
   res.status(204).send();
@@ -315,7 +375,7 @@ router.post("/orders", async (req, res) => {
 });
 
 router.patch("/orders/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const { status, adminNote } = req.body;
   if (!status) { res.status(400).json({ error: "status required" }); return; }
@@ -342,7 +402,7 @@ router.patch("/orders/:id", async (req, res) => {
 });
 
 router.delete("/orders/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(ordersTable).where(eq(ordersTable.id, id));
   res.status(204).send();
@@ -368,6 +428,321 @@ router.get("/clones", async (req, res) => {
     id: c.id, name: c.name, voiceId: c.voiceId,
     description: c.description,
     createdAt: c.createdAt.toISOString(),
+  })));
+});
+
+/* ── Overview ───────────────────────────────────────────────────────── */
+router.get("/overview", async (_req, res) => {
+  const now = new Date();
+  const dayAgo = new Date(Date.now() - 24 * 3600e3);
+  const weekAgo = new Date(Date.now() - 7 * 24 * 3600e3);
+
+  const [users] = await db.select({ n: count() }).from(usersTable);
+  const [paidUsers] = await db.select({ n: count() }).from(usersTable)
+    .where(and(ne(usersTable.plan, "free"), sql`(${usersTable.planExpiresAt} IS NULL OR ${usersTable.planExpiresAt} > ${now})`));
+  const [suspended] = await db.select({ n: count() }).from(usersTable).where(eq(usersTable.status, "blocked"));
+  const [newToday] = await db.select({ n: count() }).from(usersTable).where(sql`${usersTable.createdAt} > ${dayAgo}`);
+  const [newWeek] = await db.select({ n: count() }).from(usersTable).where(sql`${usersTable.createdAt} > ${weekAgo}`);
+  const [gens] = await db.select({ n: count(), chars: sum(generationsTable.characterCount) }).from(generationsTable);
+  const [gens24h] = await db.select({ n: count() }).from(generationsTable).where(sql`${generationsTable.createdAt} > ${dayAgo}`);
+  const [pendingOrders] = await db.select({ n: count() }).from(ordersTable).where(eq(ordersTable.status, "pending"));
+  const [openTickets] = await db.select({ n: count() }).from(supportTicketsTable).where(eq(supportTicketsTable.status, "open"));
+  const [activeKeys] = await db.select({ n: count() }).from(apiKeysTable).where(eq(apiKeysTable.isActive, true));
+
+  // Revenue estimate from approved orders (plan price at approval time not stored,
+  // so current USD prices are used).
+  const approved = await db.select({ plan: ordersTable.plan, n: count() }).from(ordersTable)
+    .where(eq(ordersTable.status, "approved")).groupBy(ordersTable.plan);
+  let revenueUsd = 0;
+  for (const r of approved) revenueUsd += (PLAN_PRICE_USD[r.plan as PlanId] ?? 0) * Number(r.n);
+
+  const planRows = await db.select({ plan: usersTable.plan, n: count() }).from(usersTable).groupBy(usersTable.plan);
+  const planCounts: Record<string, number> = {};
+  for (const r of planRows) planCounts[r.plan] = Number(r.n);
+
+  res.json({
+    totalUsers: users.n,
+    paidUsers: paidUsers.n,
+    suspendedUsers: suspended.n,
+    newUsersToday: newToday.n,
+    newUsersWeek: newWeek.n,
+    totalGenerations: gens.n,
+    totalCharacters: Number(gens.chars ?? 0),
+    generations24h: gens24h.n,
+    pendingOrders: pendingOrders.n,
+    openTickets: openTickets.n,
+    activeKeys: activeKeys.n,
+    revenueUsd: Math.round(revenueUsd * 100) / 100,
+    planCounts,
+  });
+});
+
+/* ── Analytics ──────────────────────────────────────────────────────── */
+router.get("/analytics", async (_req, res) => {
+  const signupsDaily = await db.execute(sql`
+    SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, count(*)::int AS n
+    FROM users WHERE created_at > now() - interval '30 days'
+    GROUP BY 1 ORDER BY 1`);
+  const signupsMonthly = await db.execute(sql`
+    SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month, count(*)::int AS n
+    FROM users WHERE created_at > now() - interval '12 months'
+    GROUP BY 1 ORDER BY 1`);
+  const gensDaily = await db.execute(sql`
+    SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+           count(*)::int AS n, coalesce(sum(character_count),0)::bigint AS chars
+    FROM generations WHERE created_at > now() - interval '30 days'
+    GROUP BY 1 ORDER BY 1`);
+  const revenueMonthly = await db.execute(sql`
+    SELECT to_char(date_trunc('month', updated_at), 'YYYY-MM') AS month, plan, count(*)::int AS n
+    FROM orders WHERE status = 'approved' AND updated_at > now() - interval '12 months'
+    GROUP BY 1, 2 ORDER BY 1`);
+
+  const revenueByMonth: Record<string, number> = {};
+  for (const r of revenueMonthly.rows as any[]) {
+    revenueByMonth[r.month] = (revenueByMonth[r.month] ?? 0) + (PLAN_PRICE_USD[r.plan as PlanId] ?? 0) * Number(r.n);
+  }
+
+  const planRows = await db.select({ plan: usersTable.plan, n: count() }).from(usersTable).groupBy(usersTable.plan);
+
+  res.json({
+    signupsDaily: signupsDaily.rows,
+    signupsMonthly: signupsMonthly.rows,
+    generationsDaily: (gensDaily.rows as any[]).map(r => ({ day: r.day, n: r.n, chars: Number(r.chars) })),
+    revenueMonthly: Object.entries(revenueByMonth).map(([month, usd]) => ({ month, usd: Math.round(usd * 100) / 100 })),
+    planDistribution: planRows.map(r => ({ plan: r.plan, n: Number(r.n) })),
+  });
+});
+
+/* ── Promo codes ────────────────────────────────────────────────────── */
+router.get("/promos", async (_req, res) => {
+  const rows = await db.select().from(promoCodesTable).orderBy(desc(promoCodesTable.createdAt));
+  res.json(rows.map(p => ({
+    id: p.id, code: p.code, credits: p.credits,
+    maxRedemptions: p.maxRedemptions, redemptionCount: p.redemptionCount,
+    isActive: p.isActive,
+    expiresAt: p.expiresAt?.toISOString() ?? null,
+    createdAt: p.createdAt.toISOString(),
+  })));
+});
+
+router.post("/promos", async (req, res) => {
+  const code = String(req.body?.code ?? "").trim().toUpperCase();
+  const credits = Math.floor(Number(req.body?.credits));
+  const maxRedemptions = req.body?.maxRedemptions != null && req.body.maxRedemptions !== ""
+    ? Math.floor(Number(req.body.maxRedemptions)) : null;
+  const expiresAt = req.body?.expiresAt ? new Date(req.body.expiresAt) : null;
+  if (!code || code.length < 3) { res.status(400).json({ error: "Code must be at least 3 characters" }); return; }
+  if (!Number.isFinite(credits) || credits <= 0) { res.status(400).json({ error: "Credits must be a positive number" }); return; }
+  try {
+    const [created] = await db.insert(promoCodesTable)
+      .values({ code, credits, maxRedemptions, expiresAt }).returning();
+    res.status(201).json({ id: created.id, code: created.code });
+  } catch {
+    res.status(400).json({ error: "This code already exists" });
+  }
+});
+
+router.patch("/promos/:id", async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const updates: Record<string, any> = {};
+  if (req.body?.isActive !== undefined) updates.isActive = Boolean(req.body.isActive);
+  if (req.body?.credits !== undefined) updates.credits = Math.floor(Number(req.body.credits));
+  if (req.body?.maxRedemptions !== undefined) {
+    updates.maxRedemptions = req.body.maxRedemptions === "" || req.body.maxRedemptions == null
+      ? null : Math.floor(Number(req.body.maxRedemptions));
+  }
+  if (req.body?.expiresAt !== undefined) updates.expiresAt = req.body.expiresAt ? new Date(req.body.expiresAt) : null;
+  const [updated] = await db.update(promoCodesTable).set(updates).where(eq(promoCodesTable.id, id)).returning();
+  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ ok: true });
+});
+
+router.delete("/promos/:id", async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  await db.delete(promoCodesTable).where(eq(promoCodesTable.id, id));
+  await db.delete(promoRedemptionsTable).where(eq(promoRedemptionsTable.codeId, id));
+  res.status(204).send();
+});
+
+router.get("/promos/:id/redemptions", async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const rows = await db.select({
+    id: promoRedemptionsTable.id,
+    userId: promoRedemptionsTable.userId,
+    createdAt: promoRedemptionsTable.createdAt,
+    name: usersTable.name,
+    email: usersTable.email,
+  }).from(promoRedemptionsTable)
+    .leftJoin(usersTable, eq(usersTable.id, promoRedemptionsTable.userId))
+    .where(eq(promoRedemptionsTable.codeId, id))
+    .orderBy(desc(promoRedemptionsTable.createdAt));
+  res.json(rows.map(r => ({
+    id: r.id, userId: r.userId, name: r.name ?? "Deleted user", email: r.email ?? "",
+    createdAt: r.createdAt.toISOString(),
+  })));
+});
+
+/* ── Notifications (admin send) ─────────────────────────────────────── */
+router.post("/notifications", async (req, res) => {
+  const title = String(req.body?.title ?? "").trim().slice(0, 200);
+  const body = String(req.body?.body ?? "").trim().slice(0, 2000);
+  const target = req.body?.target; // "all" | number[] (user ids)
+  if (!title) { res.status(400).json({ error: "Title required" }); return; }
+
+  let userIds: number[];
+  if (target === "all") {
+    const rows = await db.select({ id: usersTable.id }).from(usersTable);
+    userIds = rows.map(r => r.id);
+  } else if (Array.isArray(target)) {
+    userIds = target.map(Number).filter(Number.isFinite);
+  } else {
+    res.status(400).json({ error: "target must be 'all' or an array of user ids" }); return;
+  }
+  if (userIds.length === 0) { res.status(400).json({ error: "No target users" }); return; }
+
+  const CHUNK = 500;
+  for (let i = 0; i < userIds.length; i += CHUNK) {
+    await db.insert(notificationsTable).values(
+      userIds.slice(i, i + CHUNK).map(userId => ({ userId, title, body })),
+    );
+  }
+  res.status(201).json({ ok: true, sent: userIds.length });
+});
+
+router.get("/notifications", async (_req, res) => {
+  const rows = await db.execute(sql`
+    SELECT title, body, count(*)::int AS recipients,
+           count(read_at)::int AS read,
+           max(created_at) AS created_at
+    FROM notifications
+    GROUP BY title, body ORDER BY max(created_at) DESC LIMIT 50`);
+  res.json((rows.rows as any[]).map(r => ({
+    title: r.title, body: r.body, recipients: r.recipients, read: r.read,
+    createdAt: new Date(r.created_at).toISOString(),
+  })));
+});
+
+/* ── Support (admin side) ───────────────────────────────────────────── */
+router.get("/support", async (req, res) => {
+  const status = String(req.query.status ?? "").trim();
+  const where = status ? eq(supportTicketsTable.status, status) : undefined;
+  const rows = await db.select({
+    id: supportTicketsTable.id,
+    subject: supportTicketsTable.subject,
+    status: supportTicketsTable.status,
+    createdAt: supportTicketsTable.createdAt,
+    updatedAt: supportTicketsTable.updatedAt,
+    userId: supportTicketsTable.userId,
+    name: usersTable.name,
+    email: usersTable.email,
+  }).from(supportTicketsTable)
+    .leftJoin(usersTable, eq(usersTable.id, supportTicketsTable.userId))
+    .where(where)
+    .orderBy(desc(supportTicketsTable.updatedAt)).limit(200);
+  res.json(rows.map(t => ({
+    id: t.id, subject: t.subject, status: t.status, userId: t.userId,
+    userName: t.name ?? "Deleted user", userEmail: t.email ?? "",
+    createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString(),
+  })));
+});
+
+router.get("/support/:id", async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [ticket] = await db.select().from(supportTicketsTable).where(eq(supportTicketsTable.id, id));
+  if (!ticket) { res.status(404).json({ error: "Not found" }); return; }
+  const [user] = await db.select({ name: usersTable.name, email: usersTable.email })
+    .from(usersTable).where(eq(usersTable.id, ticket.userId));
+  const messages = await db.select().from(supportMessagesTable)
+    .where(eq(supportMessagesTable.ticketId, id)).orderBy(supportMessagesTable.createdAt);
+  res.json({
+    id: ticket.id, subject: ticket.subject, status: ticket.status,
+    userName: user?.name ?? "Deleted user", userEmail: user?.email ?? "",
+    createdAt: ticket.createdAt.toISOString(), updatedAt: ticket.updatedAt.toISOString(),
+    messages: messages.map(m => ({ id: m.id, sender: m.sender, body: m.body, createdAt: m.createdAt.toISOString() })),
+  });
+});
+
+router.post("/support/:id/reply", async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  const body = String(req.body?.message ?? "").trim().slice(0, 5000);
+  if (isNaN(id) || !body) { res.status(400).json({ error: "Message required" }); return; }
+  const [ticket] = await db.select().from(supportTicketsTable).where(eq(supportTicketsTable.id, id));
+  if (!ticket) { res.status(404).json({ error: "Not found" }); return; }
+  await db.insert(supportMessagesTable).values({ ticketId: id, sender: "admin", body });
+  await db.update(supportTicketsTable).set({ status: "answered", updatedAt: new Date() })
+    .where(eq(supportTicketsTable.id, id));
+  // Notify the user in-app.
+  await db.insert(notificationsTable).values({
+    userId: ticket.userId,
+    title: `Support replied: ${ticket.subject}`.slice(0, 200),
+    body: body.slice(0, 500),
+  });
+  res.status(201).json({ ok: true });
+});
+
+router.patch("/support/:id", async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  const status = String(req.body?.status ?? "");
+  if (isNaN(id) || !["open", "answered", "closed"].includes(status)) {
+    res.status(400).json({ error: "status must be open, answered or closed" }); return;
+  }
+  await db.update(supportTicketsTable).set({ status, updatedAt: new Date() })
+    .where(eq(supportTicketsTable.id, id));
+  res.json({ ok: true });
+});
+
+router.delete("/support/:id", async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  await db.delete(supportTicketsTable).where(eq(supportTicketsTable.id, id));
+  await db.delete(supportMessagesTable).where(eq(supportMessagesTable.ticketId, id));
+  res.status(204).send();
+});
+
+/* ── Settings ───────────────────────────────────────────────────────── */
+router.get("/settings", async (_req, res) => {
+  const out: Record<string, unknown> = {};
+  for (const key of knownSettingKeys()) out[key] = await getSetting(key);
+  res.json(out);
+});
+
+router.put("/settings/:key", async (req, res) => {
+  const key = req.params.key;
+  if (!knownSettingKeys().includes(key)) { res.status(400).json({ error: "Unknown setting" }); return; }
+  await setSetting(key, req.body?.value);
+  res.json({ ok: true, [key]: await getSetting(key) });
+});
+
+/* ── Anti-abuse: multiple accounts from the same signup IP ──────────── */
+router.get("/abuse", async (_req, res) => {
+  const groups = await db.execute(sql`
+    SELECT signup_ip, count(*)::int AS n
+    FROM users WHERE signup_ip IS NOT NULL AND signup_ip <> ''
+    GROUP BY signup_ip HAVING count(*) > 1
+    ORDER BY count(*) DESC LIMIT 100`);
+  const ips = (groups.rows as any[]).map(g => g.signup_ip as string);
+  let members: any[] = [];
+  if (ips.length > 0) {
+    members = await db.select({
+      id: usersTable.id, name: usersTable.name, email: usersTable.email,
+      plan: usersTable.plan, status: usersTable.status,
+      signupIp: usersTable.signupIp, createdAt: usersTable.createdAt,
+    }).from(usersTable).where(and(isNotNull(usersTable.signupIp), inArray(usersTable.signupIp, ips)));
+  }
+  const byIp: Record<string, any[]> = {};
+  for (const m of members) {
+    (byIp[m.signupIp!] ??= []).push({
+      id: m.id, name: m.name, email: m.email, plan: m.plan, status: m.status,
+      createdAt: m.createdAt.toISOString(),
+    });
+  }
+  res.json((groups.rows as any[]).map(g => ({
+    ip: g.signup_ip, count: g.n,
+    users: (byIp[g.signup_ip] ?? []).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
   })));
 });
 

@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  Users, Mic2, Key, Hash, Copy, Activity,
-  RefreshCw, ShoppingCart, Clock, TrendingUp,
+  Users, Mic2, Key, Activity, DollarSign,
+  RefreshCw, ShoppingCart, Clock, TrendingUp, UserPlus,
+  Ban, LifeBuoy, Hash,
 } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
@@ -19,11 +20,21 @@ const PLAN_BG: Record<string, string> = {
   enterprise: "bg-amber-500/10",
 };
 
+type Overview = {
+  totalUsers: number; paidUsers: number; suspendedUsers: number;
+  newUsersToday: number; newUsersWeek: number;
+  totalGenerations: number; totalCharacters: number; generations24h: number;
+  pendingOrders: number; openTickets: number; activeKeys: number;
+  revenueUsd: number; planCounts: Record<string, number>;
+};
+
+type UsersEnvelope = { total: number; users: any[] };
+
 function StatCard({
   label, value, icon: Icon, accent, sub, href,
 }: { label: string; value: string | number; icon: any; accent: string; sub?: string; href?: string }) {
   const inner = (
-    <div className="bg-[#161b22] border border-white/5 rounded-2xl p-5 flex flex-col gap-3 hover:border-white/10 transition-colors">
+    <div className="bg-[#161b22] border border-white/5 rounded-2xl p-5 flex flex-col gap-3 hover:border-white/10 transition-colors h-full">
       <div className="flex items-center justify-between">
         <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">{label}</p>
         <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", accent + "/15")}>
@@ -38,20 +49,15 @@ function StatCard({
 }
 
 export default function AdminDashboard() {
-  const { data: stats, isLoading, refetch, isFetching } = useQuery<any>({
-    queryKey: ["admin-stats"],
-    queryFn: () => fetch("/api/admin/stats").then(r => r.json()),
+  const { data: stats, isLoading, refetch, isFetching } = useQuery<Overview>({
+    queryKey: ["admin-overview"],
+    queryFn: () => fetch("/api/admin/overview").then(r => r.json()),
     refetchInterval: 30_000,
   });
 
-  const { data: recentGen = [] } = useQuery<any[]>({
-    queryKey: ["admin-generations"],
-    queryFn: () => fetch("/api/admin/generations").then(r => r.json()),
-  });
-
-  const { data: users = [] } = useQuery<any[]>({
-    queryKey: ["admin-users"],
-    queryFn: () => fetch("/api/admin/users").then(r => r.json()),
+  const { data: usersEnv } = useQuery<UsersEnvelope>({
+    queryKey: ["admin-users", "", "", "", 1],
+    queryFn: () => fetch("/api/admin/users?page=1&pageSize=25").then(r => r.json()),
   });
 
   const { data: orders = [] } = useQuery<any[]>({
@@ -59,16 +65,24 @@ export default function AdminDashboard() {
     queryFn: () => fetch("/api/admin/orders").then(r => r.json()),
   });
 
+  const recentUsers = usersEnv?.users ?? [];
   const planCounts: Record<string, number> = stats?.planCounts ?? {};
   const planKeys = ["free", "starter", "pro", "enterprise"];
+  const planTotal = planKeys.reduce((acc, p) => acc + (planCounts[p] ?? 0), 0);
+
+  const fmt = (n: number | undefined) => (n ?? 0).toLocaleString();
 
   const statCards = [
-    { label: "Total Users", value: stats?.totalUsers ?? 0, icon: Users, accent: "text-primary", href: "/admin/users" },
-    { label: "Total Generations", value: stats?.totalGenerations ?? 0, icon: Mic2, accent: "text-blue-400", href: "/admin/generations" },
-    { label: "Active API Keys", value: `${stats?.activeKeys ?? 0} / ${stats?.totalKeys ?? 0}`, icon: Key, accent: "text-green-400", href: "/admin/keys" },
-    { label: "Characters Used", value: (stats?.totalCharacters ?? 0).toLocaleString(), icon: Hash, accent: "text-violet-400" },
-    { label: "Pending Orders", value: stats?.pendingOrders ?? 0, icon: Clock, accent: "text-amber-400", href: "/admin/orders" },
-    { label: "System Status", value: "Online", icon: Activity, accent: "text-green-400", sub: "All services running" },
+    { label: "Total Users", value: fmt(stats?.totalUsers), icon: Users, accent: "text-primary", href: "/admin/users" },
+    { label: "Paid Users", value: fmt(stats?.paidUsers), icon: TrendingUp, accent: "text-violet-400", href: "/admin/users" },
+    { label: "Revenue (est.)", value: `$${fmt(stats?.revenueUsd)}`, icon: DollarSign, accent: "text-emerald-400" },
+    { label: "New Users", value: fmt(stats?.newUsersToday), icon: UserPlus, accent: "text-blue-400", sub: `${fmt(stats?.newUsersWeek)} this week` },
+    { label: "Generations (24h)", value: fmt(stats?.generations24h), icon: Mic2, accent: "text-blue-400", sub: `${fmt(stats?.totalGenerations)} total` },
+    { label: "Characters Used", value: fmt(stats?.totalCharacters), icon: Hash, accent: "text-violet-400" },
+    { label: "Pending Orders", value: fmt(stats?.pendingOrders), icon: Clock, accent: "text-amber-400", href: "/admin/orders" },
+    { label: "Open Tickets", value: fmt(stats?.openTickets), icon: LifeBuoy, accent: "text-pink-400", href: "/admin/support" },
+    { label: "Active API Keys", value: fmt(stats?.activeKeys), icon: Key, accent: "text-green-400", href: "/admin/keys" },
+    { label: "Suspended Users", value: fmt(stats?.suspendedUsers), icon: Ban, accent: "text-red-400", href: "/admin/users" },
   ];
 
   return (
@@ -89,7 +103,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {statCards.map(c => (
           <StatCard key={c.label} label={c.label} value={isLoading ? "…" : c.value}
             icon={c.icon} accent={c.accent} sub={(c as any).sub} href={(c as any).href} />
@@ -101,12 +115,12 @@ export default function AdminDashboard() {
         <div className="flex items-center gap-2 mb-4">
           <TrendingUp size={14} className="text-primary" />
           <p className="text-[13px] font-bold text-white">Plan Distribution</p>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/15 text-primary ml-auto">{users.length} total</span>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/15 text-primary ml-auto">{planTotal} total</span>
         </div>
         <div className="grid grid-cols-4 gap-3">
           {planKeys.map(plan => {
             const cnt = planCounts[plan] ?? 0;
-            const pct = users.length > 0 ? Math.round((cnt / users.length) * 100) : 0;
+            const pct = planTotal > 0 ? Math.round((cnt / planTotal) * 100) : 0;
             return (
               <div key={plan} className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -136,11 +150,11 @@ export default function AdminDashboard() {
               <p className="text-[13px] font-bold text-white">Recent Users</p>
             </div>
             <Link href="/admin/users">
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/15 text-primary hover:bg-primary/25 cursor-pointer">{users.length}</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/15 text-primary hover:bg-primary/25 cursor-pointer">{stats?.totalUsers ?? 0}</span>
             </Link>
           </div>
           <div className="divide-y divide-white/5">
-            {users.slice(0, 6).map((u: any) => (
+            {recentUsers.slice(0, 6).map((u: any) => (
               <div key={u.id} className="flex items-center gap-3 px-5 py-3">
                 <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-primary font-black text-[11px] shrink-0">
                   {u.name?.slice(0, 1).toUpperCase()}
@@ -154,7 +168,7 @@ export default function AdminDashboard() {
                 </span>
               </div>
             ))}
-            {users.length === 0 && (
+            {recentUsers.length === 0 && (
               <div className="px-5 py-8 text-center text-[12px] text-white/20">No users yet</div>
             )}
           </div>

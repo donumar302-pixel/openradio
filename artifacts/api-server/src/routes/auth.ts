@@ -26,7 +26,7 @@ router.post("/register", async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const [user] = await db.insert(usersTable).values({ name, email: email.toLowerCase(), passwordHash, credits: planCredits("free") }).returning();
+  const [user] = await db.insert(usersTable).values({ name, email: email.toLowerCase(), passwordHash, credits: planCredits("free"), signupIp: req.ip ?? null }).returning();
 
   await loginSession(req, user.id);
 
@@ -161,7 +161,7 @@ router.get("/google/callback", async (req, res) => {
       const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
       [user] = await db
         .insert(usersTable)
-        .values({ name: info.name || email.split("@")[0], email, passwordHash, credits: planCredits("free") })
+        .values({ name: info.name || email.split("@")[0], email, passwordHash, credits: planCredits("free"), signupIp: req.ip ?? null })
         .returning();
     }
 

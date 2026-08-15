@@ -1,11 +1,13 @@
 import { BrandWordmark } from "@/components/brand-wordmark";
+import { AnnouncementBanner } from "@/components/announcement-banner";
+import { NotificationsBell } from "@/components/notifications-bell";
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import {
   Home, Mic2, LogOut, Menu, X, AudioWaveform, MessageSquareText,
   Languages, Radio, Settings, BookAudio, Copy, Zap, CreditCard,
-  ChevronRight, User, Moon, Lock, Layers,
+  ChevronRight, User, Moon, Lock, Layers, LifeBuoy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +37,7 @@ const minimaxItems: NavItem[] = [
   { label: "Voice Cloning", href: "/voice-cloning", icon: <Copy size={18} />,   premium: true },
 ];
 const platformItems: NavItem[] = [
+  { label: "Support",  href: "/support",  icon: <LifeBuoy size={18} /> },
   { label: "Settings", href: "/settings", icon: <Settings size={18} /> },
 ];
 
@@ -285,6 +288,9 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
+        {/* Announcement banner */}
+        <AnnouncementBanner />
+
         {/* Universal top header — always visible, separated by border */}
         <header className="flex items-center justify-between px-5 h-13 border-b border-[#f3f4f6] bg-white shrink-0 z-30">
           {/* Mobile: hamburger + logo */}
@@ -297,8 +303,11 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
           {/* Desktop: empty left side */}
           <div className="hidden lg:block" />
 
-          {/* Right: plan badge + avatar — always in the header */}
-          <TopRightUserBtn user={user} onClick={() => setPanelOpen(v => !v)} />
+          {/* Right: bell + plan badge + avatar — always in the header */}
+          <div className="flex items-center gap-1">
+            <NotificationsBell />
+            <TopRightUserBtn user={user} onClick={() => setPanelOpen(v => !v)} />
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto">{children}</main>

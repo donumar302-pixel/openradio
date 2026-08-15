@@ -1,9 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Search, RefreshCw, Trash2, Edit2, Check, X, CalendarPlus,
-  Ban, ShieldCheck, Coins, Plus, Minus, Sparkles,
+  Ban, ShieldCheck, Coins, Plus, Minus, Sparkles, KeyRound,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 const PLANS = [
@@ -45,14 +46,26 @@ const avatarColors = ["text-primary", "text-blue-400", "text-violet-400", "text-
 type AdminUser = {
   id: number; name: string; email: string; plan: string;
   credits: number; creditsUsed: number; planExpiresAt: string | null;
-  status: string; isAdmin: boolean; createdAt: string;
+  status: string; isAdmin: boolean; createdAt: string; signupIp: string | null;
   generationCount: number; charactersUsed: number;
 };
 
+type UsersEnvelope = {
+  total: number; page: number; pageSize: number; users: AdminUser[];
+};
+
+const PAGE_SIZE = 25;
+
 export default function AdminUsers() {
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [planFilter, setPlanFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [managingId, setManagingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkConfirm, setBulkConfirm] = useState<"suspend" | "unsuspend" | "delete" | null>(null);
 
   // manage-panel form state
   const [editName, setEditName] = useState("");
@@ -61,10 +74,27 @@ export default function AdminUsers() {
 
   const qc = useQueryClient();
 
-  const { data: users = [], isLoading, refetch, isFetching } = useQuery<AdminUser[]>({
-    queryKey: ["admin-users"],
-    queryFn: () => fetch("/api/admin/users").then(r => r.json()),
+  // Debounce search
+  useEffect(() => {
+    const t = setTimeout(() => { setSearch(searchInput); setPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  const params = new URLSearchParams();
+  if (search) params.set("search", search);
+  if (planFilter) params.set("plan", planFilter);
+  if (statusFilter) params.set("status", statusFilter);
+  params.set("page", String(page));
+  params.set("pageSize", String(PAGE_SIZE));
+
+  const { data, isLoading, refetch, isFetching } = useQuery<UsersEnvelope>({
+    queryKey: ["admin-users", search, planFilter, statusFilter, page],
+    queryFn: () => fetch(`/api/admin/users?${params.toString()}`).then(r => r.json()),
   });
+
+  const users = data?.users ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const patchMutation = useMutation({
     mutationFn: ({ id, ...body }: { id: number } & Record<string, any>) =>
@@ -76,15 +106,29 @@ export default function AdminUsers() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-users"] }); },
   });
 
+  const resetPwMutation = useMutation({
+    mutationFn: ({ id, password }: { id: number; password: string }) =>
+      fetch(`/api/admin/users/${id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      }).then(async r => { if (!r.ok) throw new Error((await r.json()).error || "Failed"); return r.json(); }),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) => fetch(`/api/admin/users/${id}`, { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-users"] }); setDeletingId(null); },
   });
 
-  const filtered = users.filter((u) =>
-    u.name?.toLowerCase().includes(search.toLowerCase()) ||
-    u.email?.toLowerCase().includes(search.toLowerCase())
-  );
+  const bulkMutation = useMutation({
+    mutationFn: ({ ids, action }: { ids: number[]; action: "suspend" | "unsuspend" | "delete" }) =>
+      fetch(`/api/admin/users/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, action }),
+      }).then(async r => { if (!r.ok) throw new Error((await r.json()).error || "Failed"); return r.json(); }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-users"] }); setSelected(new Set()); setBulkConfirm(null); },
+  });
 
   const startManage = (u: AdminUser) => {
     setManagingId(u.id);
@@ -94,10 +138,30 @@ export default function AdminUsers() {
     setDeletingId(null);
   };
 
-  const planCounts = PLANS.map(p => ({
-    ...p,
-    count: users.filter((u) => (u.plan ?? "free") === p.value).length,
-  }));
+  const toggleSelect = (id: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const allOnPageSelected = users.length > 0 && users.every(u => selected.has(u.id));
+  const toggleSelectAll = () => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allOnPageSelected) users.forEach(u => next.delete(u.id));
+      else users.forEach(u => next.add(u.id));
+      return next;
+    });
+  };
+
+  const handleResetPassword = (u: AdminUser) => {
+    const pw = window.prompt(`New password for ${u.name} (min 6 chars):`);
+    if (pw == null) return;
+    if (pw.length < 6) { window.alert("Password must be at least 6 characters."); return; }
+    resetPwMutation.mutate({ id: u.id, password: pw });
+  };
 
   return (
     <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-5">
@@ -105,7 +169,7 @@ export default function AdminUsers() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[22px] font-black text-white">Users</h1>
-          <p className="text-[13px] text-white/40 mt-0.5">{users.length} registered accounts</p>
+          <p className="text-[13px] text-white/40 mt-0.5">{total} registered accounts</p>
         </div>
         <button
           onClick={() => refetch()}
@@ -116,33 +180,80 @@ export default function AdminUsers() {
         </button>
       </div>
 
-      {/* Plan summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {planCounts.map(p => (
-          <div key={p.value} className="bg-[#161b22] border border-white/5 rounded-xl p-4">
-            <p className={cn("text-[10px] font-black uppercase tracking-widest mb-1", p.color)}>{p.label}</p>
-            <p className="text-2xl font-black text-white">{p.count}</p>
-            <p className="text-[10px] text-white/20 mt-0.5">{fmtCredits(p.credits)} credits</p>
-          </div>
-        ))}
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <div className="relative w-full sm:w-auto">
+          <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/20" />
+          <input
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            placeholder="Search by name or email..."
+            className="w-full sm:w-64 pl-9 pr-4 py-2.5 bg-[#161b22] border border-white/5 rounded-xl text-[13px] text-white placeholder:text-white/20 focus:outline-none focus:border-primary/50"
+          />
+        </div>
+        <select value={planFilter} onChange={e => { setPlanFilter(e.target.value); setPage(1); }}
+          className="px-3 py-2.5 bg-[#161b22] border border-white/5 rounded-xl text-[13px] text-white focus:outline-none focus:border-primary/50">
+          <option value="">All plans</option>
+          {PLANS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+        </select>
+        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+          className="px-3 py-2.5 bg-[#161b22] border border-white/5 rounded-xl text-[13px] text-white focus:outline-none focus:border-primary/50">
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="blocked">Blocked</option>
+        </select>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/20" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by name or email..."
-          className="w-full max-w-sm pl-9 pr-4 py-2.5 bg-[#161b22] border border-white/5 rounded-xl text-[13px] text-white placeholder:text-white/20 focus:outline-none focus:border-primary/50"
-        />
-      </div>
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 bg-[#161b22] border border-primary/20 rounded-xl px-4 py-3">
+          <span className="text-[12px] font-bold text-white">{selected.size} selected</span>
+          <div className="flex items-center gap-2 ml-auto">
+            {bulkConfirm ? (
+              <>
+                <span className="text-[12px] font-bold text-amber-400">
+                  Confirm {bulkConfirm} for {selected.size} user(s)?
+                </span>
+                <button
+                  onClick={() => bulkMutation.mutate({ ids: Array.from(selected), action: bulkConfirm })}
+                  disabled={bulkMutation.isPending}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 text-[11px] font-bold hover:bg-red-500/30">
+                  <Check size={11} /> {bulkMutation.isPending ? "..." : "Confirm"}
+                </button>
+                <button onClick={() => setBulkConfirm(null)}
+                  className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/5"><X size={13} /></button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => setBulkConfirm("suspend")}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 text-[11px] font-bold hover:bg-amber-500/20">
+                  <Ban size={11} /> Suspend
+                </button>
+                <button onClick={() => setBulkConfirm("unsuspend")}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-[11px] font-bold hover:bg-emerald-500/20">
+                  <ShieldCheck size={11} /> Unsuspend
+                </button>
+                <button onClick={() => setBulkConfirm("delete")}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-[11px] font-bold hover:bg-red-500/20">
+                  <Trash2 size={11} /> Delete
+                </button>
+                <button onClick={() => setSelected(new Set())}
+                  className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/5"><X size={13} /></button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-[#161b22] border border-white/5 rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
-        <div className="min-w-[860px]">
-        <div className="grid grid-cols-[1.4fr_90px_110px_120px_90px_220px] px-5 py-3 border-b border-white/5 text-[10px] font-bold uppercase tracking-widest text-white/20">
+        <div className="min-w-[920px]">
+        <div className="grid grid-cols-[36px_1.4fr_90px_110px_120px_90px_240px] px-5 py-3 border-b border-white/5 text-[10px] font-bold uppercase tracking-widest text-white/20">
+          <span className="flex items-center">
+            <input type="checkbox" checked={allOnPageSelected} onChange={toggleSelectAll}
+              className="w-3.5 h-3.5 rounded accent-primary cursor-pointer" />
+          </span>
           <span>User</span>
           <span>Plan</span>
           <span>Credits</span>
@@ -153,22 +264,29 @@ export default function AdminUsers() {
 
         {isLoading ? (
           <div className="py-12 text-center text-white/20 text-[13px]">Loading...</div>
-        ) : filtered.length === 0 ? (
+        ) : users.length === 0 ? (
           <div className="py-12 text-center text-white/20 text-[13px]">
-            {search ? "No users match search" : "No users yet"}
+            {search || planFilter || statusFilter ? "No users match filter" : "No users yet"}
           </div>
         ) : (
-          filtered.map((u) => {
+          users.map((u) => {
             const color = avatarColors[u.id % avatarColors.length];
             const isManaging = managingId === u.id;
             const isDeleting = deletingId === u.id;
             const exp = expiryInfo(u.planExpiresAt);
             const blocked = u.status === "blocked";
+            const isSelected = selected.has(u.id);
 
             return (
-              <div key={u.id} className={cn("border-b border-white/5 transition-colors", isManaging ? "bg-white/[0.04]" : "hover:bg-white/[0.02]")}>
+              <div key={u.id} className={cn("border-b border-white/5 transition-colors", isManaging ? "bg-white/[0.04]" : isSelected ? "bg-primary/[0.04]" : "hover:bg-white/[0.02]")}>
                 {/* Row */}
-                <div className="grid grid-cols-[1.4fr_90px_110px_120px_90px_220px] px-5 py-3.5 items-center">
+                <div className="grid grid-cols-[36px_1.4fr_90px_110px_120px_90px_240px] px-5 py-3.5 items-center">
+                  {/* Checkbox */}
+                  <div className="flex items-center">
+                    <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(u.id)}
+                      className="w-3.5 h-3.5 rounded accent-primary cursor-pointer" />
+                  </div>
+
                   {/* User */}
                   <div className="flex items-center gap-2.5 min-w-0 pr-3">
                     <div className={cn("w-8 h-8 rounded-full bg-white/5 flex items-center justify-center font-black text-[11px] shrink-0", color)}>
@@ -180,6 +298,7 @@ export default function AdminUsers() {
                         {blocked && <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">Blocked</span>}
                       </div>
                       <span className="text-[11px] text-white/40 truncate block">{u.email}</span>
+                      {u.signupIp && <span className="text-[9px] text-white/20 truncate block font-mono">IP {u.signupIp}</span>}
                     </div>
                   </div>
 
@@ -219,12 +338,12 @@ export default function AdminUsers() {
                           className={cn("p-2 rounded-lg transition-colors", isManaging ? "bg-primary/20 text-primary" : "text-white/40 hover:text-primary hover:bg-primary/10")}>
                           <Edit2 size={14} />
                         </button>
-                        <button onClick={() => patchMutation.mutate({ id: u.id, extendDays: 30 })} disabled={patchMutation.isPending} title="Extend +30 days"
-                          className="flex items-center gap-1 px-2 py-2 rounded-lg text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 text-[11px] font-bold transition-colors">
-                          <CalendarPlus size={13} /> 30d
+                        <button onClick={() => handleResetPassword(u)} disabled={resetPwMutation.isPending} title="Reset password"
+                          className="p-2 rounded-lg text-white/40 hover:text-blue-400 hover:bg-blue-500/10 transition-colors">
+                          <KeyRound size={14} />
                         </button>
                         <button onClick={() => patchMutation.mutate({ id: u.id, status: blocked ? "active" : "blocked" })} disabled={patchMutation.isPending}
-                          title={blocked ? "Unblock" : "Block"}
+                          title={blocked ? "Unsuspend" : "Suspend"}
                           className={cn("p-2 rounded-lg transition-colors", blocked ? "text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20" : "text-amber-400 hover:bg-amber-500/10")}>
                           {blocked ? <ShieldCheck size={14} /> : <Ban size={14} />}
                         </button>
@@ -301,12 +420,22 @@ export default function AdminUsers() {
                         </div>
                         <button onClick={() => patchMutation.mutate({ id: u.id, status: blocked ? "active" : "blocked" })} disabled={patchMutation.isPending}
                           className={cn("flex items-center gap-1 text-[11px] font-bold mt-1", blocked ? "text-emerald-400 hover:underline" : "text-amber-400 hover:underline")}>
-                          {blocked ? <><ShieldCheck size={12} /> Unblock account</> : <><Ban size={12} /> Block account</>}
+                          {blocked ? <><ShieldCheck size={12} /> Unsuspend account</> : <><Ban size={12} /> Suspend account</>}
+                        </button>
+                        <button onClick={() => handleResetPassword(u)} disabled={resetPwMutation.isPending}
+                          className="flex items-center gap-1 text-[11px] font-bold text-blue-400 hover:underline mt-1">
+                          <KeyRound size={12} /> Reset password
                         </button>
                       </div>
                     </div>
                     {patchMutation.isError && (
                       <p className="text-[11px] text-red-400 mt-2">{(patchMutation.error as Error)?.message}</p>
+                    )}
+                    {resetPwMutation.isSuccess && (
+                      <p className="text-[11px] text-emerald-400 mt-2">Password reset successfully.</p>
+                    )}
+                    {resetPwMutation.isError && (
+                      <p className="text-[11px] text-red-400 mt-2">{(resetPwMutation.error as Error)?.message}</p>
                     )}
                   </div>
                 )}
@@ -315,6 +444,23 @@ export default function AdminUsers() {
           })
         )}
         </div>
+        </div>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between">
+        <p className="text-[12px] text-white/40">
+          Page {page} of {totalPages} · {total} users
+        </p>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/5 text-white/60 text-[12px] font-bold hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            <ChevronLeft size={13} /> Prev
+          </button>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/5 text-white/60 text-[12px] font-bold hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            Next <ChevronRight size={13} />
+          </button>
         </div>
       </div>
     </div>

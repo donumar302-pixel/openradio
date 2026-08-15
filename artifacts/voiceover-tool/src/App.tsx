@@ -14,6 +14,12 @@ import AdminGenerations from "@/pages/admin/generations";
 import AdminClones from "@/pages/admin/clones";
 import AdminAnalytics from "@/pages/admin/analytics";
 import AdminOrders from "@/pages/admin/orders";
+import AdminPromos from "@/pages/admin/promos";
+import AdminNotifications from "@/pages/admin/notifications";
+import AdminSupport from "@/pages/admin/support";
+import AdminSettings from "@/pages/admin/settings";
+import AdminAbuse from "@/pages/admin/abuse";
+import SupportPage from "@/pages/support";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import LandingPage from "@/pages/landing";
@@ -51,6 +57,11 @@ function AdminRoutes() {
         <Route path="/admin/generations" component={AdminGenerations} />
         <Route path="/admin/clones" component={AdminClones} />
         <Route path="/admin/analytics" component={AdminAnalytics} />
+        <Route path="/admin/promos" component={AdminPromos} />
+        <Route path="/admin/notifications" component={AdminNotifications} />
+        <Route path="/admin/support" component={AdminSupport} />
+        <Route path="/admin/settings" component={AdminSettings} />
+        <Route path="/admin/abuse" component={AdminAbuse} />
         <Route><Redirect to="/admin" /></Route>
       </Switch>
     </AdminLayout>
@@ -114,6 +125,7 @@ function AppRoutes() {
         <Route path="/audio-isolation" component={AudioIsolationPage} />
         <Route path="/dubbing" component={DubbingPage} />
         <Route path="/settings" component={SettingsPage} />
+        <Route path="/support" component={SupportPage} />
         <Route path="/batch" component={BatchTtsPage} />
         <Route path="/minimax"><Redirect to="/studio" /></Route>
         <Route path="/voice-cloning" component={VoiceCloningPage} />
