@@ -9,3 +9,4 @@
 - [Reseller system](reseller-system.md) — reseller flags live on users table; conditional pool-decrement transactions; block admin-allowlist emails at every account-creation endpoint.
 - [Edge TTS package](edge-tts.md) — use `msedge-tts`; old `edge-tts` gets Microsoft 403 (Sec-MS-GEC token), and `@andresaya/edge-tts` is blocked by the package firewall.
 - [Landing voice samples & MiniMax balance](landing-voice-samples.md) — demo mp3s via Replit-managed TTS into public/voices/; MiniMax has insufficient balance; stagger/sticky-nav gotchas.
+- [OpenSpeaker tool suite](openspeaker-suite.md) — /v1s and /v1i path prefixes are correct; dictionary id under `dictionary.id`; two-phase refund + ownership/upload guardrails on /api/os.

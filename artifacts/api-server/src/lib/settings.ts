@@ -18,6 +18,18 @@ const DEFAULTS: Record<string, unknown> = {
     fishaudio: true,
     edge: true,
     "voice-cloning": true,
+    // OpenSpeaker tool suite — one independent kill-switch per tool.
+    "os-tts": true,
+    "os-dialogue": true,
+    "os-dictionary": true,
+    "os-voice-clone": true,
+    "os-dubbing": true,
+    "os-voice-changer": true,
+    "os-voice-isolation": true,
+    "os-speech-to-text": true,
+    "os-sound-effects": true,
+    "os-music": true,
+    "os-image": true,
   } satisfies FeatureSwitches,
 };
 

@@ -4,8 +4,9 @@ import { db } from "@workspace/db";
 import {
   apiKeysTable, generationsTable, usersTable, voiceClonesTable, ordersTable,
   promoCodesTable, promoRedemptionsTable, notificationsTable,
-  supportTicketsTable, supportMessagesTable,
+  supportTicketsTable, supportMessagesTable, osTasksTable,
 } from "@workspace/db";
+import { getProviderCredits } from "../lib/openspeaker";
 import { eq, count, sum, desc, and, sql, or, ilike, inArray, isNotNull, ne } from "drizzle-orm";
 import { getSetting, setSetting, knownSettingKeys } from "../lib/settings";
 import { isUserAdmin } from "../middleware/require-active-user";
@@ -751,6 +752,41 @@ router.put("/settings/:key", async (req, res) => {
   if (!knownSettingKeys().includes(key)) { res.status(400).json({ error: "Unknown setting" }); return; }
   await setSetting(key, req.body?.value);
   res.json({ ok: true, [key]: await getSetting(key) });
+});
+
+/* ── OpenSpeaker: task inspection + provider balance ─────────────────── */
+router.get("/os/tasks", async (req, res) => {
+  const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50")) || 50));
+  const offset = Math.max(0, parseInt(String(req.query.offset ?? "0")) || 0);
+  const tool = typeof req.query.tool === "string" && req.query.tool ? req.query.tool : null;
+  const where = tool ? eq(osTasksTable.tool, tool) : undefined;
+  const [items, [{ total }]] = await Promise.all([
+    db.select({
+      id: osTasksTable.id,
+      tool: osTasksTable.tool,
+      status: osTasksTable.status,
+      title: osTasksTable.title,
+      creditsCharged: osTasksTable.creditsCharged,
+      refunded: osTasksTable.refunded,
+      error: osTasksTable.error,
+      createdAt: osTasksTable.createdAt,
+      userId: osTasksTable.userId,
+      userEmail: usersTable.email,
+      userName: usersTable.name,
+    }).from(osTasksTable)
+      .leftJoin(usersTable, eq(osTasksTable.userId, usersTable.id))
+      .where(where)
+      .orderBy(desc(osTasksTable.createdAt)).limit(limit).offset(offset),
+    db.select({ total: count() }).from(osTasksTable).where(where),
+  ]);
+  res.json({
+    items: items.map((t) => ({ ...t, createdAt: t.createdAt.toISOString() })),
+    total,
+  });
+});
+
+router.get("/os/credits", async (_req, res) => {
+  res.json({ credits: await getProviderCredits() });
 });
 
 /* ── Anti-abuse: multiple accounts from the same signup IP ──────────── */

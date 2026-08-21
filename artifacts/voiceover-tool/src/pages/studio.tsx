@@ -10,9 +10,12 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Play, Download, PlayCircle, StopCircle, Mic2, History, Settings2, ChevronRight, RotateCcw, Smile, PauseCircle, Tag, Upload, Zap, ChevronsUpDown, Check, SlidersHorizontal, ChevronUp } from "lucide-react";
+import { Loader2, Play, Download, PlayCircle, StopCircle, Mic2, History, Settings2, ChevronRight, RotateCcw, Smile, PauseCircle, Tag, Upload, Zap, ChevronsUpDown, Check, SlidersHorizontal, ChevronUp, BookAudio } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { OsVoicePicker } from "@/components/os/voice-picker";
+import { useOsTask } from "@/hooks/use-os-task";
+import { osCreateTaskJson, osJson, taskAudioUrl } from "@/lib/os-api";
 
 interface MiniMaxVoice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; }
 interface FishVoice { id: string; name: string; lang?: string; style?: string; }
@@ -141,7 +144,9 @@ export default function StudioPage() {
 
   const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState("");
-  const [voiceProvider, setVoiceProvider] = useState<"el" | "minimax" | "fishaudio" | "edge">("el");
+  const [voiceProvider, setVoiceProvider] = useState<"el" | "minimax" | "fishaudio" | "edge" | "os">("el");
+  const [osVoiceName, setOsVoiceName] = useState("");
+  const [dictionaryId, setDictionaryId] = useState("");
   const [modelId, setModelId] = useState("eleven_v3");
   const [mmModel, setMmModel] = useState("speech-02-hd");
   const [faModel, setFaModel] = useState("s2.1-pro-free");
@@ -241,6 +246,19 @@ export default function StudioPage() {
   );
 
   const generateSpeech = useGenerateSpeech();
+  const { task: osTask, submitting: osSubmitting, run: osRun, working: osWorking } = useOsTask("tts");
+  const { data: dictData } = useQuery<{ dictionaries: { id: string; name: string }[] }>({
+    queryKey: ["os-dictionaries"],
+    queryFn: () => osJson("/dictionaries"),
+    enabled: voiceProvider === "os",
+    staleTime: 60_000,
+  });
+  useEffect(() => {
+    if (osTask?.status === "done") {
+      const url = taskAudioUrl(osTask);
+      if (url) { setLatestAudio(url); toast({ title: "Generated!", description: "Your audio is ready." }); }
+    }
+  }, [osTask?.status]); // eslint-disable-line react-hooks/exhaustive-deps
   const [mmGenerating, setMmGenerating]     = useState(false);
   const [faGenerating, setFaGenerating]     = useState(false);
   const [edgeGenerating, setEdgeGenerating] = useState(false);
@@ -248,6 +266,12 @@ export default function StudioPage() {
   const handleGenerate = async () => {
     if (!text.trim()) { toast({ title: "Text required", description: "Please enter some text.", variant: "destructive" }); return; }
     if (!voiceId) { toast({ title: "Voice required", description: "Please select a voice.", variant: "destructive" }); return; }
+
+    if (voiceProvider === "os") {
+      setLatestAudio(null);
+      osRun(() => osCreateTaskJson("/tts", { text, voiceId, speed, dictionaryId: dictionaryId || undefined }));
+      return;
+    }
 
     if (voiceProvider === "minimax") {
       setMmGenerating(true); setLatestAudio(null);
@@ -309,7 +333,7 @@ export default function StudioPage() {
     );
   };
 
-  const isGenerating = generateSpeech.isPending || mmGenerating || faGenerating || edgeGenerating;
+  const isGenerating = generateSpeech.isPending || mmGenerating || faGenerating || edgeGenerating || (voiceProvider === "os" && osWorking);
   const expressionEnabled = voiceProvider === "minimax";
 
   const voicesByCategory = voices?.reduce((acc, voice) => {
@@ -393,6 +417,17 @@ export default function StudioPage() {
                   {p.label}
                 </button>
               ))}
+              <button
+                onClick={() => { setVoiceProvider("os"); setVoiceId(""); setOsVoiceName(""); }}
+                className={cn(
+                  "col-span-2 px-2 py-2 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-1.5",
+                  voiceProvider === "os" ? "text-blue-600 bg-blue-50 border-blue-300" : "border-[#e5e7eb] text-[#6b7280] hover:border-primary/40 hover:text-foreground"
+                )}
+              >
+                <BookAudio size={14} className="shrink-0" />
+                Voice Library
+                <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600">6000+</span>
+              </button>
             </div>
           </div>
           {/* Voice */}
@@ -446,6 +481,29 @@ export default function StudioPage() {
                 {voiceProvider === "el" && <VoicePreviewBtn url={selectedElVoice?.previewUrl} />}
               </div>
             )}
+            {voiceProvider === "os" && (
+              <div className="space-y-3">
+                <OsVoicePicker
+                  value={voiceId}
+                  valueName={osVoiceName}
+                  onChange={(v, n) => { setVoiceId(v); setOsVoiceName(n); }}
+                  placeholder="Browse the voice library"
+                />
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-[#9ca3af] mb-1 block">Pronunciation Dictionary</label>
+                  <select
+                    value={dictionaryId}
+                    onChange={e => setDictionaryId(e.target.value)}
+                    className="w-full h-9 px-3 border border-[#e5e7eb] rounded-lg text-sm bg-white text-foreground focus:outline-none focus:border-blue-400 cursor-pointer"
+                  >
+                    <option value="">None</option>
+                    {(dictData?.dictionaries ?? []).map(d => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
             {voiceProvider === "fishaudio" && (
               <div className="mb-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-[#9ca3af] mb-1 block">Language Filter</label>
@@ -460,6 +518,7 @@ export default function StudioPage() {
                 </select>
               </div>
             )}
+            {voiceProvider !== "os" && (
             <Popover open={voiceOpen} onOpenChange={setVoiceOpen}>
               <PopoverTrigger asChild>
                 <button data-testid="select-voice" className={cn(
@@ -548,6 +607,7 @@ export default function StudioPage() {
                 </Command>
               </PopoverContent>
             </Popover>
+            )}
           </div>
 
           {/* Voice Modifier */}
@@ -655,10 +715,13 @@ export default function StudioPage() {
               <span className={cn("flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border",
                 voiceProvider === "minimax" ? "text-violet-600 bg-violet-50 border-violet-200"
                 : voiceProvider === "fishaudio" ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                : voiceProvider === "os" ? "text-blue-600 bg-blue-50 border-blue-200"
                 : "text-sky-600 bg-sky-50 border-sky-200"
               )}>
-                <img src={PROVIDER_LOGOS[voiceProvider]} alt="" className="w-3.5 h-3.5 rounded-sm object-contain" />
-                {voiceProvider === "minimax" ? "Fire HD" : voiceProvider === "fishaudio" ? "Fish Pro" : "Edge TTS"}
+                {voiceProvider === "os"
+                  ? <BookAudio size={13} className="shrink-0" />
+                  : <img src={PROVIDER_LOGOS[voiceProvider]} alt="" className="w-3.5 h-3.5 rounded-sm object-contain" />}
+                {voiceProvider === "minimax" ? "Fire HD" : voiceProvider === "fishaudio" ? "Fish Pro" : voiceProvider === "os" ? "Voice Library" : "Edge TTS"}
               </span>
             </div>
           )}

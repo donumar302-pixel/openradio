@@ -8,6 +8,7 @@ import {
   Home, Mic2, LogOut, Menu, X, AudioWaveform, MessageSquareText,
   Languages, Radio, Settings, BookAudio, Copy, Zap, CreditCard,
   ChevronRight, User, Moon, Lock, Layers, LifeBuoy,
+  MessagesSquare, BookOpenText, Drum, Music4, ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,14 +28,19 @@ const generalItems: NavItem[] = [
 ];
 const elItems: NavItem[] = [
   { label: "Text to Speech",   href: "/studio",           icon: <Mic2 size={18} /> },
-  { label: "Speech to Speech", href: "/speech-to-speech", icon: <AudioWaveform size={18} />, premium: true },
+  { label: "Text to Dialogue", href: "/dialogue",         icon: <MessagesSquare size={18} />, premium: true, badge: "New", badgeColor: "bg-blue-100 text-blue-600" },
+  { label: "Voice Changer",    href: "/speech-to-speech", icon: <AudioWaveform size={18} />, premium: true },
   { label: "Speech to Text",   href: "/speech-to-text",   icon: <MessageSquareText size={18} />, premium: true },
   { label: "Audio Isolation",  href: "/audio-isolation",  icon: <Radio size={18} />, premium: true },
   { label: "Dubbing",          href: "/dubbing",          icon: <Languages size={18} />, premium: true },
 ];
 const minimaxItems: NavItem[] = [
-  { label: "Bulk TTS",      href: "/batch",         icon: <Layers size={18} />, badge: "New",  badgeColor: "bg-blue-100 text-blue-600" },
-  { label: "Voice Cloning", href: "/voice-cloning", icon: <Copy size={18} />,   premium: true },
+  { label: "Bulk TTS",       href: "/batch",         icon: <Layers size={18} />, badge: "New",  badgeColor: "bg-blue-100 text-blue-600" },
+  { label: "Voice Cloning",  href: "/voice-cloning", icon: <Copy size={18} />,   premium: true },
+  { label: "Sound Effects",  href: "/sound-effects", icon: <Drum size={18} />,   premium: true, badge: "New", badgeColor: "bg-blue-100 text-blue-600" },
+  { label: "AI Music",       href: "/music",         icon: <Music4 size={18} />, premium: true, badge: "New", badgeColor: "bg-blue-100 text-blue-600" },
+  { label: "AI Images",      href: "/images",        icon: <ImageIcon size={18} />, premium: true, badge: "New", badgeColor: "bg-blue-100 text-blue-600" },
+  { label: "Dictionary",     href: "/dictionary",    icon: <BookOpenText size={18} /> },
 ];
 const platformItems: NavItem[] = [
   { label: "Support",  href: "/support",  icon: <LifeBuoy size={18} /> },

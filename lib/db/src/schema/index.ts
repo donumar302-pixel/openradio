@@ -51,8 +51,43 @@ export const voiceClonesTable = pgTable("voice_clones", {
   name: text("name").notNull(),
   voiceId: text("voice_id").notNull(),
   description: text("description"),
+  provider: text("provider").notNull().default("minimax"), // "minimax" | "openspeaker"
+  consentAt: timestamp("consent_at"),          // when the user attested consent
+  consentText: text("consent_text"),           // the exact attestation text (versioned)
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+/* ── OpenSpeaker async tool tasks (user-owned) ───────────────────────── */
+export const osTasksTable = pgTable("os_tasks", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  tool: text("tool").notNull(), // tts | dialogue | dubbing | voice-changer | voice-isolation | speech-to-text | sound-effects | music | image
+  externalTaskId: text("external_task_id"),
+  status: text("status").notNull().default("processing"), // processing | done | error
+  title: text("title").notNull().default(""),
+  input: json("input"),
+  output: json("output"),
+  error: text("error"),
+  creditsCharged: integer("credits_charged").notNull().default(0),
+  refunded: boolean("refunded").notNull().default(false),
+  webhookToken: text("webhook_token"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("os_tasks_user_idx").on(t.userId), index("os_tasks_external_idx").on(t.externalTaskId)]);
+
+export type OsTask = typeof osTasksTable.$inferSelect;
+
+/* ── OpenSpeaker pronunciation dictionaries (ownership mapping) ──────── */
+export const osDictionariesTable = pgTable("os_dictionaries", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  externalId: text("external_id").notNull(),
+  name: text("name").notNull(),
+  rulesCount: integer("rules_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [index("os_dictionaries_user_idx").on(t.userId), uniqueIndex("os_dictionaries_external_idx").on(t.externalId)]);
+
+export type OsDictionary = typeof osDictionariesTable.$inferSelect;
 
 export const insertApiKeySchema = createInsertSchema(apiKeysTable).omit({ id: true, usageCount: true, creditsUsed: true, lastUsedAt: true, createdAt: true });
 export type InsertApiKey = z.infer<typeof insertApiKeySchema>;

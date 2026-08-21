@@ -11,6 +11,7 @@ import plansRouter from "./plans";
 import edgeTtsRouter from "./edgetts";
 import accountExtrasRouter from "./account-extras";
 import resellerRouter from "./reseller";
+import openspeakerRouter from "./openspeaker";
 import { requireAdmin } from "../middleware/require-admin";
 import { requireFeature } from "../middleware/require-feature";
 
@@ -28,5 +29,6 @@ router.use("/fishaudio", requireFeature("fishaudio"), fishAudioRouter);
 router.use("/edge", requireFeature("edge"), edgeTtsRouter);
 router.use(accountExtrasRouter);
 router.use("/reseller", resellerRouter);
+router.use("/os", openspeakerRouter);
 
 export default router;

@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
-import { ArrowUpRight, Mic2, Copy, Zap, Flame, Waves } from "lucide-react";
+import { ArrowUpRight, Mic2, Copy, Zap, Flame, Waves, MessagesSquare, AudioWaveform, MessageSquareText, Radio, Languages, Drum, Music4, ImageIcon } from "lucide-react";
 import { motion } from "framer-motion";
 
 /* ── Providers (real logos) ──────────────────────────────────────────── */
@@ -82,6 +82,80 @@ const TOOLS: Tool[] = [
     accent: "#0ea5e9",
     Icon: Waves,
   },
+  {
+    name: "Text to Dialogue",
+    tagline: "Conversations, voiced.",
+    desc: "Write a script with multiple speakers and hear it as a natural back-and-forth conversation — perfect for podcasts, ads and explainers.",
+    providers: ["elevenlabs", "minimax", "fishaudio"],
+    href: "/register",
+    accent: "#8b5cf6",
+    Icon: MessagesSquare,
+    big: true,
+  },
+  {
+    name: "Voice Changer",
+    tagline: "Say it as anyone.",
+    desc: "Upload any recording and re-voice it with a voice from the library — or with your own clone.",
+    providers: ["elevenlabs"],
+    href: "/register",
+    accent: "#f59e0b",
+    Icon: AudioWaveform,
+  },
+  {
+    name: "Speech to Text",
+    tagline: "Words from waves.",
+    desc: "Accurate transcription with subtitles (SRT) and word-level timestamps for any audio.",
+    providers: ["elevenlabs"],
+    href: "/register",
+    accent: "#10b981",
+    Icon: MessageSquareText,
+  },
+  {
+    name: "Audio Isolation",
+    tagline: "Pure vocals only.",
+    desc: "Strip background noise and keep crystal-clear voice from any recording.",
+    providers: ["elevenlabs"],
+    href: "/register",
+    accent: "#6366f1",
+    Icon: Radio,
+  },
+  {
+    name: "Dubbing",
+    tagline: "Speak every language.",
+    desc: "Automatically translate and re-voice audio or video into other languages while keeping the original feel.",
+    providers: ["elevenlabs"],
+    href: "/register",
+    accent: "#ef4444",
+    Icon: Languages,
+  },
+  {
+    name: "Sound Effects",
+    tagline: "Any sound, on cue.",
+    desc: "Describe a sound — rain on glass, sci-fi door, crowd cheer — and get a production-ready effect.",
+    providers: ["elevenlabs"],
+    href: "/register",
+    accent: "#14b8a6",
+    Icon: Drum,
+  },
+  {
+    name: "AI Music",
+    tagline: "Full songs from words.",
+    desc: "Generate complete songs with vocals from a short description, or bring your own lyrics and style.",
+    providers: ["minimax"],
+    href: "/register",
+    accent: "#ec4899",
+    Icon: Music4,
+    big: true,
+  },
+  {
+    name: "AI Image Studio",
+    tagline: "Cover art included.",
+    desc: "Create artwork, thumbnails and covers with 20+ top image models — right next to your audio.",
+    providers: ["minimax"],
+    href: "/register",
+    accent: "#0ea5e9",
+    Icon: ImageIcon,
+  },
 ];
 
 /* ── Tool card ───────────────────────────────────────────────────────── */
@@ -151,7 +225,7 @@ export default function ToolsPage() {
             </h1>
 
             <p className="text-[16px] text-black/50 font-medium leading-relaxed max-w-xl mx-auto mt-5">
-              Five voice tools, four world-class AI engines, one studio. Write it, clone it, or generate it — OpenRadio handles the rest.
+              A complete creative suite — speech, dialogue, dubbing, sound effects, music and images — powered by world-class AI engines in one studio.
             </p>
 
             {/* Providers strip */}

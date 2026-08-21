@@ -7,6 +7,7 @@ import { logger } from "../lib/logger";
 import { requireActiveUser, isUserAdmin } from "../middleware/require-active-user";
 import { planAllowsFeature, modelAllowedForPlan } from "../lib/plans";
 import { requireFeature } from "../middleware/require-feature";
+import { CLONE_CONSENT_TEXT } from "../lib/consent";
 
 const router = Router();
 
@@ -102,12 +103,14 @@ const BUILTIN_VOICES = [
 /* ── GET /voices ──────────────────────────────────────────────────────── */
 router.get("/voices", requireActiveUser, async (req, res) => {
   const clones = await db.select().from(voiceClonesTable)
-    .where(eq(voiceClonesTable.userId, req.appUser!.id))
+    .where(and(eq(voiceClonesTable.userId, req.appUser!.id), eq(voiceClonesTable.provider, "minimax")))
     .orderBy(asc(voiceClonesTable.createdAt));
   res.json({
     builtin: BUILTIN_VOICES,
     clones: clones.map((c) => ({
-      id: c.voiceId,
+      id: c.voiceId,      // kept as the TTS voice id for the voice selectors
+      dbId: c.id,         // database primary key (used for deletion)
+      voiceId: c.voiceId,
       name: c.name,
       description: c.description,
       isClone: true,
@@ -211,6 +214,10 @@ router.post("/voice-clone", requireFeature("voice-cloning"), requireActiveUser, 
     res.status(400).json({ error: "Audio file and name are required" });
     return;
   }
+  if (String(req.body?.consent ?? "") !== "true") {
+    res.status(400).json({ error: "You must confirm you have the right to clone this voice." });
+    return;
+  }
 
   const creds = await getMinimaxCreds();
   if (!creds) {
@@ -250,9 +257,16 @@ router.post("/voice-clone", requireFeature("voice-cloning"), requireActiveUser, 
       return;
     }
 
-    // Save clone to DB (scoped to the creating user)
+    // Save clone to DB (scoped to the creating user) with the consent attestation
     const [saved] = await db.insert(voiceClonesTable)
-      .values({ name, voiceId, description: description || null, userId: req.appUser!.id })
+      .values({
+        name,
+        voiceId,
+        description: description || null,
+        userId: req.appUser!.id,
+        consentAt: new Date(),
+        consentText: CLONE_CONSENT_TEXT,
+      })
       .returning();
 
     await bumpKey(creds.id, creds.usageCount);
@@ -272,10 +286,12 @@ router.delete("/voice-clone/:id", requireFeature("voice-cloning"), requireActive
     return;
   }
   const user = req.appUser!;
-  // Admins may delete any clone; everyone else only their own.
+  // Admins may delete any MiniMax clone; everyone else only their own.
+  // Provider filter keeps this endpoint from touching OpenSpeaker clones,
+  // which need provider-side cleanup via /api/os/voice-clones.
   const where = isUserAdmin(user)
-    ? eq(voiceClonesTable.id, id)
-    : and(eq(voiceClonesTable.id, id), eq(voiceClonesTable.userId, user.id));
+    ? and(eq(voiceClonesTable.id, id), eq(voiceClonesTable.provider, "minimax"))
+    : and(eq(voiceClonesTable.id, id), eq(voiceClonesTable.userId, user.id), eq(voiceClonesTable.provider, "minimax"));
   const deleted = await db.delete(voiceClonesTable).where(where).returning({ id: voiceClonesTable.id });
   if (deleted.length === 0) {
     res.status(404).json({ error: "Voice clone not found" });

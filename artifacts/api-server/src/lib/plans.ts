@@ -63,10 +63,13 @@ export type FeatureKey =
   | "sound-effects"
   | "audio-isolation"
   | "music"
-  | "dubbing";
+  | "dubbing"
+  | "dialogue"
+  | "dictionary"
+  | "image";
 
 // Features available on the free plan. Everything else requires a paid plan.
-const FREE_FEATURES: Set<FeatureKey> = new Set(["tts", "fire-tts"]);
+const FREE_FEATURES: Set<FeatureKey> = new Set(["tts", "fire-tts", "dictionary"]);
 
 export function planAllowsFeature(plan: string, feature: FeatureKey): boolean {
   if (plan !== "free") return true;

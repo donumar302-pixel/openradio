@@ -35,6 +35,11 @@ import AudioIsolationPage from "@/pages/audio-isolation";
 import DubbingPage from "@/pages/dubbing";
 import SettingsPage from "@/pages/settings";
 import BatchTtsPage from "@/pages/batch-tts";
+import DialoguePage from "@/pages/dialogue";
+import PronunciationDictionaryPage from "@/pages/pronunciation-dictionary";
+import SoundEffectsPage from "@/pages/sound-effects";
+import AiMusicPage from "@/pages/ai-music";
+import ImageStudioPage from "@/pages/image-studio";
 import VoiceCloningPage from "@/pages/voice-cloning";
 import VoiceLibraryPage from "@/pages/voices";
 import { SidebarLayout } from "@/components/sidebar-layout";
@@ -139,6 +144,11 @@ function AppRoutes() {
         <Route path="/settings" component={SettingsPage} />
         <Route path="/support" component={SupportPage} />
         <Route path="/batch" component={BatchTtsPage} />
+        <Route path="/dialogue" component={DialoguePage} />
+        <Route path="/dictionary" component={PronunciationDictionaryPage} />
+        <Route path="/sound-effects" component={SoundEffectsPage} />
+        <Route path="/music" component={AiMusicPage} />
+        <Route path="/images" component={ImageStudioPage} />
         <Route path="/minimax"><Redirect to="/studio" /></Route>
         <Route path="/voice-cloning" component={VoiceCloningPage} />
         <Route path="/voices" component={VoiceLibraryPage} />

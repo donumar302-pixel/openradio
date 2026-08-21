@@ -3,7 +3,11 @@ import { RefreshCw, Megaphone, ToggleRight, AlertTriangle, Check } from "lucide-
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
-type FeatureKey = "elevenlabs" | "minimax" | "fishaudio" | "edge" | "voice-cloning";
+type FeatureKey =
+  | "elevenlabs" | "minimax" | "fishaudio" | "edge" | "voice-cloning"
+  | "os-tts" | "os-dialogue" | "os-dictionary" | "os-voice-clone" | "os-dubbing"
+  | "os-voice-changer" | "os-voice-isolation" | "os-speech-to-text"
+  | "os-sound-effects" | "os-music" | "os-image";
 
 type AdminSettings = {
   banner: { enabled: boolean; text: string };
@@ -15,7 +19,21 @@ const FEATURE_LABELS: { key: FeatureKey; label: string; desc: string }[] = [
   { key: "minimax", label: "MiniMax TTS", desc: "MiniMax text-to-speech engine" },
   { key: "fishaudio", label: "Fish Audio TTS", desc: "Fish Audio text-to-speech engine" },
   { key: "edge", label: "Edge TTS", desc: "Microsoft Edge free text-to-speech" },
-  { key: "voice-cloning", label: "Voice Cloning", desc: "Custom voice cloning feature" },
+  { key: "voice-cloning", label: "Voice Cloning (Fire)", desc: "MiniMax custom voice cloning feature" },
+];
+
+const OS_FEATURE_LABELS: { key: FeatureKey; label: string; desc: string }[] = [
+  { key: "os-tts", label: "Voice Library TTS", desc: "Unified voice library text-to-speech in the Studio" },
+  { key: "os-dialogue", label: "Text to Dialogue", desc: "Multi-speaker conversation generation" },
+  { key: "os-dictionary", label: "Pronunciation Dictionary", desc: "Custom pronunciation rules for TTS" },
+  { key: "os-voice-clone", label: "Voice Cloning (Multilingual)", desc: "Voice cloning usable across the voice library tools" },
+  { key: "os-dubbing", label: "Dubbing", desc: "Automatic audio/video dubbing into other languages" },
+  { key: "os-voice-changer", label: "Voice Changer", desc: "Re-voice recordings with library voices" },
+  { key: "os-voice-isolation", label: "Audio Isolation", desc: "Background noise removal / vocal isolation" },
+  { key: "os-speech-to-text", label: "Speech to Text", desc: "Transcription with SRT subtitles" },
+  { key: "os-sound-effects", label: "Sound Effects", desc: "Text-to-sound-effect generation" },
+  { key: "os-music", label: "AI Music", desc: "Suno music generation" },
+  { key: "os-image", label: "AI Images", desc: "Image generation studio" },
 ];
 
 function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {
@@ -136,6 +154,18 @@ export default function AdminSettings() {
             </div>
             <div className="divide-y divide-white/5">
               {FEATURE_LABELS.map(f => (
+                <div key={f.key} className="flex items-center justify-between py-3.5">
+                  <div>
+                    <p className="text-[13px] font-semibold text-white">{f.label}</p>
+                    <p className="text-[11px] text-white/40 mt-0.5">{f.desc}</p>
+                  </div>
+                  <Toggle checked={!!features?.[f.key]} onChange={() => toggleFeature(f.key)} disabled={featuresMutation.isPending} />
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-white/30 mt-6 mb-1">Voice Library Suite</p>
+            <div className="divide-y divide-white/5">
+              {OS_FEATURE_LABELS.map(f => (
                 <div key={f.key} className="flex items-center justify-between py-3.5">
                   <div>
                     <p className="text-[13px] font-semibold text-white">{f.label}</p>

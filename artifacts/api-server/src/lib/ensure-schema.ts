@@ -62,6 +62,37 @@ export async function ensureSchema(): Promise<void> {
       value text NOT NULL,
       updated_at timestamp NOT NULL DEFAULT now()
     )`,
+    `ALTER TABLE voice_clones ADD COLUMN IF NOT EXISTS provider text NOT NULL DEFAULT 'minimax'`,
+    `ALTER TABLE voice_clones ADD COLUMN IF NOT EXISTS consent_at timestamp`,
+    `ALTER TABLE voice_clones ADD COLUMN IF NOT EXISTS consent_text text`,
+    `CREATE TABLE IF NOT EXISTS os_tasks (
+      id serial PRIMARY KEY,
+      user_id integer NOT NULL,
+      tool text NOT NULL,
+      external_task_id text,
+      status text NOT NULL DEFAULT 'processing',
+      title text NOT NULL DEFAULT '',
+      input json,
+      output json,
+      error text,
+      credits_charged integer NOT NULL DEFAULT 0,
+      refunded boolean NOT NULL DEFAULT false,
+      webhook_token text,
+      created_at timestamp NOT NULL DEFAULT now(),
+      updated_at timestamp NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS os_tasks_user_idx ON os_tasks (user_id)`,
+    `CREATE INDEX IF NOT EXISTS os_tasks_external_idx ON os_tasks (external_task_id)`,
+    `CREATE TABLE IF NOT EXISTS os_dictionaries (
+      id serial PRIMARY KEY,
+      user_id integer NOT NULL,
+      external_id text NOT NULL,
+      name text NOT NULL,
+      rules_count integer NOT NULL DEFAULT 0,
+      created_at timestamp NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS os_dictionaries_user_idx ON os_dictionaries (user_id)`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS os_dictionaries_external_idx ON os_dictionaries (external_id)`,
   ];
 
   for (const stmt of statements) {
