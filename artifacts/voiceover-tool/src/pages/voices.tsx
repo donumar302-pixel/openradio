@@ -206,9 +206,13 @@ export default function VoiceLibraryPage() {
         data: (OsVoice & { provider: string })[];
         pagination: { total: number };
         totals: Record<string, number>;
+        indexing?: boolean;
       }>(`/voices/all?${params}`);
     },
     staleTime: 120_000,
+    // While the server is still sweeping the ElevenLabs catalog into its
+    // index, poll so totals and pages keep growing live.
+    refetchInterval: (query) => (query.state.data?.indexing ? 8_000 : false),
   });
 
   /* Single-provider tab query */
@@ -216,6 +220,8 @@ export default function VoiceLibraryPage() {
   const { data: provData, isLoading: provLoading } = useQuery({
     ...osVoicesQuery(providerTab ?? "elevenlabs", page, q, language, gender),
     enabled: !!providerTab,
+    refetchInterval: (query) =>
+      providerTab === "elevenlabs" && (query.state.data as any)?.indexing ? 8_000 : false,
   });
 
   const fireClones = fireData?.clones ?? [];
@@ -379,9 +385,14 @@ export default function VoiceLibraryPage() {
               {tab === "all"
                 ? `Page ${page} of ${totalPages.toLocaleString()} · ${grandTotal.toLocaleString()} voices total`
                 : `${(counts[tab] ?? cards.length).toLocaleString()} voices · page ${page} of ${totalPages.toLocaleString()}`}
-              {(tab === "all" || tab === "elevenlabs") && !q && (
+              {(tab === "all" || tab === "elevenlabs") && aggData?.indexing && (
                 <span className="ml-2 font-medium text-[#b45309]">
-                  Showing featured ElevenLabs voices — type a search to explore their full 16,000+ voice catalog.
+                  Building the ElevenLabs voice index — more voices are being added automatically…
+                </span>
+              )}
+              {(tab === "all" || tab === "elevenlabs") && aggData?.indexing === false && !q && (
+                <span className="ml-2 font-medium text-[#9ca3af]">
+                  Tip: search any style, language, or name to discover even more ElevenLabs voices.
                 </span>
               )}
             </p>

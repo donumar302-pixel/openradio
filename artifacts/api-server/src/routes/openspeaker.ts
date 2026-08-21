@@ -296,23 +296,22 @@ router.get("/voices", async (req, res) => {
       return;
     }
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
-    // Upstream quirk: the ElevenLabs catalog ignores `page` unless a search
-    // term is present. Without one, serve the (cached) featured list and
-    // paginate it locally so pages actually advance.
-    if (provider === "elevenlabs" && !search) {
+    // ElevenLabs is always served from the local index (upstream pagination
+    // is unreliable both with and without a search term).
+    if (provider === "elevenlabs") {
       const page = Math.max(1, parseInt(String(req.query.page ?? "1")) || 1);
       const pageSize = Math.min(100, Math.max(1, parseInt(String(req.query.page_size ?? "24")) || 24));
       const f: AggFilters = {
-        search: "",
+        search,
         language: typeof req.query.language === "string" ? req.query.language.trim() : "",
         gender: typeof req.query.gender === "string" ? req.query.gender.trim() : "",
       };
-      const featured = await elevenFeatured(f);
+      const list = await elLocalQuery(f);
       res.json({
         success: true,
-        data: featured.slice((page - 1) * pageSize, page * pageSize),
-        pagination: { page, page_size: pageSize, total: featured.length },
-        featured_only: true, // hint for the UI: search to explore the full catalog
+        data: list.slice((page - 1) * pageSize, page * pageSize),
+        pagination: { page, page_size: pageSize, total: list.length },
+        indexing: elIndexing(), // true while the background sweep is still growing the index
       });
       return;
     }
@@ -349,28 +348,190 @@ function aggParams(provider: string, f: AggFilters, page: number, pageSize: numb
   return p.toString();
 }
 
-/* Upstream quirk: ElevenLabs ignores `page` when there is no search term —
-   every page returns the same "featured" list. Cache that list once and
-   paginate it locally instead of trusting the bogus 16k+ pagination. */
-const elFeaturedCache = new Map<string, { data: any[]; at: number }>();
+/* ── ElevenLabs local index ─────────────────────────────────────────────
+   Upstream quirks make the 16k+ ElevenLabs catalog unbrowsable directly:
+   `page` is ignored without a search term (and even for many search terms),
+   and page_size is capped at ~100-120 results per query. So we build our own
+   index: a background crawler sweeps a broad set of search terms, merges the
+   unique voices into memory, and every ElevenLabs listing/search is served
+   from this locally-paginated index (correct, stable pages). */
 
-async function elevenFeatured(f: AggFilters): Promise<any[]> {
-  const key = `${f.language}|${f.gender}`;
-  const hit = elFeaturedCache.get(key);
-  if (hit && Date.now() - hit.at < AGG_TOTAL_TTL) return hit.data;
-  const data: any = await osGetJson(`/v3/voices?${aggParams("elevenlabs", f, 1, 100)}`, "Voice library");
-  const seen = new Set<string>();
-  const voices: any[] = (Array.isArray(data?.data) ? data.data : []).filter((v: any) => {
-    if (seen.has(v.voice_id)) return false;
-    seen.add(v.voice_id);
-    return true;
+const EL_INDEX = new Map<string, any>();          // voice_id → voice
+const EL_INDEX_MAX = 20_000;                      // hard cap on indexed voices
+// Per-term crawl state: bounded, with failure backoff and shared in-flight
+// promises so concurrent requests never duplicate upstream calls.
+type ElTermState = { status: "done" | "failed"; failures: number; retryAt: number };
+const elTermState = new Map<string, ElTermState>();
+const EL_TERM_STATE_MAX = 500;
+const EL_TERM_MAX_FAILURES = 3;
+const elInflightTerms = new Map<string, Promise<void>>();
+let elActiveCrawls = 0;
+const EL_MAX_CONCURRENT_CRAWLS = 2;               // global upstream rate cap
+let elCrawlRunning = false;
+let elCrawlDone = false;
+const EL_MAX_PAGES_PER_TERM = 4;
+const EL_CRAWL_TERMS = [
+  // voice qualities / delivery styles
+  "narrator", "narration", "calm", "warm", "deep", "soft", "energetic", "confident",
+  "professional", "conversational", "friendly", "smooth", "expressive", "clear",
+  "authoritative", "soothing", "natural", "dynamic", "cheerful", "serious", "gentle",
+  "raspy", "bright", "mature", "young", "elderly", "old", "crisp", "rich", "powerful",
+  // use cases
+  "audiobook", "podcast", "commercial", "documentary", "storytelling", "meditation",
+  "asmr", "news", "radio", "cartoon", "character", "gaming", "anime", "advertising",
+  "explainer", "tutorial", "corporate", "social media", "announcer", "presenter",
+  "singer", "whisper", "villain", "hero", "robot", "kids", "children",
+  // languages / accents
+  "english", "american", "british", "australian", "indian", "spanish", "mexican",
+  "french", "german", "italian", "portuguese", "brazilian", "russian", "arabic",
+  "hindi", "urdu", "chinese", "mandarin", "japanese", "korean", "turkish",
+  "vietnamese", "indonesian", "polish", "dutch", "swedish", "greek", "hebrew",
+  "thai", "filipino", "african", "nigerian", "irish", "scottish", "welsh", "canadian",
+  // common voice-name fragments
+  "a", "e", "i", "o", "voice", "man", "woman", "male", "female", "aria", "adam",
+  "alex", "anna", "david", "emma", "james", "john", "lisa", "maria", "mike", "sam",
+  "sara", "tom", "kai", "leo", "mia", "noor", "omar", "ali", "ahmed", "fatima",
+];
+
+function elAddVoices(data: any): { added: number; first?: string } {
+  const voices: any[] = Array.isArray(data?.data) ? data.data : [];
+  let added = 0;
+  for (const v of voices) {
+    if (v?.voice_id && !EL_INDEX.has(v.voice_id) && EL_INDEX.size < EL_INDEX_MAX) {
+      EL_INDEX.set(v.voice_id, v);
+      added++;
+    }
+  }
+  return { added, first: voices[0]?.voice_id };
+}
+
+function elSetTermState(key: string, state: ElTermState): void {
+  if (!elTermState.has(key) && elTermState.size >= EL_TERM_STATE_MAX) {
+    const oldest = elTermState.keys().next().value;
+    if (oldest !== undefined) elTermState.delete(oldest);
+  }
+  elTermState.set(key, state);
+}
+
+async function elFetchPage(search: string, page: number): Promise<any> {
+  const p = new URLSearchParams({ provider: "elevenlabs", page: String(page), page_size: "100" });
+  if (search) p.set("search", search);
+  return osGetJson(`/v3/voices?${p.toString()}`, "Voice library");
+}
+
+/* Crawl one search term; follows pagination only while it actually advances.
+   Concurrent callers share the same in-flight promise; failures back off and
+   are retried at most EL_TERM_MAX_FAILURES times; global concurrency capped. */
+function elCrawlTerm(term: string): Promise<void> {
+  const key = term.toLowerCase().trim().slice(0, 64);
+  const st = elTermState.get(key);
+  if (st?.status === "done") return Promise.resolve();
+  if (st?.status === "failed" && (st.failures >= EL_TERM_MAX_FAILURES || Date.now() < st.retryAt)) {
+    return Promise.resolve();
+  }
+  const inflight = elInflightTerms.get(key);
+  if (inflight) return inflight;
+  const run = (async () => {
+    while (elActiveCrawls >= EL_MAX_CONCURRENT_CRAWLS) {
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    elActiveCrawls++;
+    try {
+      const p1: any = await elFetchPage(key, 1);
+      const r1 = elAddVoices(p1);
+      const count1 = Array.isArray(p1?.data) ? p1.data.length : 0;
+      const total = Number(p1?.pagination?.total ?? 0);
+      if (count1 >= 100 && total > count1 && EL_INDEX.size < EL_INDEX_MAX) {
+        for (let page = 2; page <= EL_MAX_PAGES_PER_TERM; page++) {
+          const pn: any = await elFetchPage(key, page);
+          const firstId = Array.isArray(pn?.data) ? pn.data[0]?.voice_id : undefined;
+          if (!firstId || firstId === r1.first) break; // upstream pagination broken for this term
+          elAddVoices(pn);
+          if ((pn.data?.length ?? 0) < 100 || EL_INDEX.size >= EL_INDEX_MAX) break;
+        }
+      }
+      elSetTermState(key, { status: "done", failures: 0, retryAt: 0 });
+    } catch (err) {
+      const failures = (st?.failures ?? 0) + 1;
+      elSetTermState(key, { status: "failed", failures, retryAt: Date.now() + failures * 30_000 });
+      logger.warn({ err, term: key, failures }, "ElevenLabs index crawl term failed");
+    } finally {
+      elActiveCrawls--;
+      elInflightTerms.delete(key);
+    }
+  })();
+  elInflightTerms.set(key, run);
+  return run;
+}
+
+/* Kick off the background sweep once per process (fire-and-forget).
+   Failed terms are retried in bounded extra passes; only then is the index
+   marked complete (possibly degraded, which we log). */
+function elEnsureIndex(): void {
+  if (elCrawlRunning || elCrawlDone) return;
+  elCrawlRunning = true;
+  (async () => {
+    try {
+      const sweep = ["", ...EL_CRAWL_TERMS];
+      for (let pass = 1; pass <= 3; pass++) {
+        let pending = 0;
+        for (const term of sweep) {
+          const key = term.toLowerCase().trim().slice(0, 64);
+          const st = elTermState.get(key);
+          if (st?.status === "done" || (st?.status === "failed" && st.failures >= EL_TERM_MAX_FAILURES)) continue;
+          if (st?.status === "failed" && Date.now() < st.retryAt) {
+            await new Promise((r) => setTimeout(r, Math.min(st.retryAt - Date.now(), 30_000)));
+          }
+          await elCrawlTerm(term);
+          pending++;
+          await new Promise((r) => setTimeout(r, 150));
+        }
+        const failed = [...elTermState.values()].filter((s) => s.status === "failed").length;
+        if (failed === 0 || pass === 3) {
+          if (failed > 0) logger.warn({ failed, indexed: EL_INDEX.size }, "ElevenLabs voice index built degraded");
+          else logger.info({ indexed: EL_INDEX.size }, "ElevenLabs voice index built");
+          break;
+        }
+        if (pending === 0) break;
+      }
+      elCrawlDone = true;
+    } finally {
+      elCrawlRunning = false;
+    }
+  })().catch((err) => {
+    logger.error({ err }, "ElevenLabs index crawl crashed");
+    elCrawlDone = true; // stop client polling; index stays partial until restart
   });
-  elFeaturedCache.set(key, { data: voices, at: Date.now() });
-  return voices;
+}
+
+function elVoiceMatches(v: any, f: AggFilters): boolean {
+  if (f.gender && v.gender !== f.gender) return false;
+  if (f.language && v.language !== f.language) return false;
+  if (f.search) {
+    const q = f.search.toLowerCase();
+    const hay = `${v.name ?? ""} ${v.description ?? ""} ${v.accent ?? ""} ${v.category ?? ""} ${(v.tags ?? []).join(" ")}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+/* Local, stably-ordered query over the index (insertion order is stable). */
+async function elLocalQuery(f: AggFilters): Promise<any[]> {
+  elEnsureIndex();
+  // On-demand: pull the user's search term into the index so results go
+  // beyond what the sweep found (up to 4 upstream pages, cached by term).
+  if (f.search && f.search.length >= 2) await elCrawlTerm(f.search);
+  const out: any[] = [];
+  for (const v of EL_INDEX.values()) if (elVoiceMatches(v, f)) out.push(v);
+  return out;
+}
+
+function elIndexing(): boolean {
+  return !elCrawlDone;
 }
 
 async function aggProviderTotal(provider: string, f: AggFilters): Promise<number> {
-  if (provider === "elevenlabs" && !f.search) return (await elevenFeatured(f)).length;
+  if (provider === "elevenlabs") return (await elLocalQuery(f)).length;
   const key = `${provider}|${f.search}|${f.language}|${f.gender}`;
   const hit = aggTotalCache.get(key);
   if (hit && Date.now() - hit.at < AGG_TOTAL_TTL) return hit.total;
@@ -386,8 +547,8 @@ async function aggProviderTotal(provider: string, f: AggFilters): Promise<number
 }
 
 async function aggProviderPage(provider: string, f: AggFilters, page: number, pageSize: number): Promise<any[]> {
-  if (provider === "elevenlabs" && !f.search) {
-    return (await elevenFeatured(f)).slice((page - 1) * pageSize, page * pageSize);
+  if (provider === "elevenlabs") {
+    return (await elLocalQuery(f)).slice((page - 1) * pageSize, page * pageSize);
   }
   const key = `${provider}|${f.search}|${f.language}|${f.gender}|${page}|${pageSize}`;
   const hit = aggPageCache.get(key);
@@ -460,6 +621,7 @@ router.get("/voices/all", async (req, res) => {
       data: out,
       pagination: { page, page_size: pageSize, total: grandTotal },
       totals: Object.fromEntries(segments.map((s) => [s.provider, s.total])),
+      indexing: elIndexing(),
     });
   } catch (err: any) {
     const status = err instanceof OpenSpeakerError ? err.status : 502;
