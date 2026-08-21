@@ -1,28 +1,42 @@
-import { useState, useMemo } from "react";
-import { useListVoices, getListVoicesQueryKey } from "@workspace/api-client-react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Search, Zap, BookAudio, PlayCircle, StopCircle, Copy, Check, Mic2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
+import { osJson, type OsVoice } from "@/lib/os-api";
 
-interface MiniMaxVoice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; }
-interface FishVoice    { id: string; name: string; lang?: string; languages?: string[]; style?: string; tags?: string[]; description?: string | null; preview?: string | null; likeCount?: number; taskCount?: number; }
-interface EdgeVoice    { id: string; name: string; shortName: string; locale: string; gender: string; provider: string; }
+/* ── Providers ──────────────────────────────────────────────────────────── */
 
-type Tab    = "all" | "el" | "mm" | "fa" | "edge";
-type Gender = "all" | "male" | "female";
+const LOGO = (name: string) => `${import.meta.env.BASE_URL}logos/${name}.png`;
 
-const FA_LANG_OPTIONS = [
+type ProviderId = "elevenlabs" | "minimax" | "fishaudio" | "edge" | "vbee" | "clone" | "fire";
+type Tab = "all" | ProviderId;
+
+const OS_PROVIDER_IDS = ["elevenlabs", "minimax", "fishaudio", "edge", "vbee"] as const;
+
+const PROVIDER_META: Record<ProviderId, { label: string; logo?: string; icon?: React.ReactNode; cls: string }> = {
+  elevenlabs: { label: "ElevenLabs", logo: LOGO("elevenlabs"), cls: "bg-orange-100 text-orange-700" },
+  minimax:    { label: "MiniMax",    logo: LOGO("minimax"),    cls: "bg-red-100 text-red-600" },
+  fishaudio:  { label: "Fish Audio", logo: LOGO("fishaudio"),  cls: "bg-emerald-100 text-emerald-600" },
+  edge:       { label: "Edge TTS",   logo: LOGO("edge"),       cls: "bg-sky-100 text-sky-600" },
+  vbee:       { label: "Vbee",       logo: LOGO("vbee"),       cls: "bg-indigo-100 text-indigo-600" },
+  clone:      { label: "My Clones",  icon: <Mic2 size={13} />, cls: "bg-purple-100 text-purple-600" },
+  fire:       { label: "Fire TTS",   icon: <Zap size={13} />,  cls: "bg-violet-100 text-violet-600" },
+};
+
+const PAGE_SIZE = 24;
+
+const LANG_OPTIONS = [
   { code: "",   label: "All Languages" },
   { code: "en", label: "🇺🇸 English" },
+  { code: "ur", label: "🇵🇰 Urdu" },
+  { code: "hi", label: "🇮🇳 Hindi" },
+  { code: "ar", label: "🇸🇦 Arabic" },
   { code: "zh", label: "🇨🇳 Chinese" },
   { code: "ja", label: "🇯🇵 Japanese" },
   { code: "ko", label: "🇰🇷 Korean" },
-  { code: "hi", label: "🇮🇳 Hindi" },
-  { code: "ur", label: "🇵🇰 Urdu" },
-  { code: "ar", label: "🇸🇦 Arabic" },
   { code: "es", label: "🇪🇸 Spanish" },
   { code: "fr", label: "🇫🇷 French" },
   { code: "de", label: "🇩🇪 German" },
@@ -33,76 +47,95 @@ const FA_LANG_OPTIONS = [
   { code: "id", label: "🇮🇩 Indonesian" },
   { code: "vi", label: "🇻🇳 Vietnamese" },
   { code: "th", label: "🇹🇭 Thai" },
-  { code: "pl", label: "🇵🇱 Polish" },
   { code: "nl", label: "🇳🇱 Dutch" },
+  { code: "pl", label: "🇵🇱 Polish" },
   { code: "sv", label: "🇸🇪 Swedish" },
-  { code: "cs", label: "🇨🇿 Czech" },
-  { code: "ro", label: "🇷🇴 Romanian" },
-  { code: "hu", label: "🇭🇺 Hungarian" },
-  { code: "el", label: "🇬🇷 Greek" },
-  { code: "da", label: "🇩🇰 Danish" },
-  { code: "fi", label: "🇫🇮 Finnish" },
-  { code: "nb", label: "🇳🇴 Norwegian" },
-  { code: "uk", label: "🇺🇦 Ukrainian" },
-  { code: "ms", label: "🇲🇾 Malay" },
   { code: "fil", label: "🇵🇭 Filipino" },
+  { code: "ms", label: "🇲🇾 Malay" },
 ];
 
-function useAudioPreview() {
-  const [playingId, setPlayingId] = useState<string | null>(null);
-  const [audio, setAudio]         = useState<HTMLAudioElement | null>(null);
-  const toggle = (id: string, url: string) => {
-    if (playingId === id) { audio?.pause(); setPlayingId(null); setAudio(null); return; }
-    audio?.pause();
-    const a = new Audio(url);
-    a.play();
-    a.onended = () => { setPlayingId(null); setAudio(null); };
-    setPlayingId(id);
-    setAudio(a);
-  };
-  return { playingId, toggle };
+type Gender = "" | "male" | "female";
+
+/* ── Helpers ────────────────────────────────────────────────────────────── */
+
+function useDebounced<T>(v: T, ms = 350): T {
+  const [d, setD] = useState(v);
+  useEffect(() => { const t = setTimeout(() => setD(v), ms); return () => clearTimeout(t); }, [v, ms]);
+  return d;
 }
 
-type Provider = "el" | "mm" | "fa" | "edge";
+function previewOf(v: OsVoice): string | null {
+  return v.preview_url || v.languages?.find((l) => l.preview_url)?.preview_url || null;
+}
 
-const BADGE: Record<Provider, { label: string; cls: string; avatar: string }> = {
-  el:   { label: "ElevenLabs", cls: "bg-orange-100 text-orange-600",  avatar: "bg-orange-500"  },
-  mm:   { label: "Fire TTS",   cls: "bg-violet-100 text-violet-600",  avatar: "bg-violet-500"  },
-  fa:   { label: "Fish Audio", cls: "bg-emerald-100 text-emerald-600", avatar: "bg-emerald-500" },
-  edge: { label: "Edge TTS",   cls: "bg-sky-100 text-sky-600",         avatar: "bg-sky-500"     },
-};
+function osVoicesQuery(provider: string, page: number, search: string, language: string, gender: string) {
+  return {
+    queryKey: ["os-lib-voices", provider, page, search, language, gender],
+    queryFn: () => {
+      const params = new URLSearchParams({ provider, page: String(page), page_size: String(PAGE_SIZE) });
+      if (search) params.set("search", search);
+      if (language) params.set("language", language);
+      if (gender) params.set("gender", gender);
+      return osJson<{ data: OsVoice[]; pagination?: { total?: number } }>(`/voices?${params}`);
+    },
+    staleTime: 120_000,
+  };
+}
 
-function VoiceCard({ id, name, tag, provider, preview, description, onUse, playingId, onPlay }: {
-  id: string; name: string; tag: string; provider: Provider;
-  preview?: string | null; description?: string | null;
-  onUse: () => void; playingId: string | null;
+interface CardVoice {
+  id: string;
+  name: string;
+  tag: string;
+  provider: ProviderId;
+  description?: string | null;
+  preview?: string | null;
+}
+
+/* ── Provider badge (official logo) ─────────────────────────────────────── */
+
+function ProviderBadge({ provider }: { provider: ProviderId }) {
+  const m = PROVIDER_META[provider];
+  return (
+    <span className={cn("flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 mt-0.5", m.cls)}>
+      {m.logo ? <img src={m.logo} alt="" className="w-3 h-3 rounded-[3px] object-contain" /> : m.icon}
+      {m.label}
+    </span>
+  );
+}
+
+/* ── Voice card ─────────────────────────────────────────────────────────── */
+
+function VoiceCard({ v, onUse, playingId, onPlay }: {
+  v: CardVoice; onUse: () => void; playingId: string | null;
   onPlay: (id: string, url: string) => void;
 }) {
-  const playing = playingId === id;
+  const playing = playingId === v.id;
   const [copied, setCopied] = useState(false);
-  const b = BADGE[provider];
-  const copyId = () => { navigator.clipboard.writeText(id); setCopied(true); setTimeout(() => setCopied(false), 1500); };
+  const m = PROVIDER_META[v.provider];
+  const copyId = () => { navigator.clipboard.writeText(v.id); setCopied(true); setTimeout(() => setCopied(false), 1500); };
 
   return (
     <div className="bg-white border border-[#e5e7eb] rounded-2xl p-4 flex flex-col gap-3 hover:border-[#d1d5db] hover:shadow-sm transition-all">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white text-[12px] font-black", b.avatar)}>
-            {name.slice(0, 2).toUpperCase()}
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-[#f3f4f6] border border-[#e5e7eb] overflow-hidden">
+            {m.logo
+              ? <img src={m.logo} alt={m.label} className="w-5 h-5 object-contain" />
+              : <span className="text-[12px] font-black text-[#6b7280]">{v.name.slice(0, 2).toUpperCase()}</span>}
           </div>
           <div className="min-w-0">
-            <p className="text-[13px] font-bold text-foreground truncate leading-tight">{name}</p>
-            <p className="text-[11px] text-[#9ca3af] truncate leading-tight mt-0.5">{tag}</p>
+            <p className="text-[13px] font-bold text-foreground truncate leading-tight">{v.name}</p>
+            <p className="text-[11px] text-[#9ca3af] truncate leading-tight mt-0.5">{v.tag}</p>
           </div>
         </div>
-        <span className={cn("text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 mt-0.5", b.cls)}>{b.label}</span>
+        <ProviderBadge provider={v.provider} />
       </div>
 
-      {description && <p className="text-[12px] text-[#6b7280] line-clamp-2 leading-relaxed">{description}</p>}
+      {v.description && <p className="text-[12px] text-[#6b7280] line-clamp-2 leading-relaxed">{v.description}</p>}
 
       <div className="flex items-center gap-2 mt-auto pt-1">
-        {preview ? (
-          <button onClick={() => onPlay(id, preview)} className={cn(
+        {v.preview ? (
+          <button onClick={() => onPlay(v.id, v.preview!)} className={cn(
             "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors",
             playing ? "bg-orange-100 text-orange-600" : "bg-[#f3f4f6] text-[#6b7280] hover:bg-[#e5e7eb] hover:text-foreground"
           )}>
@@ -122,119 +155,144 @@ function VoiceCard({ id, name, tag, provider, preview, description, onUse, playi
   );
 }
 
+/* ── Page ───────────────────────────────────────────────────────────────── */
+
+interface FireVoice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; }
+
 export default function VoiceLibraryPage() {
   const [, navigate] = useLocation();
-  const { playingId, toggle } = useAudioPreview();
 
-  const [search,     setSearch]     = useState("");
-  const [tab,        setTab]        = useState<Tab>("all");
-  const [gender,     setGender]     = useState<Gender>("all");
-  const [langFilter, setLangFilter] = useState("all");
-  const [faLang,     setFaLang]     = useState("");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const togglePlay = (id: string, url: string) => {
+    if (playingId === id) { audioRef.current?.pause(); setPlayingId(null); return; }
+    audioRef.current?.pause();
+    const a = new Audio(url);
+    audioRef.current = a;
+    a.onended = () => setPlayingId(null);
+    a.play().catch(() => setPlayingId(null));
+    setPlayingId(id);
+  };
+  useEffect(() => () => { audioRef.current?.pause(); }, []);
 
-  const { data: elVoices = [], isLoading: loadingEl } = useListVoices({ query: { queryKey: getListVoicesQueryKey() } });
+  const [tab, setTab] = useState<Tab>("all");
+  const [search, setSearch] = useState("");
+  const [language, setLanguage] = useState("");
+  const [gender, setGender] = useState<Gender>("");
+  const [page, setPage] = useState(1);
+  const q = useDebounced(search.trim());
 
-  const { data: mmData, isLoading: loadingMm } = useQuery<{ builtin: MiniMaxVoice[]; clones: MiniMaxVoice[] }>({
+  useEffect(() => { setPage(1); }, [tab, q, language, gender]);
+
+  /* Fire TTS local voices (in-house engine) */
+  const { data: fireData } = useQuery<{ builtin: FireVoice[]; clones: { dbId: number; voiceId: string; name: string }[] }>({
     queryKey: ["minimax-voices"],
-    queryFn:  () => fetch("/api/minimax/voices").then(r => r.json()),
+    queryFn: () => fetch("/api/minimax/voices").then(r => r.json()),
     staleTime: 60_000,
   });
-  const mmVoices: MiniMaxVoice[] = [
-    ...(mmData?.clones ?? []).map(c => ({ ...c, isClone: true })),
-    ...(mmData?.builtin ?? []),
-  ];
+  const fireVoices: FireVoice[] = fireData?.builtin ?? [];
 
-  const [faPage, setFaPage] = useState(1);
-  const resetFaPage = (lang: string) => { setFaLang(lang); setFaPage(1); };
-
-  const [edgeLang, setEdgeLang] = useState("");
-  const { data: edgeData, isLoading: loadingEdge } = useQuery<{ voices: EdgeVoice[]; total: number }>({
-    queryKey: ["edge-voices", edgeLang],
-    queryFn:  () => fetch(`/api/edge/voices${edgeLang ? `?language=${edgeLang}` : ""}`).then(r => r.json()),
-    staleTime: 3_600_000,
-  });
-  const edgeVoices: EdgeVoice[] = edgeData?.voices ?? [];
-
-  const { data: faData, isLoading: loadingFa } = useQuery<{ voices: FishVoice[]; total: number; totalPages: number }>({
-    queryKey: ["fishaudio-voices", faLang, faPage],
-    queryFn:  () => fetch(`/api/fishaudio/voices?page=${faPage}${faLang ? `&language=${faLang}` : ""}`).then(r => r.json()),
+  /* Aggregated catalog (single stable global page across all providers).
+     Also feeds the per-provider tab badge counts via its `totals` map. */
+  const aggPage = tab === "all" ? page : 1;
+  const { data: aggData, isLoading: aggLoading } = useQuery({
+    queryKey: ["os-lib-all", aggPage, q, language, gender],
+    queryFn: () => {
+      const params = new URLSearchParams({ page: String(aggPage), page_size: String(PAGE_SIZE) });
+      if (q) params.set("search", q);
+      if (language) params.set("language", language);
+      if (gender) params.set("gender", gender);
+      return osJson<{
+        data: (OsVoice & { provider: string })[];
+        pagination: { total: number };
+        totals: Record<string, number>;
+      }>(`/voices/all?${params}`);
+    },
     staleTime: 120_000,
   });
-  const faVoices: FishVoice[] = (faData?.voices ?? []).filter(v => v.id !== "default");
-  const faTotalPages = faData?.totalPages ?? 1;
-  const faTotal = faData?.total ?? 0;
 
-  const allVoices = useMemo(() => {
-    const el = elVoices.map(v => ({
-      id: v.voiceId, name: v.name, provider: "el" as Provider,
-      tag: v.category ?? "General", description: v.description ?? null,
-      preview: v.previewUrl ?? null, lang: "English", tags: [] as string[],
-    }));
-    const mm = mmVoices.map(v => ({
-      id: v.id, name: v.name, provider: "mm" as Provider,
-      tag: v.isClone ? "My Clone" : `${v.lang ?? ""} · ${v.style ?? ""}`,
-      description: null, preview: null, lang: v.lang ?? "Other", tags: [] as string[],
-    }));
-    const fa = faVoices.map(v => ({
-      id: v.id, name: v.name, provider: "fa" as Provider,
-      tag: (v.tags ?? []).slice(0, 3).join(" · ") || v.lang || "Fish Audio",
+  /* Single-provider tab query */
+  const providerTab = tab !== "all" && tab !== "fire" ? tab : null;
+  const { data: provData, isLoading: provLoading } = useQuery({
+    ...osVoicesQuery(providerTab ?? "elevenlabs", page, q, language, gender),
+    enabled: !!providerTab,
+  });
+
+  const fireClones = fireData?.clones ?? [];
+  const counts: Record<string, number> = { ...(aggData?.totals ?? {}) };
+  counts.fire = fireVoices.length + fireClones.length;
+  const aggTotal = aggData?.pagination?.total ?? 0;
+  // The All tab shows exactly the aggregated catalog — Fire TTS (in-house
+  // engine) voices live on their own tab and are not counted here.
+  const grandTotal = aggTotal;
+
+  const isLoading = tab === "all" ? aggLoading : providerTab ? provLoading : false;
+
+  /* Build cards */
+  const cards: CardVoice[] = useMemo(() => {
+    if (tab === "all") {
+      return (aggData?.data ?? []).map((v): CardVoice => ({
+        id: v.voice_id,
+        name: v.name,
+        provider: (v.provider as ProviderId) ?? "elevenlabs",
+        tag: [v.language, v.gender].filter(Boolean).join(" · ") || v.category
+          || PROVIDER_META[(v.provider as ProviderId) ?? "elevenlabs"]?.label || "",
+        description: v.description ?? null,
+        preview: previewOf(v),
+      }));
+    }
+    if (tab === "fire") {
+      const matches = (name: string) => {
+        if (q && !name.toLowerCase().includes(q.toLowerCase())) return false;
+        if (gender === "male" && !/male|man|boy/i.test(name)) return false;
+        if (gender === "female" && !/female|woman|girl/i.test(name)) return false;
+        return true;
+      };
+      const cloneCards: CardVoice[] = fireClones
+        .filter((c) => !q || c.name.toLowerCase().includes(q.toLowerCase()))
+        .map((c): CardVoice => ({
+          id: c.voiceId, name: c.name, provider: "fire", tag: "My Clone",
+        }));
+      const builtinCards: CardVoice[] = fireVoices
+        .filter((v) => matches(v.name))
+        .map((v): CardVoice => ({
+          id: v.id, name: v.name, provider: "fire",
+          tag: [v.lang, v.style].filter(Boolean).join(" · ") || "Fire TTS",
+        }));
+      return [...cloneCards, ...builtinCards];
+    }
+    return (provData?.data ?? []).map((v): CardVoice => ({
+      id: v.voice_id,
+      name: v.name,
+      provider: tab as ProviderId,
+      tag: [v.language, v.gender].filter(Boolean).join(" · ") || v.category || PROVIDER_META[tab as ProviderId].label,
       description: v.description ?? null,
-      preview: v.preview ?? null,
-      lang: v.lang ?? "Multi",
-      tags: v.tags ?? [],
+      preview: previewOf(v),
     }));
-    const edge = edgeVoices.map(v => ({
-      id: v.id, name: v.name, provider: "edge" as Provider,
-      tag: `${v.gender} · ${v.locale}`,
-      description: null, preview: null,
-      lang: v.locale.split("-")[0]?.toUpperCase() ?? "Multi",
-      tags: [] as string[],
-    }));
-    return [...el, ...mm, ...fa, ...edge];
-  }, [elVoices, mmVoices, faVoices, edgeVoices]);
+  }, [tab, aggData, provData, fireVoices, fireClones, q, gender]);
 
-  const elLangs = useMemo(() => {
-    const s = new Set(elVoices.map(() => "English"));
-    return ["all", ...Array.from(s).sort()];
-  }, [elVoices]);
+  /* Pagination */
+  const totalPages = useMemo(() => {
+    if (tab === "all") return Math.max(1, Math.ceil(aggTotal / PAGE_SIZE));
+    if (tab === "fire" || tab === "clone") return 1;
+    const total = provData?.pagination?.total ?? 0;
+    return Math.max(1, Math.ceil(total / PAGE_SIZE));
+  }, [tab, aggTotal, provData]);
 
-  const mmLangs = useMemo(() => {
-    const s = new Set(mmVoices.map(v => v.lang ?? "Other").filter(Boolean));
-    return ["all", ...Array.from(s).sort()];
-  }, [mmVoices]);
+  const useVoice = (v: CardVoice) => {
+    if (v.provider === "fire") navigate(`/studio?voice=mm:${v.id}`);
+    else navigate(`/studio?voice=os:${v.id}`);
+  };
 
-  const allLangs = useMemo(() => {
-    const s = new Set(allVoices.filter(v => v.provider !== "fa").map(v => v.lang).filter(Boolean));
-    return ["all", ...Array.from(s).sort()];
-  }, [allVoices]);
-
-  const langs = tab === "el" ? elLangs : tab === "mm" ? mmLangs : (tab === "fa" || tab === "edge") ? [] : allLangs;
-
-  const filtered = useMemo(() => {
-    return allVoices.filter(v => {
-      if (tab === "el"   && v.provider !== "el")   return false;
-      if (tab === "mm"   && v.provider !== "mm")   return false;
-      if (tab === "fa"   && v.provider !== "fa")   return false;
-      if (tab === "edge" && v.provider !== "edge") return false;
-      if (v.provider !== "fa" && v.provider !== "edge" && langFilter !== "all" && v.lang !== langFilter) return false;
-      if (gender === "male"   && !/male|man|boy/i.test(v.name + v.tag))   return false;
-      if (gender === "female" && !/female|woman|girl/i.test(v.name + v.tag)) return false;
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        if (!v.name.toLowerCase().includes(q) && !v.tag.toLowerCase().includes(q)) return false;
-      }
-      return true;
-    });
-  }, [allVoices, tab, langFilter, gender, search]);
-
-  const isLoading = loadingEl || loadingMm || loadingFa || loadingEdge;
-
-  const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
-    { id: "all",  label: "All Voices", icon: <BookAudio size={14} />, count: allVoices.length },
-    { id: "el",   label: "ElevenLabs", icon: <Mic2 size={14} />,      count: elVoices.length },
-    { id: "mm",   label: "Fire TTS",   icon: <Zap size={14} />,       count: mmVoices.length },
-    { id: "fa",   label: "Fish Audio", icon: <span className="text-[11px]">🐟</span>, count: faVoices.length },
-    { id: "edge", label: "Edge TTS",   icon: <span className="text-[11px]">🪟</span>, count: edgeVoices.length },
+  const tabs: { id: Tab; label: string; logo?: string; icon?: React.ReactNode; count: number }[] = [
+    { id: "all", label: "All Voices", icon: <BookAudio size={14} />, count: grandTotal },
+    ...(["elevenlabs", "minimax", "fishaudio", "edge", "vbee", "fire", "clone"] as ProviderId[]).map((p) => ({
+      id: p as Tab,
+      label: PROVIDER_META[p].label,
+      logo: PROVIDER_META[p].logo,
+      icon: PROVIDER_META[p].icon,
+      count: counts[p] ?? 0,
+    })),
   ];
 
   return (
@@ -244,7 +302,7 @@ export default function VoiceLibraryPage() {
           <div>
             <h1 className="text-[22px] font-black text-foreground leading-tight">Voice Library</h1>
             <p className="text-[13px] text-[#6b7280] mt-0.5">
-              {isLoading ? "Loading..." : `${allVoices.length} voices from all providers`}
+              {grandTotal ? `${grandTotal.toLocaleString()} voices from all providers` : "Loading..."}
             </p>
           </div>
           <div className="relative w-64">
@@ -263,43 +321,36 @@ export default function VoiceLibraryPage() {
               "flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-colors",
               tab === t.id ? "bg-[#f3f4f6] text-foreground" : "text-[#6b7280] hover:text-foreground hover:bg-[#f9fafb]"
             )}>
-              {t.icon} {t.label}
+              {t.logo ? <img src={t.logo} alt="" className="w-4 h-4 rounded-[4px] object-contain" /> : t.icon}
+              {t.label}
               <span className={cn("text-[10px] font-black px-1.5 py-0.5 rounded-full", tab === t.id ? "bg-primary text-white" : "bg-[#e5e7eb] text-[#6b7280]")}>
-                {t.count}
+                {t.count > 999 ? `${(t.count / 1000).toFixed(1)}k` : t.count}
               </span>
             </button>
           ))}
 
           <div className="ml-auto flex items-center gap-2 flex-wrap">
-            {/* Fish Audio language selector */}
-            {(tab === "fa" || tab === "all") && (
-              <select
-                value={faLang} onChange={e => resetFaPage(e.target.value)}
-                className="text-[12px] border border-emerald-200 rounded-xl px-3 py-2 bg-white text-[#6b7280] focus:outline-none focus:ring-2 focus:ring-emerald-200 cursor-pointer"
-              >
-                {FA_LANG_OPTIONS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
-              </select>
+            {/* Gender — clones carry no gender metadata */}
+            {tab !== "clone" && (
+              <div className="flex items-center gap-1 border border-[#e5e7eb] rounded-xl p-1 bg-white">
+                {(["", "male", "female"] as Gender[]).map(g => (
+                  <button key={g || "any"} onClick={() => setGender(g)} className={cn(
+                    "px-2.5 py-1 rounded-lg text-[11px] font-bold capitalize transition-colors",
+                    gender === g ? "bg-[#f3f4f6] text-foreground" : "text-[#9ca3af] hover:text-foreground"
+                  )}>
+                    {g === "" ? "Any" : g}
+                  </button>
+                ))}
+              </div>
             )}
 
-            {/* Gender */}
-            <div className="flex items-center gap-1 border border-[#e5e7eb] rounded-xl p-1 bg-white">
-              {(["all", "male", "female"] as Gender[]).map(g => (
-                <button key={g} onClick={() => setGender(g)} className={cn(
-                  "px-2.5 py-1 rounded-lg text-[11px] font-bold capitalize transition-colors",
-                  gender === g ? "bg-[#f3f4f6] text-foreground" : "text-[#9ca3af] hover:text-foreground"
-                )}>
-                  {g === "all" ? "Any" : g}
-                </button>
-              ))}
-            </div>
-
-            {/* Lang filter (EL / MM) */}
-            {tab !== "fa" && langs.length > 1 && (
+            {/* Language — not supported for local Fire voices or clones */}
+            {tab !== "fire" && tab !== "clone" && (
               <select
-                value={langFilter} onChange={e => setLangFilter(e.target.value)}
+                value={language} onChange={e => setLanguage(e.target.value)}
                 className="text-[12px] border border-[#e5e7eb] rounded-xl px-3 py-2 bg-white text-[#6b7280] focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
               >
-                {langs.map(l => <option key={l} value={l}>{l === "all" ? "All Languages" : l}</option>)}
+                {LANG_OPTIONS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
               </select>
             )}
           </div>
@@ -307,52 +358,57 @@ export default function VoiceLibraryPage() {
       </div>
 
       <div className="px-8 py-6">
-        {isLoading ? (
+        {isLoading && cards.length === 0 ? (
           <div className="flex items-center justify-center py-24 gap-3 text-[#9ca3af]">
             <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <span className="text-[14px] font-medium">Loading voices from all providers...</span>
+            <span className="text-[14px] font-medium">Loading voices...</span>
           </div>
-        ) : filtered.length === 0 ? (
+        ) : cards.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-2 text-[#9ca3af]">
             <BookAudio size={36} className="opacity-30" />
-            <p className="text-[14px] font-semibold">No voices found</p>
-            <p className="text-[12px]">Try a different search or filter</p>
+            <p className="text-[14px] font-semibold">
+              {tab === "clone" ? "You have no cloned voices yet" : "No voices found"}
+            </p>
+            <p className="text-[12px]">
+              {tab === "clone" ? "Create one in Voice Cloning" : "Try a different search or filter"}
+            </p>
           </div>
         ) : (
           <>
             <p className="text-[12px] text-[#9ca3af] font-semibold mb-4">
-              {tab === "fa"
-                ? `${faTotal.toLocaleString()} voices total · page ${faPage} of ${faTotalPages}`
-                : `${filtered.length} voices`}
+              {tab === "all"
+                ? `Page ${page} of ${totalPages.toLocaleString()} · ${grandTotal.toLocaleString()} voices total`
+                : `${(counts[tab] ?? cards.length).toLocaleString()} voices · page ${page} of ${totalPages.toLocaleString()}`}
+              {(tab === "all" || tab === "elevenlabs") && !q && (
+                <span className="ml-2 font-medium text-[#b45309]">
+                  Showing featured ElevenLabs voices — type a search to explore their full 16,000+ voice catalog.
+                </span>
+              )}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filtered.map(v => (
+              {cards.map(v => (
                 <VoiceCard
                   key={`${v.provider}:${v.id}`}
-                  id={v.id} name={v.name} tag={v.tag}
-                  provider={v.provider}
-                  preview={v.preview}
-                  description={v.description}
+                  v={v}
                   playingId={playingId}
-                  onPlay={toggle}
-                  onUse={() => navigate(`/studio?voice=${v.provider}:${v.id}`)}
+                  onPlay={togglePlay}
+                  onUse={() => useVoice(v)}
                 />
               ))}
             </div>
-            {/* Fish Audio pagination */}
-            {tab === "fa" && faTotalPages > 1 && (
+            {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 mt-8">
                 <button
-                  disabled={faPage <= 1}
-                  onClick={() => setFaPage(p => p - 1)}
+                  disabled={page <= 1}
+                  onClick={() => setPage(p => p - 1)}
                   className="px-4 py-2 text-[13px] font-semibold border border-[#e5e7eb] rounded-xl bg-white hover:bg-[#f3f4f6] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >← Prev</button>
                 <span className="text-[13px] text-[#6b7280] font-medium px-3">
-                  {faPage} / {faTotalPages}
+                  {page} / {totalPages.toLocaleString()}
                 </span>
                 <button
-                  disabled={faPage >= faTotalPages}
-                  onClick={() => setFaPage(p => p + 1)}
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(p => p + 1)}
                   className="px-4 py-2 text-[13px] font-semibold border border-[#e5e7eb] rounded-xl bg-white hover:bg-[#f3f4f6] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >Next →</button>
               </div>

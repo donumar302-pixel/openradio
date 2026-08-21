@@ -177,9 +177,16 @@ export default function StudioPage() {
     const colonIdx = voice.indexOf(":");
     if (colonIdx === -1) return;
     const raw = voice.slice(0, colonIdx);
+    const id = voice.slice(colonIdx + 1);
+    if (raw === "os") {
+      // Full OpenSpeaker voice library (prefixed voice id, e.g. elevenlabs_xxx)
+      setVoiceProvider("os");
+      setVoiceId(id);
+      setOsVoiceName(id.replace(/^[a-z]+_/, "").replace(/[-_]/g, " "));
+      return;
+    }
     const provider: "el" | "minimax" | "fishaudio" | "edge" =
       raw === "mm" ? "minimax" : raw === "fa" ? "fishaudio" : raw === "edge" ? "edge" : "el";
-    const id = voice.slice(colonIdx + 1);
     setVoiceProvider(provider);
     setVoiceId(id);
   }, []);

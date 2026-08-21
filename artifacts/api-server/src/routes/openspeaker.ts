@@ -282,13 +282,37 @@ router.get("/voices", async (req, res) => {
   try {
     if (provider === "clone") {
       // Clones are account-wide upstream — only expose the user's own.
-      const clones = await db.select().from(voiceClonesTable)
+      // Search is applied locally; gender/language metadata doesn't exist for clones.
+      const cloneSearch = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
+      const clones = (await db.select().from(voiceClonesTable)
         .where(and(eq(voiceClonesTable.userId, req.appUser!.id), eq(voiceClonesTable.provider, "openspeaker")))
-        .orderBy(desc(voiceClonesTable.createdAt));
+        .orderBy(desc(voiceClonesTable.createdAt)))
+        .filter((c) => !cloneSearch || c.name.toLowerCase().includes(cloneSearch) || (c.description ?? "").toLowerCase().includes(cloneSearch));
       res.json({
         success: true,
         data: clones.map((c) => ({ voice_id: c.voiceId, name: c.name, description: c.description ?? "", provider: "clone" })),
         pagination: { page: 1, page_size: clones.length, total: clones.length },
+      });
+      return;
+    }
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+    // Upstream quirk: the ElevenLabs catalog ignores `page` unless a search
+    // term is present. Without one, serve the (cached) featured list and
+    // paginate it locally so pages actually advance.
+    if (provider === "elevenlabs" && !search) {
+      const page = Math.max(1, parseInt(String(req.query.page ?? "1")) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(String(req.query.page_size ?? "24")) || 24));
+      const f: AggFilters = {
+        search: "",
+        language: typeof req.query.language === "string" ? req.query.language.trim() : "",
+        gender: typeof req.query.gender === "string" ? req.query.gender.trim() : "",
+      };
+      const featured = await elevenFeatured(f);
+      res.json({
+        success: true,
+        data: featured.slice((page - 1) * pageSize, page * pageSize),
+        pagination: { page, page_size: pageSize, total: featured.length },
+        featured_only: true, // hint for the UI: search to explore the full catalog
       });
       return;
     }
@@ -299,6 +323,144 @@ router.get("/voices", async (req, res) => {
     }
     const data = await osGetJson(`/v3/voices?${params.toString()}`, "Voice library");
     res.json(data);
+  } catch (err: any) {
+    const status = err instanceof OpenSpeakerError ? err.status : 502;
+    res.status(status).json({ error: err.message ?? "Voice library unavailable" });
+  }
+});
+
+/* ── Aggregated catalog: one stable global page across all providers ──── */
+
+const AGG_PROVIDERS = ["elevenlabs", "minimax", "fishaudio", "edge", "vbee"] as const;
+
+type AggFilters = { search: string; language: string; gender: string };
+
+const aggTotalCache = new Map<string, { total: number; at: number }>();
+const aggPageCache = new Map<string, { data: any[]; at: number }>();
+const AGG_TOTAL_TTL = 5 * 60_000;
+const AGG_PAGE_TTL = 60_000;
+const AGG_PAGE_CACHE_MAX = 300;
+
+function aggParams(provider: string, f: AggFilters, page: number, pageSize: number) {
+  const p = new URLSearchParams({ provider, page: String(page), page_size: String(pageSize) });
+  if (f.search) p.set("search", f.search);
+  if (f.language) p.set("language", f.language);
+  if (f.gender) p.set("gender", f.gender);
+  return p.toString();
+}
+
+/* Upstream quirk: ElevenLabs ignores `page` when there is no search term —
+   every page returns the same "featured" list. Cache that list once and
+   paginate it locally instead of trusting the bogus 16k+ pagination. */
+const elFeaturedCache = new Map<string, { data: any[]; at: number }>();
+
+async function elevenFeatured(f: AggFilters): Promise<any[]> {
+  const key = `${f.language}|${f.gender}`;
+  const hit = elFeaturedCache.get(key);
+  if (hit && Date.now() - hit.at < AGG_TOTAL_TTL) return hit.data;
+  const data: any = await osGetJson(`/v3/voices?${aggParams("elevenlabs", f, 1, 100)}`, "Voice library");
+  const seen = new Set<string>();
+  const voices: any[] = (Array.isArray(data?.data) ? data.data : []).filter((v: any) => {
+    if (seen.has(v.voice_id)) return false;
+    seen.add(v.voice_id);
+    return true;
+  });
+  elFeaturedCache.set(key, { data: voices, at: Date.now() });
+  return voices;
+}
+
+async function aggProviderTotal(provider: string, f: AggFilters): Promise<number> {
+  if (provider === "elevenlabs" && !f.search) return (await elevenFeatured(f)).length;
+  const key = `${provider}|${f.search}|${f.language}|${f.gender}`;
+  const hit = aggTotalCache.get(key);
+  if (hit && Date.now() - hit.at < AGG_TOTAL_TTL) return hit.total;
+  try {
+    const data: any = await osGetJson(`/v3/voices?${aggParams(provider, f, 1, 1)}`, "Voice library");
+    const total = Number(data?.pagination?.total ?? (Array.isArray(data?.data) ? data.data.length : 0)) || 0;
+    aggTotalCache.set(key, { total, at: Date.now() });
+    return total;
+  } catch (err) {
+    logger.warn({ err, provider }, "Aggregated voice count failed");
+    return hit?.total ?? 0; // stale-if-error, else treat as empty
+  }
+}
+
+async function aggProviderPage(provider: string, f: AggFilters, page: number, pageSize: number): Promise<any[]> {
+  if (provider === "elevenlabs" && !f.search) {
+    return (await elevenFeatured(f)).slice((page - 1) * pageSize, page * pageSize);
+  }
+  const key = `${provider}|${f.search}|${f.language}|${f.gender}|${page}|${pageSize}`;
+  const hit = aggPageCache.get(key);
+  if (hit && Date.now() - hit.at < AGG_PAGE_TTL) return hit.data;
+  const data: any = await osGetJson(`/v3/voices?${aggParams(provider, f, page, pageSize)}`, "Voice library");
+  const voices: any[] = Array.isArray(data?.data) ? data.data : [];
+  if (aggPageCache.size >= AGG_PAGE_CACHE_MAX) {
+    const oldest = aggPageCache.keys().next().value;
+    if (oldest !== undefined) aggPageCache.delete(oldest);
+  }
+  aggPageCache.set(key, { data: voices, at: Date.now() });
+  return voices;
+}
+
+router.get("/voices/all", async (req, res) => {
+  const page = Math.max(1, parseInt(String(req.query.page ?? "1")) || 1);
+  const pageSize = Math.min(50, Math.max(1, parseInt(String(req.query.page_size ?? "24")) || 24));
+  const f: AggFilters = {
+    search: typeof req.query.search === "string" ? req.query.search.trim() : "",
+    language: typeof req.query.language === "string" ? req.query.language.trim() : "",
+    gender: typeof req.query.gender === "string" ? req.query.gender.trim() : "",
+  };
+  try {
+    // User's own clones lead the catalog (local, cheap, search-filtered).
+    const cloneRows = await db.select().from(voiceClonesTable)
+      .where(and(eq(voiceClonesTable.userId, req.appUser!.id), eq(voiceClonesTable.provider, "openspeaker")))
+      .orderBy(desc(voiceClonesTable.createdAt));
+    const q = f.search.toLowerCase();
+    const clones = cloneRows
+      .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.description ?? "").toLowerCase().includes(q))
+      .map((c) => ({ voice_id: c.voiceId, name: c.name, description: c.description ?? "", provider: "clone" }));
+
+    const totals = await Promise.all(AGG_PROVIDERS.map((p) => aggProviderTotal(p, f)));
+
+    // Global ordering: clones, then providers in AGG_PROVIDERS order.
+    const segments: { provider: string; total: number }[] = [
+      { provider: "clone", total: clones.length },
+      ...AGG_PROVIDERS.map((p, i) => ({ provider: p, total: totals[i] })),
+    ];
+    const grandTotal = segments.reduce((a, s) => a + s.total, 0);
+
+    const start = (page - 1) * pageSize;
+    const out: any[] = [];
+    let cursor = 0;
+    for (const seg of segments) {
+      const segStart = cursor;
+      const segEnd = cursor + seg.total;
+      cursor = segEnd;
+      if (out.length >= pageSize || segEnd <= start) continue;
+      const from = Math.max(start, segStart) - segStart;         // offset inside this provider
+      const need = Math.min(pageSize - out.length, seg.total - from);
+      if (need <= 0) continue;
+      if (seg.provider === "clone") {
+        out.push(...clones.slice(from, from + need));
+        continue;
+      }
+      // Fetch the upstream page(s) covering [from, from + need)
+      const firstPage = Math.floor(from / pageSize) + 1;
+      const lastPage = Math.floor((from + need - 1) / pageSize) + 1;
+      let buf: any[] = [];
+      for (let p = firstPage; p <= lastPage; p++) {
+        buf = buf.concat(await aggProviderPage(seg.provider, f, p, pageSize));
+      }
+      const innerFrom = from - (firstPage - 1) * pageSize;
+      out.push(...buf.slice(innerFrom, innerFrom + need).map((v) => ({ ...v, provider: seg.provider })));
+    }
+
+    res.json({
+      success: true,
+      data: out,
+      pagination: { page, page_size: pageSize, total: grandTotal },
+      totals: Object.fromEntries(segments.map((s) => [s.provider, s.total])),
+    });
   } catch (err: any) {
     const status = err instanceof OpenSpeakerError ? err.status : 502;
     res.status(status).json({ error: err.message ?? "Voice library unavailable" });

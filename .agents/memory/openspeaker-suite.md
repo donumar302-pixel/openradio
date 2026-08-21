@@ -5,7 +5,8 @@ description: Durable quirks and guardrail decisions for the OpenSpeaker (api.ope
 
 # API quirks (not guessable from docs/code conventions)
 
-- **Odd path prefixes are correct, not typos**: music uses a `/v1s/...` prefix and image generation `/v1i/...`, while other async tools use `/v1/...`. Cheap existence check without spending credits: empty-body POST → 400 means the endpoint exists, 404 means wrong path.
+- **Odd path prefixes are correct, not typos**: music uses a `/v1s/...` prefix and image generation `/v1i/...`, while other async tools use `/v1/...`.
+- **ElevenLabs catalog pagination is broken upstream without a search term** — `page` is echoed but ignored, every page returns the same ~121 featured voices. With `search` set, pagination works. Serve the unfiltered list as a locally-paginated featured set; never trust the 16k+ total for browsing.
 - The provider reports `credit_cost` immediately after task creation, so one refresh right after submit reconciles the local reserve to the real cost.
 
 # Guardrail decisions (keep these invariants when touching /api/os)
