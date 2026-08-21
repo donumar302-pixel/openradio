@@ -3,7 +3,7 @@ import multer from "multer";
 import { CLONE_CONSENT_TEXT } from "../lib/consent";
 import crypto from "crypto";
 import { db, usersTable, osTasksTable, osDictionariesTable, voiceClonesTable, type OsTask } from "@workspace/db";
-import { eq, and, desc, count, sql, gte, inArray } from "drizzle-orm";
+import { eq, and, desc, count, sql, gte, lt, isNotNull, notInArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { requireActiveUser, isUserAdmin } from "../middleware/require-active-user";
 import { requireFeature as requireGlobalFeature } from "../middleware/require-feature";
@@ -1278,5 +1278,68 @@ router.delete("/tasks/:id", async (req, res) => {
   await db.delete(osTasksTable).where(eq(osTasksTable.id, row.id));
   res.status(204).send();
 });
+
+/* ═══════════════ Background sweep for abandoned tasks ═══════════════ */
+
+/**
+ * Tasks are normally settled when the user polls them or the provider webhook
+ * fires. If the user closes the tab right after submitting and the webhook
+ * never arrives, a task can sit "processing" with credits reserved forever.
+ * This sweep refreshes stale non-final tasks from the provider so charge /
+ * refund reconciliation (applyTaskState) eventually runs for every task.
+ *
+ * Tasks without an externalTaskId are skipped at the query level — there is
+ * nothing to ask the provider about (refreshTask would skip them anyway).
+ */
+const SWEEP_STALE_AFTER_MS = 15 * 60 * 1000; // only touch tasks older than this
+const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+const SWEEP_BATCH_LIMIT = 25; // cap provider calls per sweep
+
+let sweepRunning = false;
+
+export async function sweepStaleOsTasks(): Promise<void> {
+  if (sweepRunning) return; // don't overlap if a sweep outlives the interval
+  sweepRunning = true;
+  try {
+    const cutoff = new Date(Date.now() - SWEEP_STALE_AFTER_MS);
+    const stale = await db.select().from(osTasksTable)
+      .where(and(
+        notInArray(osTasksTable.status, ["done", "error"]),
+        isNotNull(osTasksTable.externalTaskId),
+        lt(osTasksTable.updatedAt, cutoff),
+      ))
+      .orderBy(osTasksTable.updatedAt)
+      .limit(SWEEP_BATCH_LIMIT);
+    if (stale.length === 0) return;
+    logger.info({ count: stale.length }, "Sweeping stale OpenSpeaker tasks");
+    for (const row of stale) {
+      // refreshTask swallows transient provider errors; applyTaskState
+      // settles credits (refund-once via the refunded flag, extra-charge via
+      // the creditsCharged compare-and-set) and bumps updatedAt so a task
+      // that is still genuinely processing isn't re-polled until next cutoff.
+      await refreshTask(row);
+      // If the provider lookup failed, refreshTask leaves the row untouched.
+      // Bump updatedAt anyway (no-op when applyTaskState already saved) so
+      // permanently-failing rows rotate to the back of the queue instead of
+      // monopolizing every batch and starving newer abandoned tasks.
+      await db.update(osTasksTable)
+        .set({ updatedAt: new Date() })
+        .where(and(eq(osTasksTable.id, row.id), lt(osTasksTable.updatedAt, cutoff)));
+    }
+  } catch (err) {
+    logger.warn({ err }, "Stale OpenSpeaker task sweep failed");
+  } finally {
+    sweepRunning = false;
+  }
+}
+
+/** Start the periodic sweep. Returns the timer (unref'd so it never blocks shutdown). */
+export function startOsTaskSweeper(): NodeJS.Timeout {
+  const timer = setInterval(() => { void sweepStaleOsTasks(); }, SWEEP_INTERVAL_MS);
+  timer.unref();
+  // Run one pass shortly after boot to settle anything abandoned while down.
+  setTimeout(() => { void sweepStaleOsTasks(); }, 15_000).unref();
+  return timer;
+}
 
 export default router;

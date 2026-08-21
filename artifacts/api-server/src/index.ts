@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureSchema } from "./lib/ensure-schema";
+import { startOsTaskSweeper } from "./routes/openspeaker";
 
 const rawPort = process.env["PORT"];
 
@@ -27,6 +28,10 @@ ensureSchema()
       }
 
       logger.info({ port }, "Server listening");
+
+      // Settle abandoned OpenSpeaker tasks (refund/charge) that neither
+      // client polling nor the provider webhook ever reconciled.
+      startOsTaskSweeper();
     });
   })
   .catch((err) => {
