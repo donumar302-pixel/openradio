@@ -7,8 +7,10 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { OsVoicePicker } from "@/components/os/voice-picker";
 import { OsTaskResult, OsTaskHistory, OsFileDrop } from "@/components/os/task-panel";
+import { OsCostEstimate } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osCreateTaskForm } from "@/lib/os-api";
+import { estimateVoiceChangerCost } from "@/lib/os-cost";
 
 export default function VoiceChangerPage() {
   const { toast } = useToast();
@@ -82,6 +84,8 @@ export default function VoiceChangerPage() {
           </div>
           <Switch checked={removeNoise} onCheckedChange={setRemoveNoise} />
         </div>
+
+        <OsCostEstimate estimate={file ? estimateVoiceChangerCost(file.size) : null} />
 
         <Button onClick={handleSubmit} disabled={working || !file || !voiceId} className="w-full bg-primary hover:bg-primary/90 font-bold">
           {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : <><Mic className="mr-2 h-4 w-4" />Convert Voice</>}

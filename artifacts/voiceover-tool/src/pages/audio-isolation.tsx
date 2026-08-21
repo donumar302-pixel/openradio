@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { OsTaskResult, OsTaskHistory, OsFileDrop } from "@/components/os/task-panel";
+import { OsCostEstimate } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osCreateTaskForm } from "@/lib/os-api";
+import { estimateIsolationCost } from "@/lib/os-cost";
 
 export default function AudioIsolationPage() {
   const { toast } = useToast();
@@ -41,6 +43,8 @@ export default function AudioIsolationPage() {
           <Label className="font-semibold">Audio File</Label>
           <OsFileDrop file={file} onFile={setFile} />
         </div>
+
+        <OsCostEstimate estimate={file ? estimateIsolationCost(file.size) : null} />
 
         <Button onClick={handleSubmit} disabled={working || !file} className="w-full bg-primary hover:bg-primary/90 font-bold">
           {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : <><Radio className="mr-2 h-4 w-4" />Isolate Voice</>}

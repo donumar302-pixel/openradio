@@ -14,8 +14,10 @@ import { Loader2, Play, Download, PlayCircle, StopCircle, Mic2, History, Setting
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { OsVoicePicker } from "@/components/os/voice-picker";
+import { OsCostEstimate } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osCreateTaskJson, osJson, taskAudioUrl } from "@/lib/os-api";
+import { estimateTtsCost } from "@/lib/os-cost";
 
 interface MiniMaxVoice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; }
 interface FishVoice { id: string; name: string; lang?: string; style?: string; }
@@ -849,6 +851,13 @@ export default function StudioPage() {
             <div className="flex-1 min-w-2" />
             <span className="text-xs text-[#9ca3af] shrink-0">{text.length} / 5,000</span>
           </div>
+
+          {/* Cost estimate (OpenSpeaker engine only — other engines don't use credits tasks) */}
+          {voiceProvider === "os" && (
+            <div className="px-4 sm:px-7 pb-3 shrink-0">
+              <OsCostEstimate estimate={text.trim() ? estimateTtsCost(text) : null} />
+            </div>
+          )}
 
           {/* Bottom action bar */}
           <div className="flex items-center gap-3 px-4 sm:px-7 py-3 border-t border-[#f3f4f6] bg-white shrink-0">

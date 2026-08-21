@@ -8,8 +8,10 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { OsTaskResult, OsTaskHistory } from "@/components/os/task-panel";
+import { OsCostEstimate } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osCreateTaskJson } from "@/lib/os-api";
+import { MUSIC_COST_ESTIMATE } from "@/lib/os-cost";
 import { cn } from "@/lib/utils";
 
 export default function AiMusicPage() {
@@ -123,6 +125,8 @@ export default function AiMusicPage() {
             </div>
           </>
         )}
+
+        <OsCostEstimate estimate={MUSIC_COST_ESTIMATE} />
 
         <Button onClick={handleSubmit} disabled={working} className="w-full bg-primary hover:bg-primary/90 font-bold">
           {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : <><Sparkles className="mr-2 h-4 w-4" />Generate Music</>}

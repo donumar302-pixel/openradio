@@ -5,8 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { OsTaskResult, OsTaskHistory, OsFileDrop } from "@/components/os/task-panel";
+import { OsCostEstimate } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osCreateTaskForm } from "@/lib/os-api";
+import { estimateDubbingCost } from "@/lib/os-cost";
 
 const LANGUAGES = [
   { code: "en", label: "English" },
@@ -102,6 +104,8 @@ export default function DubbingPage() {
             </Select>
           </div>
         </div>
+
+        <OsCostEstimate estimate={file ? estimateDubbingCost(file.size) : null} />
 
         <Button
           onClick={handleSubmit}

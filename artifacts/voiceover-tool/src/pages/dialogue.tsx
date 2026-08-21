@@ -6,8 +6,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { OsVoicePicker } from "@/components/os/voice-picker";
 import { OsTaskResult, OsTaskHistory } from "@/components/os/task-panel";
+import { OsCostEstimate } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osCreateTaskJson } from "@/lib/os-api";
+import { estimateDialogueCost } from "@/lib/os-cost";
 
 interface Speaker { voiceId: string; name: string }
 
@@ -89,6 +91,8 @@ export default function DialoguePage() {
             </div>
           ))}
         </div>
+
+        <OsCostEstimate estimate={text.trim() ? estimateDialogueCost(text) : null} />
 
         <Button onClick={handleSubmit} disabled={working} className="w-full bg-primary hover:bg-primary/90 font-bold">
           {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : <><Sparkles className="mr-2 h-4 w-4" />Generate Dialogue</>}

@@ -33,7 +33,7 @@ export function useOsTask(tool: string) {
           timer.current = setTimeout(tick, 3000);
         } else {
           qc.invalidateQueries({ queryKey: ["os-tasks", tool] });
-          qc.invalidateQueries({ queryKey: ["auth-me"] });
+          qc.invalidateQueries({ queryKey: ["auth", "me"] });
           if (fresh.status === "error") {
             toast({ title: "Generation failed", description: fresh.error || "Credits were refunded.", variant: "destructive" });
           }
@@ -53,7 +53,7 @@ export function useOsTask(tool: string) {
       const created = await create();
       setTask(created);
       qc.invalidateQueries({ queryKey: ["os-tasks", tool] });
-      qc.invalidateQueries({ queryKey: ["auth-me"] });
+      qc.invalidateQueries({ queryKey: ["auth", "me"] });
       return created;
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
