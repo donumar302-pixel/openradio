@@ -1015,6 +1015,17 @@ router.delete("/voice-clones/:id", requireGlobalFeature("os-voice-clone"), async
   res.status(204).send();
 });
 
+/**
+ * The /v1/task/* endpoints (dubbing, voice-changer) forward voice ids straight
+ * to ElevenLabs, so they need the RAW ElevenLabs id. The prefixed
+ * "elevenlabs_<id>" form used by the /v3 endpoints is accepted at creation but
+ * fails during processing with "elevenlabs_voice_not_found" (verified live).
+ * Other prefixes (clone_, ...) are passed through unchanged.
+ */
+function rawElevenVoiceId(voiceId: string): string {
+  return voiceId.startsWith("elevenlabs_") ? voiceId.slice("elevenlabs_".length) : voiceId;
+}
+
 /* ═══════════════ Audio Dubbing ═══════════════ */
 
 router.post("/dubbing", requireGlobalFeature("os-dubbing"), requirePlanFeature("dubbing"), upload.single("file"), async (req, res) => {
@@ -1046,7 +1057,7 @@ router.post("/dubbing", requireGlobalFeature("os-dubbing"), requirePlanFeature("
       form.append("num_speakers", String(numSpeakers));
       form.append("source_lang", sourceLang);
       form.append("target_lang", targetLang);
-      if (voiceId) form.append("voice_id", voiceId);
+      if (voiceId) form.append("voice_id", rawElevenVoiceId(voiceId));
       if (webhookUrl) form.append("receive_url", webhookUrl);
       return osPostForm(`/v1/task/dubbing`, form, "Dubbing");
     },
@@ -1081,7 +1092,7 @@ router.post("/voice-changer", requireGlobalFeature("os-voice-changer"), requireP
     create: async (webhookUrl) => {
       const form = new FormData();
       form.append("file", new Blob([file.buffer as any], { type: file.mimetype }), file.originalname || "audio.mp3");
-      form.append("voice_id", voiceId);
+      form.append("voice_id", rawElevenVoiceId(voiceId));
       form.append("model_id", "eleven_multilingual_sts_v2");
       form.append("voice_settings", JSON.stringify({ stability, similarity_boost: similarity }));
       form.append("remove_background_noise", String(removeNoise));
