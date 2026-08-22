@@ -173,7 +173,7 @@ export default function PricingPage() {
           )}
 
           {!isLoading && !isError && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 items-stretch">
               {plans.map((plan, i) => {
                 const price = plan.prices[currency] ?? 0;
                 const isHighlighted = plan.highlight;
@@ -190,7 +190,7 @@ export default function PricingPage() {
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.1, duration: 0.5, ease: "easeOut" }}
-                    className={`relative flex flex-col rounded-[2rem] p-6 sm:p-8 backdrop-blur-md transition-all duration-300 ${
+                    className={`relative h-full flex flex-col rounded-[2rem] p-6 sm:p-8 backdrop-blur-md transition-all duration-300 ${
                       isHighlighted
                         ? "bg-[#0d0d12] border border-orange-500/40 shadow-[0_0_40px_-15px_rgba(249,115,22,0.2)] hover:border-orange-500/60 hover:shadow-[0_0_60px_-15px_rgba(249,115,22,0.3)] z-10"
                         : "bg-[#08080b] border border-white/5 shadow-2xl hover:bg-[#0a0a0e] hover:border-white/10"
@@ -252,7 +252,7 @@ export default function PricingPage() {
                         <FeatureGroup features={plan.features} title="Included Capabilities" />
 
                         {(plan.more?.length ?? 0) > 0 && (
-                          <div className="mt-6">
+                          <div className="mt-auto pt-6">
                             <AnimatePresence>
                               {expanded[plan.id] && (
                                 <motion.div
