@@ -86,7 +86,7 @@ router.post("/users", async (req, res) => {
       credits: result.user.credits, resellerCreditsLeft: result.left,
     });
   } catch (e: any) {
-    if (String(e?.message ?? "").includes("users_email_idx") || e?.code === "23505") {
+    if (String(e?.cause?.message ?? e?.message ?? "").includes("users_email_idx") || e?.code === "23505" || e?.cause?.code === "23505") {
       res.status(400).json({ error: "This email is already registered" }); return;
     }
     throw e;

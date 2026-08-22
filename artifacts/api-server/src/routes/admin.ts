@@ -970,7 +970,11 @@ router.post("/resellers", async (req, res) => {
     }).returning();
     res.status(201).json({ id: reseller.id, name: reseller.name, email: reseller.email, resellerCredits: reseller.resellerCredits });
   } catch (e: any) {
-    if (e?.code === "23505") { res.status(400).json({ error: "This email is already registered" }); return; }
+    // drizzle wraps pg errors — the code lives on e.cause, not e itself
+    const code = e?.code ?? e?.cause?.code;
+    if (code === "23505" || String(e?.cause?.message ?? e?.message ?? "").includes("users_email_idx")) {
+      res.status(400).json({ error: "This email is already registered" }); return;
+    }
     throw e;
   }
 });
