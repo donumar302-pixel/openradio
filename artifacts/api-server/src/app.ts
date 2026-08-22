@@ -92,4 +92,14 @@ if (fs.existsSync(path.join(frontendDir, "index.html"))) {
   });
 }
 
+// JSON error handler for API routes — without this, thrown errors fall through
+// to Express's default HTML error page and the frontend shows
+// "Unexpected token '<' ... is not valid JSON" instead of the real message.
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error({ err, method: req.method, url: req.originalUrl }, "Unhandled API error");
+  if (res.headersSent) return;
+  const message = typeof err?.message === "string" && err.message ? err.message : "Internal server error";
+  res.status(err?.status ?? err?.statusCode ?? 500).json({ error: message });
+});
+
 export default app;
