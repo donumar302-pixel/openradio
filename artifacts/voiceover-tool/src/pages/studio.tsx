@@ -1,12 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import {
-  useListVoices,
-  getListVoicesQueryKey,
-  useGenerateSpeech,
   useListGenerations,
   getListGenerationsQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { OsVoicePicker } from "@/components/os/voice-picker";
 import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
-import { osCreateTaskJson, osJson, taskAudioUrl } from "@/lib/os-api";
+import { osCreateTaskJson, osJson, taskAudioUrl, type OsVoice } from "@/lib/os-api";
 import { estimateTtsCost, estimateEdgeTtsCost } from "@/lib/os-cost";
 
 interface MiniMaxVoice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; }
@@ -30,11 +27,6 @@ const PROVIDER_LOGOS: Record<string, string> = {
   edge: asset("providers/edge.png"),
   fishaudio: asset("providers/fishaudio.png"),
 };
-
-const MODELS = [
-  { id: "eleven_v3",         label: "Eleven v3",         badge: "Best" },
-  { id: "eleven_turbo_v2_5", label: "Multilingual v2.5", badge: "Fast" },
-];
 
 const MM_MODELS = [
   { id: "speech-02-hd", label: "Fire HD", badge: "Best" },
@@ -124,6 +116,16 @@ function SliderRow({ label, value, onChange, min, max, step }: {
   );
 }
 
+function useDebouncedValue<T>(v: T, ms = 350): T {
+  const [d, setD] = useState(v);
+  useEffect(() => { const t = setTimeout(() => setD(v), ms); return () => clearTimeout(t); }, [v, ms]);
+  return d;
+}
+
+function osPreviewUrl(v: OsVoice): string | null {
+  return v.preview_url || v.languages?.find((l) => l.preview_url)?.preview_url || null;
+}
+
 function VoicePreviewBtn({ url }: { url?: string | null }) {
   const [playing, setPlaying] = useState(false);
   const [audio] = useState(() => (url ? new Audio(url) : null));
@@ -142,14 +144,14 @@ function VoicePreviewBtn({ url }: { url?: string | null }) {
 
 export default function StudioPage() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState("");
   const [voiceProvider, setVoiceProvider] = useState<"el" | "minimax" | "fishaudio" | "edge" | "os">("el");
   const [osVoiceName, setOsVoiceName] = useState("");
+  const [elVoiceName, setElVoiceName] = useState("");
+  const [elSearch, setElSearch] = useState("");
   const [dictionaryId, setDictionaryId] = useState("");
-  const [modelId, setModelId] = useState("eleven_v3");
   const [mmModel, setMmModel] = useState("speech-02-hd");
   const [faModel, setFaModel] = useState("s2.1-pro-free");
   const [faLang, setFaLang] = useState("");
@@ -187,8 +189,14 @@ export default function StudioPage() {
       setOsVoiceName(id.replace(/^[a-z]+_/, "").replace(/[-_]/g, " "));
       return;
     }
-    const provider: "el" | "minimax" | "fishaudio" | "edge" =
-      raw === "mm" ? "minimax" : raw === "fa" ? "fishaudio" : raw === "edge" ? "edge" : "el";
+    if (raw === "el") {
+      // ElevenLabs voices are served via the OpenSpeaker library → prefixed ids
+      setVoiceProvider("el");
+      setVoiceId(id.startsWith("elevenlabs_") ? id : `elevenlabs_${id}`);
+      return;
+    }
+    const provider: "minimax" | "fishaudio" | "edge" =
+      raw === "mm" ? "minimax" : raw === "fa" ? "fishaudio" : "edge";
     setVoiceProvider(provider);
     setVoiceId(id);
   }, []);
@@ -208,9 +216,43 @@ export default function StudioPage() {
     });
   }
 
-  const { data: voices, isLoading: loadingVoices } = useListVoices({
-    query: { queryKey: getListVoicesQueryKey() },
+  // ElevenLabs voices come from the OpenSpeaker library (full index, server-side search)
+  const debouncedElSearch = useDebouncedValue(elSearch);
+  const { data: elVoiceData, isLoading: loadingVoices } = useQuery({
+    queryKey: ["studio-el-voices", debouncedElSearch],
+    queryFn: () => {
+      const params = new URLSearchParams({ provider: "elevenlabs", page: "1", page_size: "60" });
+      if (debouncedElSearch) params.set("search", debouncedElSearch);
+      return osJson<{ data: OsVoice[]; pagination?: { total?: number } }>(`/voices?${params}`);
+    },
+    enabled: voiceProvider === "el",
+    staleTime: 60_000,
   });
+  const elVoices: OsVoice[] = elVoiceData?.data ?? [];
+  const elTotal = elVoiceData?.pagination?.total ?? elVoices.length;
+
+  // Keep the selected EL voice's metadata even when the list/search moves on,
+  // and resolve deep-linked ids (?voice=el:xxx) that aren't on the first page.
+  const [selectedElMeta, setSelectedElMeta] = useState<OsVoice | null>(null);
+  const needElResolve = voiceProvider === "el" && !!voiceId
+    && selectedElMeta?.voice_id !== voiceId
+    && !elVoices.some((v) => v.voice_id === voiceId);
+  const { data: elResolveData } = useQuery({
+    queryKey: ["studio-el-resolve", voiceId],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        provider: "elevenlabs", page: "1", page_size: "5",
+        search: voiceId.replace(/^elevenlabs_/, ""),
+      });
+      return osJson<{ data: OsVoice[] }>(`/voices?${params}`);
+    },
+    enabled: needElResolve,
+    staleTime: Infinity,
+  });
+  useEffect(() => {
+    const found = elResolveData?.data?.find((v) => v.voice_id === voiceId);
+    if (found) { setSelectedElMeta(found); setElVoiceName(found.name); }
+  }, [elResolveData, voiceId]);
 
   const { data: mmVoiceData } = useQuery<{ builtin: MiniMaxVoice[]; clones: MiniMaxVoice[] }>({
     queryKey: ["minimax-voices"],
@@ -254,7 +296,6 @@ export default function StudioPage() {
     { query: { queryKey: getListGenerationsQueryKey({ limit: 20 }) } }
   );
 
-  const generateSpeech = useGenerateSpeech();
   const { task: osTask, submitting: osSubmitting, run: osRun, working: osWorking } = useOsTask("tts");
   const { data: dictData } = useQuery<{ dictionaries: { id: string; name: string }[] }>({
     queryKey: ["os-dictionaries"],
@@ -333,29 +374,18 @@ export default function StudioPage() {
       return;
     }
 
-    generateSpeech.mutate(
-      { data: { text, voiceId, stability, similarityBoost, modelId } },
-      {
-        onSuccess: (data) => { setLatestAudio(data.audioUrl); queryClient.invalidateQueries({ queryKey: getListGenerationsQueryKey({ limit: 20 }) }); },
-        onError: (err: any) => { toast({ title: "Generation failed", description: err?.error || "Unknown error.", variant: "destructive" }); },
-      }
-    );
+    // ElevenLabs — served through the OpenSpeaker library (prefixed voice id)
+    setLatestAudio(null);
+    osRun(() => osCreateTaskJson("/tts", { text, voiceId, speed }));
   };
 
-  const isGenerating = generateSpeech.isPending || mmGenerating || faGenerating || edgeGenerating || (voiceProvider === "os" && osWorking);
+  const isGenerating = mmGenerating || faGenerating || edgeGenerating || ((voiceProvider === "os" || voiceProvider === "el") && osWorking);
   // Mirrors the server's per-engine charge: 1 credit/char everywhere except Edge (1 per 500 chars).
   const costEstimate = text.trim()
     ? voiceProvider === "edge" ? estimateEdgeTtsCost(text) : estimateTtsCost(text)
     : null;
   const insufficientCredits = useOsInsufficientCredits(costEstimate);
   const expressionEnabled = voiceProvider === "minimax";
-
-  const voicesByCategory = voices?.reduce((acc, voice) => {
-    const cat = voice.category || "Other";
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(voice);
-    return acc;
-  }, {} as Record<string, typeof voices>);
 
   const mmByLang = mmVoices.reduce((acc, v) => {
     const g = v.isClone ? "My Clones" : (v.lang ?? "Other");
@@ -364,30 +394,35 @@ export default function StudioPage() {
     return acc;
   }, {} as Record<string, MiniMaxVoice[]>);
 
-  const selectedElVoice   = voiceProvider === "el"        ? voices?.find((v) => v.voiceId === voiceId) : undefined;
+  const selectedElVoice   = voiceProvider === "el"
+    ? (elVoices.find((v) => v.voice_id === voiceId) ?? (selectedElMeta?.voice_id === voiceId ? selectedElMeta : undefined))
+    : undefined;
   const selectedMmVoice   = voiceProvider === "minimax"   ? mmVoices.find((v) => v.id === voiceId)    : undefined;
   const selectedFaVoice   = voiceProvider === "fishaudio" ? faVoices.find((v) => v.id === voiceId)    : undefined;
   const selectedEdgeVoice = voiceProvider === "edge"      ? edgeVoices.find((v) => v.id === voiceId)  : undefined;
   const [voiceOpen, setVoiceOpen] = useState(false);
+  useEffect(() => { setElSearch(""); }, [voiceProvider]);
 
   const handleVoiceSelect = (composite: string) => {
     const colonIdx = composite.indexOf(":");
     const raw = composite.slice(0, colonIdx);
     const provider: "el" | "minimax" | "fishaudio" | "edge" =
       raw === "mm" ? "minimax" : raw === "fa" ? "fishaudio" : raw === "edge" ? "edge" : "el";
-    const id = composite.slice(colonIdx + 1);
+    let id = composite.slice(colonIdx + 1);
+    // ElevenLabs runs through the OpenSpeaker library → id must be prefixed
+    if (provider === "el" && !id.startsWith("elevenlabs_")) id = `elevenlabs_${id}`;
     setVoiceProvider(provider); setVoiceId(id); setVoiceOpen(false);
     setMobilePanel(false);
   };
 
   const selectedVoiceLabel = useMemo(() => {
     if (!voiceId) return null;
-    if (voiceProvider === "el"        && selectedElVoice)   return selectedElVoice.name;
+    if (voiceProvider === "el")       return selectedElVoice?.name ?? elVoiceName ?? null;
     if (voiceProvider === "minimax"   && selectedMmVoice)   return selectedMmVoice.name + (selectedMmVoice.style ? ` · ${selectedMmVoice.style}` : "");
     if (voiceProvider === "fishaudio" && selectedFaVoice)   return selectedFaVoice.name + (selectedFaVoice.style ? ` · ${selectedFaVoice.style}` : "");
     if (voiceProvider === "edge"      && selectedEdgeVoice) return selectedEdgeVoice.name;
     return null;
-  }, [voiceId, voiceProvider, selectedElVoice, selectedMmVoice, selectedFaVoice, selectedEdgeVoice]);
+  }, [voiceId, voiceProvider, selectedElVoice, elVoiceName, selectedMmVoice, selectedFaVoice, selectedEdgeVoice]);
 
   const resetSettings = () => { setStability(0.5); setSimilarityBoost(0.75); setSpeed(1); setVolume(1); setPitch(0); };
 
@@ -482,7 +517,7 @@ export default function StudioPage() {
                           ? (selectedFaVoice?.lang ?? "Multi")
                           : voiceProvider === "edge"
                             ? (selectedEdgeVoice?.locale ?? "Multi")
-                            : (selectedElVoice?.category ?? "voice")}
+                            : ([selectedElVoice?.language, selectedElVoice?.gender].filter(Boolean).join(" · ") || selectedElVoice?.category || "voice")}
                     </span>
                     {voiceProvider === "minimax" && <span className="flex items-center gap-0.5 text-[10px] text-violet-500 font-semibold"><Zap size={9} className="fill-violet-500" /> Fire TTS</span>}
                     {voiceProvider === "minimax" && selectedMmVoice?.style && <span className="text-[10px] text-[#9ca3af]">{selectedMmVoice.style}</span>}
@@ -492,7 +527,7 @@ export default function StudioPage() {
                     {voiceProvider === "edge" && selectedEdgeVoice?.gender && <span className="text-[10px] text-[#9ca3af]">{selectedEdgeVoice.gender}</span>}
                   </div>
                 </div>
-                {voiceProvider === "el" && <VoicePreviewBtn url={selectedElVoice?.previewUrl} />}
+                {voiceProvider === "el" && selectedElVoice && <VoicePreviewBtn key={selectedElVoice.voice_id} url={osPreviewUrl(selectedElVoice)} />}
               </div>
             )}
             {voiceProvider === "os" && (
@@ -545,27 +580,36 @@ export default function StudioPage() {
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-[240px] p-0" align="start" side="bottom">
-                <Command>
-                  <CommandInput placeholder="Search voices..." className="h-9 text-sm" />
+                <Command shouldFilter={voiceProvider !== "el"}>
+                  <CommandInput
+                    placeholder="Search voices..."
+                    className="h-9 text-sm"
+                    value={elSearch}
+                    onValueChange={setElSearch}
+                  />
                   <CommandList className="max-h-72">
-                    <CommandEmpty className="py-6 text-center text-sm text-[#9ca3af]">No voice found.</CommandEmpty>
+                    <CommandEmpty className="py-6 text-center text-sm text-[#9ca3af]">
+                      {voiceProvider === "el" && loadingVoices ? "Loading voices…" : "No voice found."}
+                    </CommandEmpty>
 
-                    {/* ElevenLabs voices */}
-                    {voiceProvider === "el" && voicesByCategory && Object.entries(voicesByCategory).map(([cat, items]) => (
-                      <CommandGroup key={`el-${cat}`} heading={cat.charAt(0).toUpperCase() + cat.slice(1)}>
-                        {items.map((v) => (
-                          <CommandItem key={`el:${v.voiceId}`} value={`el:${v.voiceId}:${v.name} ${cat}`}
-                            onSelect={() => handleVoiceSelect(`el:${v.voiceId}`)} className="flex items-center gap-2 py-2 cursor-pointer">
+                    {/* ElevenLabs voices (full OpenSpeaker index, server-side search) */}
+                    {voiceProvider === "el" && !loadingVoices && (
+                      <CommandGroup heading={`ElevenLabs · ${elTotal.toLocaleString()} voices${elSearch ? "" : " — type to search all"}`}>
+                        {elVoices.map((v) => (
+                          <CommandItem key={v.voice_id} value={v.voice_id}
+                            onSelect={() => { setVoiceId(v.voice_id); setElVoiceName(v.name); setSelectedElMeta(v); setVoiceOpen(false); setMobilePanel(false); }}
+                            className="flex items-center gap-2 py-2 cursor-pointer">
                             <div className="w-7 h-7 rounded-md bg-orange-50 flex items-center justify-center shrink-0 text-primary font-bold text-xs">{v.name[0]}</div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
-                              <p className="text-[10px] text-[#9ca3af] capitalize">{cat}</p>
+                              <p className="text-[10px] text-[#9ca3af]">{[v.language, v.gender].filter(Boolean).join(" · ") || v.category || ""}</p>
                             </div>
-                            {voiceId === v.voiceId && <Check size={13} className="text-primary shrink-0" />}
+                            <VoicePreviewBtn key={`pv-${v.voice_id}`} url={osPreviewUrl(v)} />
+                            {voiceId === v.voice_id && <Check size={13} className="text-primary shrink-0" />}
                           </CommandItem>
                         ))}
                       </CommandGroup>
-                    ))}
+                    )}
 
                     {/* Fire TTS / MiniMax voices */}
                     {voiceProvider === "minimax" && Object.entries(mmByLang).map(([lang, langVoices]) => (
@@ -640,12 +684,6 @@ export default function StudioPage() {
               </button>
             </div>
             <SliderRow label="Speed" value={speed} onChange={setSpeed} min={0.5} max={2} step={0.1} />
-            {voiceProvider === "el" && (
-              <>
-                <SliderRow label="Stability" value={stability} onChange={setStability} min={0} max={1} step={0.01} />
-                <SliderRow label="Clarity" value={similarityBoost} onChange={setSimilarityBoost} min={0} max={1} step={0.01} />
-              </>
-            )}
             {voiceProvider === "minimax" && (
               <>
                 <SliderRow label="Pitch" value={pitch} onChange={setPitch} min={-12} max={12} step={1} />
@@ -696,49 +734,20 @@ export default function StudioPage() {
           >
             <SlidersHorizontal size={13} /> {mobilePanel ? "Hide" : "Settings"}
           </button>
-          {/* Model selector — only ElevenLabs has multiple models */}
-          {voiceProvider === "el" && (() => {
-            const models = MODELS;
-            const value = modelId;
-            const selected = models.find(m => m.id === value);
-            const handleModelChange = (id: string) => setModelId(id);
-            return (
-              <div className="hidden sm:flex items-center gap-2">
-                <span className="text-sm text-[#6b7280]">Model</span>
-                <Select value={value} onValueChange={handleModelChange}>
-                  <SelectTrigger className="h-8 text-sm border-[#e5e7eb] w-44 sm:w-52 gap-2">
-                    <SelectValue />
-                    {selected?.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-primary text-white ml-1">{selected.badge}</span>}
-                  </SelectTrigger>
-                  <SelectContent>
-                    {models.map(m => (
-                      <SelectItem key={m.id} value={m.id} className="text-sm">
-                        <div className="flex items-center gap-2">
-                          {m.label}
-                          {m.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary">{m.badge}</span>}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            );
-          })()}
-          {voiceProvider !== "el" && (
-            <div className="hidden sm:flex items-center gap-2">
-              <span className={cn("flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border",
-                voiceProvider === "minimax" ? "text-violet-600 bg-violet-50 border-violet-200"
-                : voiceProvider === "fishaudio" ? "text-emerald-600 bg-emerald-50 border-emerald-200"
-                : voiceProvider === "os" ? "text-blue-600 bg-blue-50 border-blue-200"
-                : "text-sky-600 bg-sky-50 border-sky-200"
-              )}>
-                {voiceProvider === "os"
-                  ? <BookAudio size={13} className="shrink-0" />
-                  : <img src={PROVIDER_LOGOS[voiceProvider]} alt="" className="w-3.5 h-3.5 rounded-sm object-contain" />}
-                {voiceProvider === "minimax" ? "Fire HD" : voiceProvider === "fishaudio" ? "Fish Pro" : voiceProvider === "os" ? "Voice Library" : "Edge TTS"}
-              </span>
-            </div>
-          )}
+          <div className="hidden sm:flex items-center gap-2">
+            <span className={cn("flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border",
+              voiceProvider === "el" ? "text-orange-600 bg-orange-50 border-orange-200"
+              : voiceProvider === "minimax" ? "text-violet-600 bg-violet-50 border-violet-200"
+              : voiceProvider === "fishaudio" ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+              : voiceProvider === "os" ? "text-blue-600 bg-blue-50 border-blue-200"
+              : "text-sky-600 bg-sky-50 border-sky-200"
+            )}>
+              {voiceProvider === "os"
+                ? <BookAudio size={13} className="shrink-0" />
+                : <img src={PROVIDER_LOGOS[voiceProvider]} alt="" className="w-3.5 h-3.5 rounded-sm object-contain" />}
+              {voiceProvider === "el" ? "ElevenLabs" : voiceProvider === "minimax" ? "Fire HD" : voiceProvider === "fishaudio" ? "Fish Pro" : voiceProvider === "os" ? "Voice Library" : "Edge TTS"}
+            </span>
+          </div>
         </div>
       </div>
 

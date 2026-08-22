@@ -9,6 +9,7 @@ import {
   Languages, Radio, Settings, BookAudio, Copy, Zap, CreditCard,
   ChevronRight, User, Moon, Lock, Layers, LifeBuoy,
   MessagesSquare, BookOpenText, Drum, Music4, ImageIcon,
+  PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -230,15 +231,24 @@ function TopRightUserBtn({ user, onClick }: { user: any; onClick: () => void }) 
 }
 
 /* ─── Sidebar nav only (no user button here) ─────────────────────────── */
-function SidebarContent() {
+function SidebarContent({ onCollapse }: { onCollapse?: () => void }) {
   const { user } = useAuth();
   const isPaid = !!user && (user.isAdmin || (user.plan && user.plan !== "free"));
   return (
     <div className="flex flex-col h-full">
-      {/* Logo */}
+      {/* Logo + collapse button */}
       <div className="px-5 py-5 shrink-0">
-        <div className="flex items-center">
+        <div className="flex items-center justify-between gap-2">
           <BrandWordmark textClass="font-black text-[19px] tracking-tight text-foreground" imgClass="h-[1.2em] w-auto" />
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              title="Collapse menu"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-[#9ca3af] hover:text-foreground hover:bg-[#f3f4f6] transition-colors shrink-0"
+            >
+              <PanelLeftClose size={18} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -274,19 +284,27 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem("sidebar-collapsed") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("sidebar-collapsed", collapsed ? "1" : "0"); } catch { /* ignore */ }
+  }, [collapsed]);
 
   return (
     <div className="h-screen flex bg-white text-foreground overflow-hidden">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col bg-white border-r border-[#f3f4f6] w-64 shrink-0 h-full">
-        <SidebarContent />
-      </aside>
+      {!collapsed && (
+        <aside className="hidden lg:flex flex-col bg-white border-r border-[#f3f4f6] w-64 shrink-0 h-full">
+          <SidebarContent onCollapse={() => setCollapsed(true)} />
+        </aside>
+      )}
 
       {/* Mobile overlay */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className="w-64 bg-white border-r border-[#f3f4f6] flex flex-col h-full shadow-xl">
-            <SidebarContent />
+            <SidebarContent onCollapse={() => setMobileOpen(false)} />
           </div>
           <div className="flex-1 bg-black/30" onClick={() => setMobileOpen(false)} />
         </div>
@@ -306,8 +324,21 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
             </button>
             <BrandWordmark textClass="font-black text-[17px] tracking-tight text-foreground" imgClass="h-[1.2em] w-auto" />
           </div>
-          {/* Desktop: empty left side */}
-          <div className="hidden lg:block" />
+          {/* Desktop: open button + logo when collapsed */}
+          <div className="hidden lg:flex items-center gap-3">
+            {collapsed && (
+              <>
+                <button
+                  onClick={() => setCollapsed(false)}
+                  title="Open menu"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-[#6b7280] hover:text-foreground hover:bg-[#f3f4f6] transition-colors"
+                >
+                  <PanelLeftOpen size={18} />
+                </button>
+                <BrandWordmark textClass="font-black text-[17px] tracking-tight text-foreground" imgClass="h-[1.2em] w-auto" />
+              </>
+            )}
+          </div>
 
           {/* Right: bell + plan badge + avatar — always in the header */}
           <div className="flex items-center gap-1">
