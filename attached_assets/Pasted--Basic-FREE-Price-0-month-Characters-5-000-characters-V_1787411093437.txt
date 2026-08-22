@@ -1,0 +1,149 @@
+## 🆓 Basic — FREE
+
+**Price:** $0/month
+**Characters:** 5,000 characters
+**Validity:** 30 Days
+
+### Included
+
+* 5,000 Characters / 30 Days
+* Text to Speech — All Models
+* Bulk TTS — All Models
+* MP3 Downloads
+* Community Support
+
+---
+
+## 🚀 Starter
+
+**Price:** $3.96/month
+**Characters:** 100,000 characters
+**Validity:** 30 Days
+
+### Included
+
+* 100,000 Characters / 30 Days
+* Everything in Basic
+* Voice Cloning
+* Speech to Speech
+* Speech to Text
+* Sound Effects
+* AI Music — Latest Suno AI Model
+* Pronunciation Dictionary
+* Email Support
+
+### Premium Models
+
+* Voice Cloning — Fire TTS Engine
+* Speech to Speech — ElevenLabs STS v2
+* Speech to Text — ElevenLabs Scribe v1
+* Sound Effects — ElevenLabs
+* AI Music — Suno AI, full songs & background music
+
+---
+
+## ⭐ Pro — Best for Creators
+
+**Price:** $6.89/month
+**Characters:** 500,000 characters
+**Validity:** 30 Days
+
+### Included
+
+* 500,000 Characters / 30 Days
+* Everything in Starter
+* Audio Isolation
+* Multilingual Dubbing — 29 Languages
+* Text to Dialogue
+* AI Images — 20 Models
+* Voice Library
+* Priority Support
+
+### Premium Audio Features
+
+* Audio Isolation — ElevenLabs
+* Text to Dialogue — ElevenLabs v3 Multi-Speaker
+* Voice Library — Thousands of Voices from All Providers
+
+### 🖼️ AI Image Models
+
+* GPT Image 2 — OpenAI
+* GPT Image 1.5 — OpenAI
+* GPT Image 1 — OpenAI
+* Gemini 3 Pro Image — Google
+* Gemini 3.1 Flash Lite — Google
+* Gemini 2.5 Flash — Nano Banana — Google
+* Gemini 3.1 Flash — Nano Banana Pro — Google
+* Seedream 5 Pro — ByteDance
+* Seedream 5 Lite — ByteDance
+* Seedream 4.5 — ByteDance
+* Seedream 4 — ByteDance
+* Recraft V4.1 — Recraft
+* Krea 2 Medium — Krea
+* Krea 2 Large — Krea
+* Kling Omni Image — Kling
+* FLUX.2 Pro — Black Forest Labs
+* FLUX.1 Kontext
+* Runway Gen-4 Image
+* Runway Gen-4 Turbo
+* Wan 2.5
+
+**20 AI Image Models Included**
+
+---
+
+## 👑 Pro Max
+
+**Price:** $10.86/month
+**Characters:** 1,000,000 characters
+**Validity:** 30 Days
+
+### Included
+
+* 1,000,000 Characters / 30 Days
+* Everything in Pro
+* All Premium & Emotional Voices
+* Commercial License
+* Highest Priority Support
+
+### 🎙️ Advanced Voice Models
+
+* ElevenLabs v3
+* ElevenLabs v2.5
+* Premium voice options and advanced voice features
+
+### 🖼️ AI Images
+
+Includes all **20 AI Image Models** available in the Pro plan.
+
+### 🎵 AI Music
+
+* Latest Suno AI Model
+* Full Songs
+* Background Music
+
+### 🎬 Dubbing
+
+* Multilingual Dubbing
+* 29 Languages
+
+### 🔊 Audio & Voice Tools
+
+* Text to Speech
+* Bulk TTS
+* Voice Cloning
+* Speech to Speech
+* Speech to Text
+* Audio Isolation
+* Text to Dialogue
+* Sound Effects
+* Voice Library
+* Pronunciation Dictionary
+
+### 💼 Pro Max Benefits
+
+* 1M Characters
+* All Premium & Emotional Voices
+* Commercial License
+* Highest Priority Support
+* Full access to premium tools and models
