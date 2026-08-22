@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Download, Trash2, CheckCircle2, XCircle, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { osJson, taskAudioUrl, taskDownloads, taskImageUrls, type OsTask } from "@/lib/os-api";
+import { osJson, taskAudioUrl, taskDownloads, taskImageUrls, taskSongs, type OsTask } from "@/lib/os-api";
 
 /* ── Active task banner ─────────────────────────────────────────────── */
 
@@ -36,7 +36,8 @@ export function OsTaskResult({ task }: { task: OsTask | null }) {
 /* ── Output rendering (done tasks) ──────────────────────────────────── */
 
 function TaskOutput({ task, highlight }: { task: OsTask; highlight?: boolean }) {
-  const audio = taskAudioUrl(task);
+  const songs = taskSongs(task);
+  const audio = songs.length > 0 ? null : taskAudioUrl(task);
   const images = taskImageUrls(task);
   const downloads = taskDownloads(task);
   const text = typeof task.output?.text === "string" ? task.output.text : null;
@@ -57,6 +58,16 @@ function TaskOutput({ task, highlight }: { task: OsTask; highlight?: boolean }) 
           </div>
         )}
       </div>
+      {songs.length > 0 && (
+        <div className="space-y-3">
+          {songs.map((s) => (
+            <div key={s.url} className="space-y-1">
+              <p className="text-xs font-semibold text-muted-foreground truncate">{s.title}</p>
+              <audio controls src={s.url} className="w-full" />
+            </div>
+          ))}
+        </div>
+      )}
       {audio && <audio controls src={audio} className="w-full" />}
       {images.length > 0 && (
         <div className={cn("grid gap-2", images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
@@ -130,11 +141,22 @@ export function OsTaskHistory({ tool, emptyLabel = "Nothing generated yet." }: {
 }
 
 function HistoryOutputs({ task }: { task: OsTask }) {
-  const audio = taskAudioUrl(task);
+  const songs = taskSongs(task);
+  const audio = songs.length > 0 ? null : taskAudioUrl(task);
   const images = taskImageUrls(task);
   const downloads = taskDownloads(task);
   return (
     <div className="space-y-2">
+      {songs.length > 0 && (
+        <div className="space-y-2">
+          {songs.map((s) => (
+            <div key={s.url} className="space-y-0.5">
+              <p className="text-[11px] font-semibold text-muted-foreground truncate">{s.title}</p>
+              <audio controls src={s.url} className="w-full h-9" />
+            </div>
+          ))}
+        </div>
+      )}
       {audio && <audio controls src={audio} className="w-full h-9" />}
       {images.length > 0 && (
         <div className="flex gap-2 flex-wrap">

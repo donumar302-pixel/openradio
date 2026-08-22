@@ -77,6 +77,27 @@ export function taskAudioUrl(t: OsTask): string | null {
   return m.audio_url || m.dubbed_audio_url || m.output_audio_url || null;
 }
 
+/** Music (Suno) generations return multiple songs: all_audio_urls + suno_result.clips (with titles). */
+export function taskSongs(t: OsTask): { title: string; url: string }[] {
+  const m = t.output ?? {};
+  const songs: any[] = Array.isArray(m.all_audio_urls) ? m.all_audio_urls : Array.isArray(m.songs) ? m.songs : [];
+  if (songs.length === 0) return [];
+  const clips: any[] = Array.isArray(m.suno_result?.clips) ? m.suno_result.clips : [];
+  const usedTitles = new Set<string>();
+  const out: { title: string; url: string }[] = [];
+  const seen = new Set<string>();
+  songs.forEach((s: any, i: number) => {
+    const url = s?.audio_url ?? s;
+    if (typeof url !== "string" || !url.startsWith("http") || seen.has(url)) return;
+    seen.add(url);
+    let title = typeof clips[i]?.title === "string" && clips[i].title.trim() ? clips[i].title.trim() : `Song ${i + 1}`;
+    if (usedTitles.has(title)) title = `${title} (${i + 1})`; // Suno often reuses one title for both clips
+    usedTitles.add(title);
+    out.push({ title, url });
+  });
+  return out;
+}
+
 /** result_images entries are objects ({ imageUrl, previewUrl, ... }); older/other shapes may be plain strings. */
 function imageEntryUrl(u: any): string | null {
   if (typeof u === "string") return u;
@@ -106,16 +127,9 @@ export function taskDownloads(t: OsTask): { label: string; url: string }[] {
     }
   };
   // Music (Suno) returns all_audio_urls + suno_result.clips (with titles) — no generic audio label.
-  const songs: any[] = Array.isArray(m.all_audio_urls) ? m.all_audio_urls : Array.isArray(m.songs) ? m.songs : [];
+  const songs = taskSongs(t);
   if (songs.length > 0) {
-    const clips: any[] = Array.isArray(m.suno_result?.clips) ? m.suno_result.clips : [];
-    const usedTitles = new Set<string>();
-    songs.forEach((s: any, i: number) => {
-      let title = typeof clips[i]?.title === "string" && clips[i].title.trim() ? clips[i].title.trim() : `Song ${i + 1}`;
-      if (usedTitles.has(title)) title = `${title} (${i + 1})`; // Suno often reuses one title for both clips
-      usedTitles.add(title);
-      push(title, s?.audio_url ?? s);
-    });
+    songs.forEach((s) => push(s.title, s.url));
   } else {
     push("Audio", taskAudioUrl(t));
   }
