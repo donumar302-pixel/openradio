@@ -4,7 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Mic2, AudioWaveform, MessageSquareText, Radio,
   Languages, Copy, Clock, Play, Plus, Volume2,
-  ArrowUpRight, Zap, Sparkles, ChevronRight,
+  ArrowUpRight, Sparkles, ChevronRight,
+  MessagesSquare, Layers, Drum, Music4,
+  Image as ImageIcon, BookAudio, BookOpenText,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -60,6 +62,60 @@ const TOOLS: {
     name: "Speech to Text",
     desc: "Transcribe audio and video files in any language",
     iconBg: "bg-sky-100", iconColor: "text-sky-500",
+  },
+  {
+    href: "/dialogue",
+    icon: MessagesSquare,
+    name: "Text to Dialogue",
+    desc: "Create multi-speaker conversations with different voices",
+    iconBg: "bg-indigo-100", iconColor: "text-indigo-500",
+    badge: "New",
+  },
+  {
+    href: "/batch",
+    icon: Layers,
+    name: "Bulk TTS",
+    desc: "Convert many texts to speech in one go",
+    iconBg: "bg-cyan-100", iconColor: "text-cyan-600",
+    badge: "New",
+  },
+  {
+    href: "/sound-effects",
+    icon: Drum,
+    name: "Sound Effects",
+    desc: "Generate any sound effect from a text description",
+    iconBg: "bg-amber-100", iconColor: "text-amber-600",
+    badge: "New",
+  },
+  {
+    href: "/music",
+    icon: Music4,
+    name: "AI Music",
+    desc: "Create full songs and background music with AI",
+    iconBg: "bg-pink-100", iconColor: "text-pink-500",
+    badge: "New",
+  },
+  {
+    href: "/images",
+    icon: ImageIcon,
+    name: "AI Images",
+    desc: "Generate stunning images from text prompts",
+    iconBg: "bg-teal-100", iconColor: "text-teal-600",
+    badge: "New",
+  },
+  {
+    href: "/voices",
+    icon: BookAudio,
+    name: "Voice Library",
+    desc: "Browse thousands of voices from all providers",
+    iconBg: "bg-lime-100", iconColor: "text-lime-600",
+  },
+  {
+    href: "/dictionary",
+    icon: BookOpenText,
+    name: "Dictionary",
+    desc: "Fix pronunciations so every word sounds right",
+    iconBg: "bg-slate-100", iconColor: "text-slate-500",
   },
 ];
 

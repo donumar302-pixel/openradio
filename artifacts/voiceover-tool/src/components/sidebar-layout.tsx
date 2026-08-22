@@ -256,12 +256,12 @@ function SidebarContent() {
         <div className="h-4" />
       </nav>
 
-      {/* Upgrade button */}
-      <div className="p-3 border-t border-[#f3f4f6] shrink-0">
+      {/* Upgrade link (compact) */}
+      <div className="px-3 py-2 border-t border-[#f3f4f6] shrink-0">
         <Link href="/pricing">
-          <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-orange-400 text-white text-[13px] font-bold shadow-sm hover:from-orange-600 hover:to-orange-500 transition-all">
-            <Zap size={14} className="fill-white" />
-            Upgrade Now
+          <button className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-bold text-orange-500 hover:bg-orange-50 transition-colors">
+            <Zap size={12} className="fill-orange-500" />
+            Upgrade
           </button>
         </Link>
       </div>
