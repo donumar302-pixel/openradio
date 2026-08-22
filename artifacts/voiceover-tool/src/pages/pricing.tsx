@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
-import { Check, ArrowRight, Loader2, Zap } from "lucide-react";
+import { Check, ArrowRight, Loader2, Zap, ChevronDown, ChevronUp } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface Currency { code: string; symbol: string; }
@@ -10,6 +10,7 @@ interface Plan {
   id: string; name: string; credits: number;
   durationDays: number; highlight: boolean;
   cta: string; features: string[];
+  more?: string[];
   prices: Record<string, number>;
 }
 interface PlansResponse { currencies: Currency[]; plans: Plan[]; }
@@ -23,6 +24,7 @@ async function fetchPlans(): Promise<PlansResponse> {
 export default function PricingPage() {
   const { data, isLoading, isError } = useQuery({ queryKey: ["plans"], queryFn: fetchPlans });
   const [currency, setCurrency] = useState("USD");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const currencies = data?.currencies ?? [];
   const plans      = data?.plans ?? [];
@@ -144,6 +146,34 @@ export default function PricingPage() {
                           </span>
                         </li>
                       ))}
+
+                      {/* See more details */}
+                      {(plan.more?.length ?? 0) > 0 && (
+                        <>
+                          {expanded[plan.id] && plan.more!.map((f, j) => (
+                            <li key={`m-${j}`} className="flex items-start gap-2.5">
+                              <span className={`mt-0.5 w-[17px] h-[17px] rounded-full flex items-center justify-center shrink-0 ${
+                                isHighlighted ? "bg-white/10" : "bg-black/5"
+                              }`}>
+                                <Check size={9} className={isHighlighted ? "text-white/60" : "text-black/40"} strokeWidth={3} />
+                              </span>
+                              <span className={`text-[12px] font-medium leading-snug ${isHighlighted ? "text-white/55" : "text-black/45"}`}>
+                                {f}
+                              </span>
+                            </li>
+                          ))}
+                          <li>
+                            <button
+                              onClick={() => setExpanded(e => ({ ...e, [plan.id]: !e[plan.id] }))}
+                              className={`inline-flex items-center gap-1 text-[12px] font-bold transition-colors ${
+                                isHighlighted ? "text-orange-400 hover:text-orange-300" : "text-orange-500 hover:text-orange-600"
+                              }`}
+                            >
+                              {expanded[plan.id] ? <>See less <ChevronUp size={13} /></> : <>See more <ChevronDown size={13} /></>}
+                            </button>
+                          </li>
+                        </>
+                      )}
                     </ul>
 
                     {/* CTA */}

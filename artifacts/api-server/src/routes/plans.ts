@@ -15,6 +15,7 @@ router.get("/", (_req, res) => {
       highlight: p.highlight,
       cta: p.cta,
       features: p.features,
+      more: p.more ?? [],
       prices: Object.fromEntries(CURRENCIES.map((c) => [c.code, priceInCurrency(p.id, c.code)])),
     })),
   });

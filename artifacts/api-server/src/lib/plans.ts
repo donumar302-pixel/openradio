@@ -132,6 +132,8 @@ export interface PlanDefinition {
   highlight: boolean;
   cta: string;
   features: string[];
+  /** Extra detail lines shown behind a "See more" toggle on the pricing page. */
+  more?: string[];
 }
 
 export const PLAN_DEFINITIONS: PlanDefinition[] = [
@@ -145,13 +147,15 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     features: [
       `${fmtCredits(PLAN_CREDITS.free)} characters / 30 days`,
       "Text to Speech — all models",
+      "Bulk TTS — all models",
+      "MP3 downloads",
+      "Community support",
+    ],
+    more: [
       "ElevenLabs — Eleven v3",
       "ElevenLabs — Multilingual v2.5",
       "Fish Audio — S2.1 Pro",
       "Fire TTS — Speech-02 HD",
-      "Bulk TTS — all models",
-      "MP3 downloads",
-      "Community support",
     ],
   },
   {
@@ -164,13 +168,20 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     features: [
       `${fmtCredits(PLAN_CREDITS.starter)} characters / 30 days`,
       "Everything in Basic",
+      "Voice Cloning",
+      "Speech to Speech",
+      "Speech to Text",
+      "Sound Effects",
+      "AI Music — Suno",
+      "Pronunciation Dictionary",
+      "Email support",
+    ],
+    more: [
       "Voice Cloning — Fire TTS engine",
       "Speech to Speech — ElevenLabs STS v2",
       "Speech to Text — ElevenLabs Scribe v1",
       "Sound Effects — ElevenLabs",
-      "AI Music — Suno",
-      "Pronunciation Dictionary",
-      "Email support",
+      "AI Music — Suno full songs & background music",
     ],
   },
   {
@@ -183,12 +194,23 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     features: [
       `${fmtCredits(PLAN_CREDITS.pro)} characters / 30 days`,
       "Everything in Starter",
-      "Audio Isolation — ElevenLabs",
+      "Audio Isolation",
       "Multilingual Dubbing — 29 languages",
-      "Text to Dialogue — Eleven v3",
-      "AI Images",
+      "Text to Dialogue",
+      "AI Images — 20 models",
       "Voice Library",
       "Priority support",
+    ],
+    more: [
+      "Audio Isolation — ElevenLabs",
+      "Text to Dialogue — Eleven v3 multi-speaker",
+      "Voice Library — thousands of voices, all providers",
+      "AI Images: GPT Image 2, GPT Image 1.5, GPT Image 1",
+      "Gemini 3 Pro, Gemini 3.1 Flash, Gemini 2.5 Flash",
+      "Seedream 5 Pro, Seedream 5 Lite, Seedream 4.5, Seedream 4",
+      "Flux 2 Pro, Flux 1 Kontext, Recraft v4.1",
+      "Krea 2 Large, Krea 2 Medium, Kling Omni Image",
+      "Runway Gen-4 Image, Runway Gen-4 Turbo, Wan 2.5",
     ],
   },
   {
