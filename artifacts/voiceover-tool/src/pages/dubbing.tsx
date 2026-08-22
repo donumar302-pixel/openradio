@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { OsTaskResult, OsTaskHistory, OsFileDrop } from "@/components/os/task-panel";
-import { OsCostEstimate } from "@/components/os/cost-estimate";
+import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osCreateTaskForm } from "@/lib/os-api";
 import { estimateDubbingCost } from "@/lib/os-cost";
@@ -39,6 +39,8 @@ export default function DubbingPage() {
   const [targetLang, setTargetLang] = useState("es");
   const [numSpeakers, setNumSpeakers] = useState("0");
   const { task, submitting, run, working } = useOsTask("dubbing");
+  const estimate = file ? estimateDubbingCost(file.size) : null;
+  const insufficient = useOsInsufficientCredits(estimate);
 
   const handleSubmit = () => {
     if (!file) {
@@ -105,14 +107,14 @@ export default function DubbingPage() {
           </div>
         </div>
 
-        <OsCostEstimate estimate={file ? estimateDubbingCost(file.size) : null} />
+        <OsCostEstimate estimate={estimate} />
 
         <Button
           onClick={handleSubmit}
-          disabled={working || !file || sourceLang === targetLang}
+          disabled={working || !file || sourceLang === targetLang || insufficient}
           className="w-full bg-primary hover:bg-primary/90 font-bold"
         >
-          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : <><Languages className="mr-2 h-4 w-4" />Start Dubbing</>}
+          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : insufficient ? <>Not enough credits</> : <><Languages className="mr-2 h-4 w-4" />Start Dubbing</>}
         </Button>
         <p className="text-xs text-muted-foreground text-center">Dubbing can take several minutes — track progress in History below.</p>
       </div>

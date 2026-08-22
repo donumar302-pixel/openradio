@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { OsVoicePicker } from "@/components/os/voice-picker";
 import { OsTaskResult, OsTaskHistory, OsFileDrop } from "@/components/os/task-panel";
-import { OsCostEstimate } from "@/components/os/cost-estimate";
+import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osCreateTaskForm } from "@/lib/os-api";
 import { estimateVoiceChangerCost } from "@/lib/os-cost";
@@ -21,6 +21,8 @@ export default function VoiceChangerPage() {
   const [similarity, setSimilarity] = useState(0.75);
   const [removeNoise, setRemoveNoise] = useState(false);
   const { task, submitting, run, working } = useOsTask("voice-changer");
+  const estimate = file ? estimateVoiceChangerCost(file.size) : null;
+  const insufficient = useOsInsufficientCredits(estimate);
 
   const handleSubmit = () => {
     if (!file || !voiceId) {
@@ -85,10 +87,10 @@ export default function VoiceChangerPage() {
           <Switch checked={removeNoise} onCheckedChange={setRemoveNoise} />
         </div>
 
-        <OsCostEstimate estimate={file ? estimateVoiceChangerCost(file.size) : null} />
+        <OsCostEstimate estimate={estimate} />
 
-        <Button onClick={handleSubmit} disabled={working || !file || !voiceId} className="w-full bg-primary hover:bg-primary/90 font-bold">
-          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : <><Mic className="mr-2 h-4 w-4" />Convert Voice</>}
+        <Button onClick={handleSubmit} disabled={working || !file || !voiceId || insufficient} className="w-full bg-primary hover:bg-primary/90 font-bold">
+          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : insufficient ? <>Not enough credits</> : <><Mic className="mr-2 h-4 w-4" />Convert Voice</>}
         </Button>
       </div>
 

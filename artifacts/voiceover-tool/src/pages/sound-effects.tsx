@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { OsTaskResult, OsTaskHistory } from "@/components/os/task-panel";
-import { OsCostEstimate } from "@/components/os/cost-estimate";
+import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osCreateTaskJson } from "@/lib/os-api";
 import { estimateSoundEffectCost } from "@/lib/os-cost";
@@ -22,6 +22,7 @@ export default function SoundEffectsPage() {
   const { task, submitting, run, working } = useOsTask("sound-effects");
 
   const cost = estimateSoundEffectCost(autoDuration, duration);
+  const insufficient = useOsInsufficientCredits(cost);
 
   const handleSubmit = () => {
     if (text.trim().length < 3) {
@@ -99,8 +100,8 @@ export default function SoundEffectsPage() {
 
         <OsCostEstimate estimate={cost} />
 
-        <Button onClick={handleSubmit} disabled={working} className="w-full bg-primary hover:bg-primary/90 font-bold">
-          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : <><Sparkles className="mr-2 h-4 w-4" />Generate</>}
+        <Button onClick={handleSubmit} disabled={working || insufficient} className="w-full bg-primary hover:bg-primary/90 font-bold">
+          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : insufficient ? <>Not enough credits</> : <><Sparkles className="mr-2 h-4 w-4" />Generate</>}
         </Button>
       </div>
 

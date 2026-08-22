@@ -14,7 +14,7 @@ import { Loader2, Play, Download, PlayCircle, StopCircle, Mic2, History, Setting
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { OsVoicePicker } from "@/components/os/voice-picker";
-import { OsCostEstimate } from "@/components/os/cost-estimate";
+import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osCreateTaskJson, osJson, taskAudioUrl } from "@/lib/os-api";
 import { estimateTtsCost } from "@/lib/os-cost";
@@ -343,6 +343,8 @@ export default function StudioPage() {
   };
 
   const isGenerating = generateSpeech.isPending || mmGenerating || faGenerating || edgeGenerating || (voiceProvider === "os" && osWorking);
+  const osEstimate = voiceProvider === "os" && text.trim() ? estimateTtsCost(text) : null;
+  const osInsufficient = useOsInsufficientCredits(osEstimate);
   const expressionEnabled = voiceProvider === "minimax";
 
   const voicesByCategory = voices?.reduce((acc, voice) => {
@@ -855,7 +857,7 @@ export default function StudioPage() {
           {/* Cost estimate (OpenSpeaker engine only — other engines don't use credits tasks) */}
           {voiceProvider === "os" && (
             <div className="px-4 sm:px-7 pb-3 shrink-0">
-              <OsCostEstimate estimate={text.trim() ? estimateTtsCost(text) : null} />
+              <OsCostEstimate estimate={osEstimate} />
             </div>
           )}
 
@@ -869,10 +871,10 @@ export default function StudioPage() {
             <div className="flex-1" />
             <button
               onClick={handleGenerate}
-              disabled={isGenerating || !text.trim() || !voiceId}
+              disabled={isGenerating || !text.trim() || !voiceId || osInsufficient}
               className={cn(
                 "flex items-center gap-2 px-4 sm:px-6 py-2 rounded-lg text-sm font-bold transition-all",
-                isGenerating || !text.trim() || !voiceId
+                isGenerating || !text.trim() || !voiceId || osInsufficient
                   ? "bg-[#f3f4f6] text-[#9ca3af] cursor-not-allowed"
                   : voiceProvider === "minimax"
                     ? "bg-violet-600 text-white hover:bg-violet-700 shadow-sm"
@@ -884,7 +886,9 @@ export default function StudioPage() {
             >
               {isGenerating
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>
-                : voiceProvider === "minimax"
+                : osInsufficient
+                  ? <>Not enough credits</>
+                  : voiceProvider === "minimax"
                   ? <><Zap className="h-4 w-4 fill-white" /> Generate</>
                   : voiceProvider === "fishaudio"
                     ? <>🐟 Generate</>

@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { OsTaskResult, OsTaskHistory } from "@/components/os/task-panel";
-import { OsCostEstimate } from "@/components/os/cost-estimate";
+import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osCreateTaskJson } from "@/lib/os-api";
 import { MUSIC_COST_ESTIMATE } from "@/lib/os-cost";
@@ -24,6 +24,7 @@ export default function AiMusicPage() {
   const [tags, setTags] = useState("");
   const [vocalGender, setVocalGender] = useState<string>("any");
   const { task, submitting, run, working } = useOsTask("music");
+  const insufficient = useOsInsufficientCredits(MUSIC_COST_ESTIMATE);
 
   const handleSubmit = () => {
     if (mode === "simple" && !description.trim()) {
@@ -128,8 +129,8 @@ export default function AiMusicPage() {
 
         <OsCostEstimate estimate={MUSIC_COST_ESTIMATE} />
 
-        <Button onClick={handleSubmit} disabled={working} className="w-full bg-primary hover:bg-primary/90 font-bold">
-          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : <><Sparkles className="mr-2 h-4 w-4" />Generate Music</>}
+        <Button onClick={handleSubmit} disabled={working || insufficient} className="w-full bg-primary hover:bg-primary/90 font-bold">
+          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : insufficient ? <>Not enough credits</> : <><Sparkles className="mr-2 h-4 w-4" />Generate Music</>}
         </Button>
         <p className="text-xs text-muted-foreground text-center">Songs take a few minutes to generate — track progress in History below.</p>
       </div>

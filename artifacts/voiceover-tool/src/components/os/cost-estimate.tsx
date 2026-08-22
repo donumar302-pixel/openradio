@@ -1,6 +1,20 @@
 import { Coins, Loader2 } from "lucide-react";
+import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+
+/**
+ * True when the estimated cost exceeds the signed-in user's balance (admins
+ * are exempt). Used by generation forms to disable their submit button —
+ * a UX guard only; the server still enforces credits (402).
+ */
+export function useOsInsufficientCredits(estimate: number | null | undefined): boolean {
+  const { user } = useAuth();
+  const balance = user?.credits;
+  return (
+    !user?.isAdmin && typeof estimate === "number" && typeof balance === "number" && estimate > balance
+  );
+}
 
 /**
  * Shared "estimated cost / your balance" strip shown on every generation
@@ -53,9 +67,20 @@ export function OsCostEstimate({
         )}
       </div>
       <p className={cn("text-xs mt-1", insufficient ? "text-red-600" : "text-muted-foreground")}>
-        {insufficient
-          ? "You may not have enough credits for this generation."
-          : "Final cost may differ — unused reserved credits are refunded."}
+        {insufficient ? (
+          <>
+            Not enough credits for this generation.{" "}
+            <Link
+              href="/pricing"
+              className="font-semibold underline underline-offset-2 hover:text-red-700"
+              data-testid="link-buy-credits"
+            >
+              Buy credits
+            </Link>
+          </>
+        ) : (
+          "Final cost may differ — unused reserved credits are refunded."
+        )}
       </p>
     </div>
   );

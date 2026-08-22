@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { OsVoicePicker } from "@/components/os/voice-picker";
 import { OsTaskResult, OsTaskHistory } from "@/components/os/task-panel";
-import { OsCostEstimate } from "@/components/os/cost-estimate";
+import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osCreateTaskJson } from "@/lib/os-api";
 import { estimateDialogueCost } from "@/lib/os-cost";
@@ -23,6 +23,8 @@ export default function DialoguePage() {
     { voiceId: "", name: "" },
   ]);
   const { task, submitting, run, working } = useOsTask("dialogue");
+  const estimate = text.trim() ? estimateDialogueCost(text) : null;
+  const insufficient = useOsInsufficientCredits(estimate);
 
   const setSpeaker = (i: number, voiceId: string, name: string) =>
     setSpeakers((s) => s.map((sp, idx) => (idx === i ? { voiceId, name } : sp)));
@@ -92,10 +94,10 @@ export default function DialoguePage() {
           ))}
         </div>
 
-        <OsCostEstimate estimate={text.trim() ? estimateDialogueCost(text) : null} />
+        <OsCostEstimate estimate={estimate} />
 
-        <Button onClick={handleSubmit} disabled={working} className="w-full bg-primary hover:bg-primary/90 font-bold">
-          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : <><Sparkles className="mr-2 h-4 w-4" />Generate Dialogue</>}
+        <Button onClick={handleSubmit} disabled={working || insufficient} className="w-full bg-primary hover:bg-primary/90 font-bold">
+          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : insufficient ? <>Not enough credits</> : <><Sparkles className="mr-2 h-4 w-4" />Generate Dialogue</>}
         </Button>
       </div>
 
