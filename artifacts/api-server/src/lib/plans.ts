@@ -169,6 +169,8 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     features: [
       `${fmtCredits(PLAN_CREDITS.starter)} characters / 30 days`,
       "Everything in Basic",
+      "Text to Speech — all models",
+      "Bulk TTS — all models",
       "ElevenLabs v3 & v2.5 models",
       "Voice Cloning",
       "Speech to Speech",
@@ -197,6 +199,7 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     features: [
       `${fmtCredits(PLAN_CREDITS.pro)} characters / 30 days`,
       "Everything in Starter",
+      "Text to Speech — all models",
       "ElevenLabs v3 & v2.5 models",
       "Audio Isolation",
       "Multilingual Dubbing — 29 languages",
@@ -228,6 +231,7 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     features: [
       `${fmtCredits(PLAN_CREDITS.max)} characters / 30 days`,
       "Everything in Pro",
+      "Text to Speech — all models",
       "ElevenLabs v3 & v2.5 models",
       "All premium & emotional voices",
       "Commercial license",
