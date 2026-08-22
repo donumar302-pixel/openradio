@@ -281,10 +281,9 @@ export default function StudioPage() {
 
   // Merged history: OpenSpeaker TTS tasks (persistent, all platforms) + legacy generations
   const mergedHistory = useMemo(() => {
-    type Row = { id: string; at: number; text: string; sub: string; url: string | null; processing?: boolean };
+    type Row = { id: string; at: number; text: string; sub: string; url: string | null; processing?: boolean; error?: string };
     const rows: Row[] = [];
     for (const t of osTaskHistory?.items ?? []) {
-      if (t.status === "error") continue;
       const engine = engineOfVoiceId(String(t.input?.voiceId ?? ""));
       const chars = t.input?.characters;
       rows.push({
@@ -292,6 +291,7 @@ export default function StudioPage() {
         sub: `${engine}${typeof chars === "number" ? ` · ${chars} chars` : ""}`,
         url: t.status === "done" ? taskAudioUrl(t) : null,
         processing: t.status === "processing",
+        error: t.status === "error" ? (t.error || "Generation failed — credits refunded.") : undefined,
       });
     }
     for (const g of (history?.items ?? []) as any[]) {
@@ -520,6 +520,8 @@ export default function StudioPage() {
                   <p className="text-[10px] text-[#9ca3af] mb-2">{row.sub}</p>
                   {row.processing ? (
                     <p className="text-[10px] text-primary font-semibold flex items-center gap-1.5"><Loader2 size={10} className="animate-spin" /> Generating…</p>
+                  ) : row.error ? (
+                    <p className="text-[10px] text-red-500 font-semibold" data-testid={`error-history-${row.id}`}>{row.error}</p>
                   ) : row.url ? (
                     <audio controls src={row.url} className="w-full h-7" data-testid={`audio-history-${row.id}`} />
                   ) : null}

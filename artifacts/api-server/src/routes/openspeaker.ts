@@ -224,12 +224,40 @@ async function runCreateTask({ req, res, tool, title, input, estimate, create }:
 
   const token = crypto.randomBytes(24).toString("hex");
 
-  // Phase 1 — provider call. Refund on ANY failure here: no upstream work was accepted.
+  // Phase 1 — record the task BEFORE calling the provider, so it shows up in
+  // History immediately (uploads to the provider can take minutes, and the user
+  // may navigate away meanwhile). If we can't even record it, refund and stop.
+  let row: OsTask;
+  try {
+    [row] = await db.insert(osTasksTable).values({
+      userId: user.id,
+      tool,
+      externalTaskId: null,
+      status: "processing",
+      title: title.slice(0, 120),
+      input,
+      creditsCharged: reserve,
+      webhookToken: token,
+    }).returning();
+  } catch (err: any) {
+    if (!admin) await refundCredits(user.id, reserve);
+    logger.error({ err, tool }, "OpenSpeaker task row insert failed");
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  // Phase 2 — provider call. On failure the task stays in History as an error
+  // row; applyTaskState refunds the reservation atomically (refund-once lock).
   let created: { task_id?: string } & Record<string, any>;
   try {
     created = await create(webhookUrlFor(token));
   } catch (err: any) {
-    if (!admin) await refundCredits(user.id, reserve);
+    const message = err instanceof OpenSpeakerError ? err.message : "Internal server error";
+    try {
+      await applyTaskState(row, { id: row.externalTaskId ?? "", status: "error", error_message: message });
+    } catch (applyErr: any) {
+      logger.error({ err: applyErr, tool, taskId: row.id }, "Failed to settle errored task; sweep must reconcile");
+    }
     if (err instanceof OpenSpeakerError) {
       res.status(err.status).json({ error: err.message });
       return;
@@ -239,28 +267,35 @@ async function runCreateTask({ req, res, tool, title, input, estimate, create }:
     return;
   }
 
-  // Phase 2 — local tracking. The provider has accepted (and may bill) the task,
-  // so failures here must NOT refund; they only report a tracking problem.
-  try {
-    const externalId = created.task_id ?? null;
-    let [row] = await db.insert(osTasksTable).values({
-      userId: user.id,
-      tool,
-      externalTaskId: externalId,
-      status: "processing",
-      title: title.slice(0, 120),
-      input,
-      creditsCharged: reserve,
-      webhookToken: token,
-    }).returning();
+  // A "successful" create without a task id can never be polled or settled by
+  // the webhook — treat it as a failure and refund, instead of leaving a row
+  // stuck in "processing" forever.
+  const externalId = created.task_id ?? null;
+  if (!externalId) {
+    logger.error({ tool, created }, "OpenSpeaker accepted a task but returned no task_id");
+    try {
+      await applyTaskState(row, { id: "", status: "error", error_message: "The provider did not return a task id. Credits refunded." });
+    } catch (applyErr: any) {
+      logger.error({ err: applyErr, tool, taskId: row.id }, "Failed to settle no-task-id task");
+    }
+    res.status(502).json({ error: "The provider did not accept the task. Please try again." });
+    return;
+  }
 
+  // Phase 3 — attach the provider task id. The provider has accepted (and may
+  // bill) the task, so failures here must NOT refund; they only report a
+  // tracking problem.
+  try {
+    const [updated] = await db.update(osTasksTable)
+      .set({ externalTaskId: externalId, updatedAt: new Date() })
+      .where(eq(osTasksTable.id, row.id)).returning();
+    if (updated) row = updated;
     // Immediately sync once — the provider reports credit_cost right away,
     // which reconciles our reservation to the real cost.
-    if (externalId) row = await refreshTask(row);
-
+    row = await refreshTask(row);
     res.json({ task: taskJson(row) });
   } catch (err: any) {
-    logger.error({ err, tool, externalTaskId: created?.task_id }, "OpenSpeaker task accepted but local tracking failed");
+    logger.error({ err, tool, externalTaskId: externalId }, "OpenSpeaker task accepted but local tracking failed");
     res.status(500).json({ error: "The task was submitted but could not be tracked. Please check your history shortly or contact support." });
   }
 }
