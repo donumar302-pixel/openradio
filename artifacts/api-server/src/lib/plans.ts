@@ -110,19 +110,6 @@ export function modelAllowedForPlan(plan: string, provider: "elevenlabs" | "mini
 
 /* ── Pricing-page plan definitions ──────────────────────────────────────── */
 
-const PAID_FEATURES = [
-  "Text to Speech",
-  "Fire TTS — all models",
-  "Voice Cloning",
-  "Speech to Speech",
-  "Speech to Text",
-  "Audio Isolation",
-  "Multilingual Dubbing",
-  "Voice Library",
-  "All premium & emotional voices",
-  "MP3 downloads",
-];
-
 function fmtCredits(n: number): string {
   return n.toLocaleString("en-US");
 }
@@ -147,9 +134,9 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     cta: "Get Started",
     features: [
       `${fmtCredits(PLAN_CREDITS.free)} characters / 30 days`,
-      "Text to Speech (ElevenLabs)",
+      "Text to Speech — ElevenLabs, Fire TTS & Fish Audio",
       "Edge TTS — 400+ voices",
-      "Fire TTS — basic models",
+      "Pronunciation Dictionary",
       "MP3 downloads",
       "Community support",
     ],
@@ -163,13 +150,13 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     cta: "Choose Starter",
     features: [
       `${fmtCredits(PLAN_CREDITS.starter)} characters / 30 days`,
-      "Text to Speech — all models",
-      "Edge TTS — 400+ voices",
-      "Fire TTS — all models",
+      "Everything in Basic",
+      "All TTS models — ElevenLabs, Fire TTS & Fish Audio",
       "Voice Cloning",
       "Speech to Speech",
       "Speech to Text",
-      "MP3 downloads",
+      "Sound Effects",
+      "AI Music",
       "Email support",
     ],
   },
@@ -185,8 +172,9 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
       "Everything in Starter",
       "Audio Isolation",
       "Multilingual Dubbing",
-      "Voice Library",
-      "Fish Audio — all models",
+      "Dialogue Studio",
+      "AI Image Studio",
+      "Voice Library access",
       "Priority support",
     ],
   },
@@ -200,10 +188,10 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     features: [
       `${fmtCredits(PLAN_CREDITS.max)} characters / 30 days`,
       "Everything in Pro",
-      "All premium & emotional voices",
-      "Highest priority support",
-      "Commercial license",
       "Bulk TTS",
+      "All premium & emotional voices",
+      "Commercial license",
+      "Highest priority support",
     ],
   },
 ];
