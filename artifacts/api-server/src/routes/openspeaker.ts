@@ -72,26 +72,6 @@ async function refundCredits(userId: number, amount: number) {
   }).where(eq(usersTable.id, userId));
 }
 
-/**
- * Charge extra credits during post-hoc reconciliation to the provider's real cost.
- * Policy: never push the balance below zero — charge at most what the user has.
- * The provider cost was already incurred; the shortfall is absorbed rather than
- * creating a negative balance the user never agreed to.
- */
-async function chargeExtraCredits(userId: number, amount: number) {
-  if (amount <= 0) return;
-  await db.transaction(async (tx) => {
-    const [u] = await tx.select({ credits: usersTable.credits }).from(usersTable)
-      .where(eq(usersTable.id, userId)).for("update");
-    const take = Math.min(amount, Math.max(0, u?.credits ?? 0));
-    if (take <= 0) return;
-    await tx.update(usersTable).set({
-      credits: sql`${usersTable.credits} - ${take}`,
-      creditsUsed: sql`${usersTable.creditsUsed} + ${take}`,
-    }).where(eq(usersTable.id, userId));
-  });
-}
-
 /* ── Plan gate (free vs paid). Admins always pass. ───────────────────── */
 
 function requirePlanFeature(feature: FeatureKey) {
@@ -111,47 +91,76 @@ function isFinal(status: string): boolean {
   return status === "done" || status === "error";
 }
 
+/** Convert the provider's cost into the credits charged to an OpenRadio user. */
+function customerCreditsForTool(tool: string, providerCredits: number): number {
+  return tool === "image"
+    ? Math.max(1, Math.ceil(providerCredits * 1.1))
+    : providerCredits;
+}
+
 /**
- * Apply a provider task state to our row: status, output, and credit
- * reconciliation. Reconciliation only runs for billed rows (creditsCharged > 0
- * at creation time — admin tasks are created with 0 and are never adjusted).
- * The creditsCharged compare-and-set makes concurrent polls safe.
+ * Apply a provider task state and its credit adjustment atomically. The task row
+ * lock prevents a webhook and a history poll from reconciling/refunding the same
+ * task from different stale snapshots.
  */
 async function applyTaskState(row: OsTask, state: OsTaskState): Promise<OsTask> {
-  const status = state.status === "done" ? "done" : state.status === "error" ? "error" : "processing";
-  const providerCost = typeof state.credit_cost === "number" && state.credit_cost >= 0 ? state.credit_cost : null;
+  return db.transaction(async (tx) => {
+    let [current] = await tx.select().from(osTasksTable)
+      .where(eq(osTasksTable.id, row.id)).for("update");
+    if (!current || isFinal(current.status)) return current ?? row;
 
-  // Credit reconciliation to the provider's actual cost.
-  if (row.creditsCharged > 0 && providerCost !== null && providerCost !== row.creditsCharged && status !== "error") {
-    const updated = await db.update(osTasksTable)
-      .set({ creditsCharged: providerCost, updatedAt: new Date() })
-      .where(and(eq(osTasksTable.id, row.id), eq(osTasksTable.creditsCharged, row.creditsCharged)))
-      .returning({ id: osTasksTable.id });
-    if (updated.length > 0) {
-      const diff = providerCost - row.creditsCharged;
-      if (diff > 0) await chargeExtraCredits(row.userId, diff);
-      else await refundCredits(row.userId, -diff);
-      row = { ...row, creditsCharged: providerCost };
+    const status = state.status === "done" ? "done" : state.status === "error" ? "error" : "processing";
+    const customerCost = typeof state.credit_cost === "number" && state.credit_cost >= 0
+      ? customerCreditsForTool(current.tool, state.credit_cost)
+      : null;
+    let creditsCharged = current.creditsCharged;
+    let refunded = current.refunded;
+
+    // A failed provider task returns the full amount currently charged.
+    if (status === "error" && creditsCharged > 0 && !refunded) {
+      await tx.update(usersTable).set({
+        credits: sql`${usersTable.credits} + ${creditsCharged}`,
+        creditsUsed: sql`GREATEST(0, ${usersTable.creditsUsed} - ${creditsCharged})`,
+      }).where(eq(usersTable.id, current.userId));
+      refunded = true;
     }
-  }
 
-  // Refund on provider failure (once).
-  if (status === "error" && row.creditsCharged > 0 && !row.refunded) {
-    const updated = await db.update(osTasksTable)
-      .set({ refunded: true, updatedAt: new Date() })
-      .where(and(eq(osTasksTable.id, row.id), eq(osTasksTable.refunded, false)))
-      .returning({ id: osTasksTable.id });
-    if (updated.length > 0) await refundCredits(row.userId, row.creditsCharged);
-    row = { ...row, refunded: true };
-  }
+    // Reconcile successful/in-progress work to the provider's final reported
+    // cost. Image customer pricing is applied by customerCreditsForTool above.
+    if (status !== "error" && creditsCharged > 0 && customerCost !== null && customerCost !== creditsCharged) {
+      const diff = customerCost - creditsCharged;
+      if (diff > 0) {
+        const [user] = await tx.select({ credits: usersTable.credits }).from(usersTable)
+          .where(eq(usersTable.id, current.userId)).for("update");
+        const take = Math.min(diff, Math.max(0, user?.credits ?? 0));
+        if (take > 0) {
+          await tx.update(usersTable).set({
+            credits: sql`${usersTable.credits} - ${take}`,
+            creditsUsed: sql`${usersTable.creditsUsed} + ${take}`,
+          }).where(eq(usersTable.id, current.userId));
+        }
+        // Record only what was actually collected, so a later provider failure
+        // can never refund more credits than this task deducted.
+        creditsCharged += take;
+      } else {
+        await tx.update(usersTable).set({
+          credits: sql`${usersTable.credits} + ${-diff}`,
+          creditsUsed: sql`GREATEST(0, ${usersTable.creditsUsed} - ${-diff})`,
+        }).where(eq(usersTable.id, current.userId));
+        creditsCharged = customerCost;
+      }
+    }
 
-  const [saved] = await db.update(osTasksTable).set({
-    status,
-    output: state.metadata ?? row.output,
-    error: status === "error" ? (state.error_message ?? "Generation failed") : null,
-    updatedAt: new Date(),
-  }).where(eq(osTasksTable.id, row.id)).returning();
-  return saved ?? row;
+    const [saved] = await tx.update(osTasksTable).set({
+      status,
+      output: state.metadata ?? current.output,
+      error: status === "error" ? (state.error_message ?? "Generation failed") : null,
+      creditsCharged,
+      refunded,
+      updatedAt: new Date(),
+    }).where(eq(osTasksTable.id, current.id)).returning();
+    return saved ?? current;
+  });
 }
 
 /** Refresh a non-final task from the provider; swallow transient provider errors. */
@@ -1249,7 +1258,7 @@ async function quoteImagePrice(modelId: string, generationsCount: number, modelP
   if (assets > 0) body.assets = assets;
   const data = await osPostJson<{ credits?: number }>(`/v1i/task/price`, body, "Image price");
   if (typeof data.credits !== "number") throw new OpenSpeakerError("Could not calculate the image price.", 502);
-  return data.credits;
+  return customerCreditsForTool("image", data.credits);
 }
 
 function parseModelParameters(raw: unknown): Record<string, unknown> | null {

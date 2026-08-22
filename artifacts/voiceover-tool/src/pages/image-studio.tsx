@@ -96,7 +96,7 @@ export default function ImageStudioPage() {
 
   const modelParameters = useMemo(() => ({ aspect_ratio: aspectRatio }), [aspectRatio]);
 
-  const { data: priceData } = useQuery({
+  const { data: priceData, isFetching: priceLoading, isError: priceError } = useQuery({
     queryKey: ["os-image-price", modelId, imgCount, aspectRatio, refs.length],
     queryFn: () => osJson<{ credits: number }>("/image/price", {
       method: "POST",
@@ -199,6 +199,19 @@ export default function ImageStudioPage() {
           </div>
         </div>
 
+        <div className="rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 flex items-center justify-between gap-4">
+          <span className="text-sm font-medium text-muted-foreground">
+            This generation will use
+          </span>
+          <span className="text-sm font-extrabold text-primary">
+            {priceError
+              ? "Price unavailable"
+              : priceLoading || !priceData
+                ? "Calculating…"
+                : `${priceData.credits.toLocaleString()} credits`}
+          </span>
+        </div>
+
         <div className="space-y-2">
           <Label className="font-semibold">Reference images <span className="text-muted-foreground font-normal">(optional)</span></Label>
           <div className="flex gap-2 flex-wrap">
@@ -224,9 +237,13 @@ export default function ImageStudioPage() {
           </div>
         </div>
 
-        <Button onClick={handleSubmit} disabled={working || !modelId || insufficient} className="w-full bg-primary hover:bg-primary/90 font-bold">
+        <Button onClick={handleSubmit} disabled={working || !modelId || priceLoading || !priceData || priceError || insufficient} className="w-full bg-primary hover:bg-primary/90 font-bold">
           {submitting
             ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</>
+            : priceLoading || (!priceData && !priceError)
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Calculating price…</>
+              : priceError
+                ? <>Price unavailable</>
             : insufficient
               ? <>Not enough credits</>
               : <><Sparkles className="mr-2 h-4 w-4" />Generate</>}

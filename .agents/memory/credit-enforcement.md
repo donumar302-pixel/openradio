@@ -24,6 +24,19 @@ first implementation for exactly this race.
 - Admin `creditsDelta` adjustments should also be atomic SQL
   (`GREATEST(0, credits + delta)`) unless combined with an absolute set in the same PATCH.
 
+# Async provider task reconciliation
+
+Rule: webhook/poll reconciliation must lock and reload the task row, then adjust the user
+ledger and task status in one transaction. Refund only the amount actually collected.
+
+**Why:** webhook and polling can process different provider states concurrently. Separate
+compare-and-set updates can partially refund a failed task; recording a nominal cost when an
+upward adjustment was only partly collectible can later refund more than the task deducted.
+
+**How to apply:** finalize once under a task-row lock; store actual collected credits, not an
+uncollectible nominal cost; apply customer markup consistently to both quote and final reported
+provider cost; a provider failure refunds the task's current collected amount exactly once.
+
 # Known security gap: admin by email allowlist
 
 Admin status is granted by an email allowlist (`isAdminEmail`, STATIC_ADMIN_EMAILS) with **no
