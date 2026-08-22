@@ -144,6 +144,18 @@ export async function ensureSchema(): Promise<void> {
       created_at timestamp NOT NULL DEFAULT now()
     )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS email_verifications_email_idx ON email_verifications (email)`,
+    /* ── Dubbing video blobs (survive restarts/redeploys) ────────────── */
+    `CREATE TABLE IF NOT EXISTS os_dub_videos (
+      id serial PRIMARY KEY,
+      task_id integer,
+      kind text NOT NULL,
+      file_name text,
+      data bytea NOT NULL,
+      size integer NOT NULL DEFAULT 0,
+      created_at timestamp NOT NULL DEFAULT now()
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS os_dub_videos_task_kind_idx ON os_dub_videos (task_id, kind)`,
+    `CREATE INDEX IF NOT EXISTS os_dub_videos_created_idx ON os_dub_videos (created_at)`,
   ];
 
   for (const stmt of statements) {

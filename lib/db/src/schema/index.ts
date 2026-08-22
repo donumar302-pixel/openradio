@@ -118,7 +118,26 @@ export const osTasksTable = pgTable("os_tasks", {
 
 export type OsTask = typeof osTasksTable.$inferSelect;
 
-/* ── OpenSpeaker pronunciation dictionaries (ownership mapping) ──────── */
+/* ── Dubbing video blobs (retained sources + muxed results) ──────────────
+   Stored in Postgres (bytea) so dubbed videos survive server restarts and
+   redeploys — production disk is ephemeral. kind: "src" rows are the original
+   video upload retained until the dubbing task settles (taskId is null until
+   linked via the task input); "out" rows are the muxed dubbed video kept
+   downloadable for ~7 days. Both are aged out by the periodic sweep. */
+export const osDubVideosTable = pgTable("os_dub_videos", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id"), // null for retained sources (created before the task row)
+  kind: text("kind").notNull(), // "src" | "out"
+  fileName: text("file_name"),
+  data: bytea("data").notNull(),
+  size: integer("size").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  // Unique on (task_id, kind) makes the result write an atomic upsert; src rows
+  // have a NULL task_id, and NULLs are distinct, so sources are unaffected.
+  uniqueIndex("os_dub_videos_task_kind_idx").on(t.taskId, t.kind),
+  index("os_dub_videos_created_idx").on(t.createdAt),
+]);
 export const osDictionariesTable = pgTable("os_dictionaries", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
@@ -261,3 +280,5 @@ export const appSettingsTable = pgTable("app_settings", {
   value: text("value").notNull(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+export type OsDubVideo = typeof osDubVideosTable.$inferSelect;
