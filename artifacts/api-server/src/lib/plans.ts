@@ -40,6 +40,14 @@ export function planCredits(plan: string): number {
   return PLAN_CREDITS[plan] ?? 0;
 }
 
+/** Free plan is a limited trial: after this many days the account's free
+ *  credits are wiped and generation is blocked until a plan is purchased. */
+export const FREE_TRIAL_DAYS = 7;
+
+export function freeTrialExpiresAt(from: Date = new Date()): Date {
+  return addDays(from, FREE_TRIAL_DAYS);
+}
+
 export function addDays(from: Date, days: number): Date {
   return new Date(from.getTime() + days * 24 * 60 * 60 * 1000);
 }

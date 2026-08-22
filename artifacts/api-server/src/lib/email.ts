@@ -145,8 +145,28 @@ export async function sweepExpiringPlans(): Promise<void> {
   }
 }
 
+/** Free plan is a 7-day trial: once expired, wipe any leftover free credits.
+ *  Generation is already blocked by requireActiveUser the moment the plan
+ *  expires; this sweep just makes the "credits gone" part visible/durable.
+ *  Not gated on email being configured. */
+export async function sweepExpiredFreeTrials(): Promise<void> {
+  await db.update(usersTable)
+    .set({ credits: 0 })
+    .where(and(
+      eq(usersTable.plan, "free"),
+      eq(usersTable.isAdmin, false),
+      eq(usersTable.isReseller, false),
+      isNotNull(usersTable.planExpiresAt),
+      sql`${usersTable.planExpiresAt} < now()`,
+      sql`${usersTable.credits} > 0`,
+    ));
+}
+
 export function startPlanExpiryEmailSweeper(): NodeJS.Timeout {
-  const run = () => sweepExpiringPlans().catch((err) => logger.warn({ err }, "Plan-expiry email sweep failed"));
+  const run = () => {
+    sweepExpiredFreeTrials().catch((err) => logger.warn({ err }, "Free-trial expiry sweep failed"));
+    sweepExpiringPlans().catch((err) => logger.warn({ err }, "Plan-expiry email sweep failed"));
+  };
   setTimeout(run, 30_000).unref();
   const timer = setInterval(run, SWEEP_INTERVAL_MS);
   timer.unref();

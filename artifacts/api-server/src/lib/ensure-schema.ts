@@ -144,6 +144,12 @@ export async function ensureSchema(): Promise<void> {
       created_at timestamp NOT NULL DEFAULT now()
     )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS email_verifications_email_idx ON email_verifications (email)`,
+    /* Free plan became a 7-day trial (Aug 2026): backfill an expiry for
+       pre-existing free users, counted from their signup date. Idempotent —
+       only touches rows that never had an expiry; new signups set it themselves. */
+    `UPDATE users SET plan_expires_at = created_at + interval '7 days'
+      WHERE plan = 'free' AND plan_expires_at IS NULL
+        AND is_admin = false AND is_reseller = false`,
     /* ── Dubbing video blobs (survive restarts/redeploys) ────────────── */
     `CREATE TABLE IF NOT EXISTS os_dub_videos (
       id serial PRIMARY KEY,

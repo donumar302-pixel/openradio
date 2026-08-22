@@ -18,3 +18,6 @@ All plan logic lives in one backend module (`artifacts/api-server/src/lib/plans.
 
 ## Exchange rates
 - Rates (PKR/INR/EUR vs USD) live server-side only. The public `/api/plans` endpoint returns already-converted prices + currency metadata, never the raw rate table. The frontend must never hardcode rates.
+
+## Free plan is a 7-day trial (Aug 2026, user directive)
+Free users get planExpiresAt = signup + FREE_TRIAL_DAYS (plans.ts) at every free-signup point (register, register/verify, Google OAuth). After expiry requireActiveUser 402-blocks generation, and the 6-hourly sweeper (sweepExpiredFreeTrials, not gated on email config) zeroes leftover free credits. Legacy free users were backfilled from created_at via an idempotent ensureSchema UPDATE. Admins/resellers exempt.
