@@ -12,3 +12,4 @@
 - [OpenSpeaker-only policy](openspeaker-only.md) — user directive: all voice features route via /api/os/*; direct MiniMax/Fish/Edge routes are legacy, never wire UI to them.
 - [OpenSpeaker tool suite](openspeaker-suite.md) — /v1s and /v1i path prefixes are correct; dictionary id under `dictionary.id`; two-phase refund + ownership/upload guardrails on /api/os.
 - [Manual plan payments](manual-plan-payments.md) — renewal checkout permits expired users but blocks suspended accounts; commercial terms are server-derived and approval is pending-only/idempotent.
+- [Email, Developer API & Script Writer](platform-notifications-devapi.md) — Resend fail-soft + idempotent expiry reminders; /api/v1 hashed keys reuse the os_tasks credit pipeline; OpenAI script writer refunds on failure.
