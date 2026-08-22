@@ -30,6 +30,48 @@ function badUpload(file: Express.Multer.File, kind: "audio" | "media" | "image",
   return null;
 }
 
+/**
+ * Extract the audio track from an uploaded video as MP3 (the dubbing provider
+ * only accepts audio). Uses the system ffmpeg binary via temp files.
+ */
+async function extractAudioTrack(file: Express.Multer.File): Promise<Express.Multer.File> {
+  const { spawn } = await import("node:child_process");
+  const fs = await import("node:fs/promises");
+  const os = await import("node:os");
+  const path = await import("node:path");
+
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "dub-"));
+  const inPath = path.join(dir, "input");
+  const outPath = path.join(dir, "audio.mp3");
+  try {
+    await fs.writeFile(inPath, file.buffer);
+    await new Promise<void>((resolve, reject) => {
+      const proc = spawn("ffmpeg", ["-y", "-i", inPath, "-vn", "-acodec", "libmp3lame", "-b:a", "192k", outPath], { stdio: ["ignore", "ignore", "pipe"] });
+      let stderr = "";
+      proc.stderr.on("data", (d) => { stderr = (stderr + d.toString()).slice(-2000); });
+      const timer = setTimeout(() => { proc.kill("SIGKILL"); reject(new Error("ffmpeg timed out")); }, 120_000);
+      proc.on("error", (err) => { clearTimeout(timer); reject(err); });
+      proc.on("close", (code) => {
+        clearTimeout(timer);
+        if (code === 0) resolve();
+        else reject(new Error(`ffmpeg exited with ${code}: ${stderr.slice(-400)}`));
+      });
+    });
+    const buffer = await fs.readFile(outPath);
+    if (buffer.length < 200) throw new Error("Extracted audio is empty — the video may have no audio track");
+    const base = (file.originalname || "video").replace(/\.[^.]+$/, "");
+    return {
+      ...file,
+      buffer,
+      size: buffer.length,
+      mimetype: "audio/mpeg",
+      originalname: `${base}.mp3`,
+    };
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 /* ═══════════════ Webhook (no session — matched by per-task secret token) ═══════════════ */
 
 router.post("/webhook", async (req, res) => {
@@ -1089,11 +1131,25 @@ router.post("/dubbing", requireGlobalFeature("os-dubbing"), requirePlanFeature("
     res.status(400).json({ error: "Invalid replacement voice." });
     return;
   }
-  const file = req.file;
+  let file = req.file;
+
+  // The provider's dubbing endpoint only accepts AUDIO files — video uploads
+  // are rejected with "Invalid file" (verified live). Extract the audio track
+  // from video uploads before submitting.
+  if (String(file.mimetype || "").startsWith("video/")) {
+    try {
+      file = await extractAudioTrack(file);
+    } catch (err: any) {
+      logger.error({ err, fileName: req.file.originalname }, "Dubbing: audio extraction from video failed");
+      res.status(400).json({ error: "Could not read the audio track from this video. Please check the file has sound, or upload an MP3/WAV instead." });
+      return;
+    }
+  }
+
   await runCreateTask({
     req, res, tool: "dubbing",
-    title: `${file.originalname || "audio"} → ${targetLang}`,
-    input: { targetLang, sourceLang, numSpeakers, fileName: file.originalname, fileSize: file.size },
+    title: `${req.file.originalname || "audio"} → ${targetLang}`,
+    input: { targetLang, sourceLang, numSpeakers, fileName: req.file.originalname, fileSize: req.file.size },
     estimate: Math.max(500, Math.ceil(file.size / 20_000)), // reconciled to real cost right after creation
     create: async (webhookUrl) => {
       const form = new FormData();
