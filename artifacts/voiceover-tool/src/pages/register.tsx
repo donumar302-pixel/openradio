@@ -59,10 +59,16 @@ export default function RegisterPage() {
     setError("");
     setPending(true);
     try {
-      await postJson("/api/auth/register", { name: username, email, password });
-      setStep("code");
-      setCode("");
-      setResendIn(60);
+      const data = await postJson("/api/auth/register", { name: username, email, password });
+      if (data?.verificationRequired) {
+        setStep("code");
+        setCode("");
+        setResendIn(60);
+      } else {
+        // Verification disabled — account created and logged in right away.
+        await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+        setLocation(redirectPath);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {

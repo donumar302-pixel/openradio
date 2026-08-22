@@ -17,6 +17,11 @@ const router = Router();
    after the emailed 6-digit code is confirmed. Disposable/temp mail is kept
    out by allowing only the major consumer providers. */
 
+// Toggle: when false, signups skip the emailed code and accounts are created
+// immediately (the domain allowlist still applies). Flip to true once the
+// Resend domain + keys are configured in production.
+const EMAIL_VERIFICATION_ENABLED = false;
+
 const ALLOWED_EMAIL_DOMAINS = new Set(["gmail.com", "icloud.com", "outlook.com", "hotmail.com"]);
 const CODE_TTL_MS = 10 * 60_000;
 const RESEND_COOLDOWN_MS = 60_000;
@@ -70,6 +75,22 @@ router.post("/register", async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
+
+  if (!EMAIL_VERIFICATION_ENABLED) {
+    const [user] = await db.insert(usersTable)
+      .values({ name, email, passwordHash, credits: planCredits("free"), signupIp: req.ip ?? null })
+      .returning();
+    await loginSession(req, user.id);
+    res.status(201).json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      isAdmin: user.isAdmin || isAdminEmail(user.email),
+      createdAt: user.createdAt.toISOString(),
+    });
+    return;
+  }
+
   const code = newCode();
   const expiresAt = new Date(Date.now() + CODE_TTL_MS);
 
