@@ -46,6 +46,19 @@ export const usersTable = pgTable("users", {
 
 export type User = typeof usersTable.$inferSelect;
 
+/** Pending email/password signups awaiting the emailed verification code. */
+export const emailVerificationsTable = pgTable("email_verifications", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull(),
+  name: text("name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  codeHash: text("code_hash").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  expiresAt: timestamp("expires_at").notNull(),
+  lastSentAt: timestamp("last_sent_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("email_verifications_email_idx").on(t.email)]);
+
 export const apiKeysTable = pgTable("api_keys", {
   id: serial("id").primaryKey(),
   label: text("label").notNull(),

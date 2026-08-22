@@ -2,14 +2,38 @@ import { Router } from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { usersTable, emailVerificationsTable } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
 import { RegisterBody, LoginBody } from "@workspace/api-zod";
 import { isAdminEmail } from "../lib/admin";
 import { planCredits } from "../lib/plans";
 import { logger } from "../lib/logger";
+import { emailEnabled, sendEmail, verificationCodeEmail } from "../lib/email";
 
 const router = Router();
+
+/* ── Email verification for signups ─────────────────────────────────────
+   Codes go out from our support address (Resend). Accounts are only created
+   after the emailed 6-digit code is confirmed. Disposable/temp mail is kept
+   out by allowing only the major consumer providers. */
+
+const ALLOWED_EMAIL_DOMAINS = new Set(["gmail.com", "icloud.com", "outlook.com", "hotmail.com"]);
+const CODE_TTL_MS = 10 * 60_000;
+const RESEND_COOLDOWN_MS = 60_000;
+const MAX_CODE_ATTEMPTS = 8;
+
+function emailDomainAllowed(email: string): boolean {
+  const domain = email.toLowerCase().split("@")[1] ?? "";
+  return ALLOWED_EMAIL_DOMAINS.has(domain);
+}
+
+const hashCode = (code: string) => crypto.createHash("sha256").update(code).digest("hex");
+const newCode = () => String(crypto.randomInt(100000, 1000000));
+
+async function emailAlreadyRegistered(email: string): Promise<boolean> {
+  const rows = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
+  return rows.length > 0;
+}
 
 /**
  * Sanitize a caller-supplied returnTo into a safe same-origin path. Anything
@@ -33,16 +57,84 @@ router.post("/register", async (req, res) => {
     return;
   }
 
-  const { name, email, password } = parsed.data;
+  const { name, password } = parsed.data;
+  const email = parsed.data.email.toLowerCase();
 
-  const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (existing.length > 0) {
+  if (!emailDomainAllowed(email)) {
+    res.status(400).json({ error: "Only Gmail, iCloud, Outlook or Hotmail email addresses are accepted." });
+    return;
+  }
+  if (await emailAlreadyRegistered(email)) {
     res.status(409).json({ error: "Email is already registered" });
     return;
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const [user] = await db.insert(usersTable).values({ name, email: email.toLowerCase(), passwordHash, credits: planCredits("free"), signupIp: req.ip ?? null }).returning();
+  const code = newCode();
+  const expiresAt = new Date(Date.now() + CODE_TTL_MS);
+
+  await db.insert(emailVerificationsTable)
+    .values({ email, name, passwordHash, codeHash: hashCode(code), expiresAt, lastSentAt: new Date() })
+    .onConflictDoUpdate({
+      target: emailVerificationsTable.email,
+      set: { name, passwordHash, codeHash: hashCode(code), attempts: 0, expiresAt, lastSentAt: new Date() },
+    });
+
+  const tpl = verificationCodeEmail(name, code);
+  const sent = await sendEmail(email, tpl.subject, tpl.html);
+  if (!sent) {
+    if (emailEnabled() || process.env.NODE_ENV === "production") {
+      // Send failed (or email service missing in production) — never leave the
+      // user stuck on a code screen that can't receive a code.
+      res.status(503).json({ error: "We could not send the verification email right now. Please try again in a few minutes." });
+      return;
+    }
+    // Email service not configured (development): log the code so the flow stays testable.
+    logger.warn({ email, code }, "Email service not configured — verification code logged for development");
+  }
+
+  res.status(202).json({ verificationRequired: true, email });
+});
+
+router.post("/register/verify", async (req, res) => {
+  const email = String(req.body?.email ?? "").trim().toLowerCase();
+  const code = String(req.body?.code ?? "").trim();
+  if (!email || !/^\d{6}$/.test(code)) {
+    res.status(400).json({ error: "Invalid code" });
+    return;
+  }
+
+  const [row] = await db.select().from(emailVerificationsTable).where(eq(emailVerificationsTable.email, email));
+  if (!row) {
+    res.status(400).json({ error: "No pending signup for this email. Please sign up again." });
+    return;
+  }
+  if (row.expiresAt.getTime() < Date.now()) {
+    res.status(400).json({ error: "This code has expired. Please request a new one." });
+    return;
+  }
+  if (row.attempts >= MAX_CODE_ATTEMPTS) {
+    res.status(429).json({ error: "Too many wrong attempts. Please request a new code." });
+    return;
+  }
+  if (hashCode(code) !== row.codeHash) {
+    await db.update(emailVerificationsTable)
+      .set({ attempts: sql`${emailVerificationsTable.attempts} + 1` })
+      .where(eq(emailVerificationsTable.id, row.id));
+    res.status(400).json({ error: "Incorrect code. Please check the email and try again." });
+    return;
+  }
+
+  if (await emailAlreadyRegistered(email)) {
+    await db.delete(emailVerificationsTable).where(eq(emailVerificationsTable.id, row.id));
+    res.status(409).json({ error: "Email is already registered" });
+    return;
+  }
+
+  const [user] = await db.insert(usersTable)
+    .values({ name: row.name, email, passwordHash: row.passwordHash, credits: planCredits("free"), signupIp: req.ip ?? null })
+    .returning();
+  await db.delete(emailVerificationsTable).where(eq(emailVerificationsTable.id, row.id));
 
   await loginSession(req, user.id);
 
@@ -53,6 +145,34 @@ router.post("/register", async (req, res) => {
     isAdmin: user.isAdmin || isAdminEmail(user.email),
     createdAt: user.createdAt.toISOString(),
   });
+});
+
+router.post("/register/resend", async (req, res) => {
+  const email = String(req.body?.email ?? "").trim().toLowerCase();
+  const [row] = await db.select().from(emailVerificationsTable).where(eq(emailVerificationsTable.email, email));
+  if (!row) {
+    res.status(400).json({ error: "No pending signup for this email. Please sign up again." });
+    return;
+  }
+  if (Date.now() - row.lastSentAt.getTime() < RESEND_COOLDOWN_MS) {
+    res.status(429).json({ error: "Please wait a minute before requesting another code." });
+    return;
+  }
+
+  const code = newCode();
+  await db.update(emailVerificationsTable)
+    .set({ codeHash: hashCode(code), attempts: 0, expiresAt: new Date(Date.now() + CODE_TTL_MS), lastSentAt: new Date() })
+    .where(eq(emailVerificationsTable.id, row.id));
+
+  const tpl = verificationCodeEmail(row.name, code);
+  const sent = await sendEmail(email, tpl.subject, tpl.html);
+  if (!sent && (emailEnabled() || process.env.NODE_ENV === "production")) {
+    res.status(503).json({ error: "We could not send the verification email right now. Please try again in a few minutes." });
+    return;
+  }
+  if (!sent) logger.warn({ email, code }, "Email service not configured — verification code logged for development");
+
+  res.json({ ok: true });
 });
 
 router.post("/login", async (req, res) => {

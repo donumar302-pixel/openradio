@@ -132,6 +132,18 @@ export async function ensureSchema(): Promise<void> {
     )`,
     `CREATE INDEX IF NOT EXISTS user_api_keys_user_idx ON user_api_keys (user_id)`,
     `CREATE UNIQUE INDEX IF NOT EXISTS user_api_keys_hash_idx ON user_api_keys (key_hash)`,
+    `CREATE TABLE IF NOT EXISTS email_verifications (
+      id serial PRIMARY KEY,
+      email text NOT NULL,
+      name text NOT NULL,
+      password_hash text NOT NULL,
+      code_hash text NOT NULL,
+      attempts integer NOT NULL DEFAULT 0,
+      expires_at timestamp NOT NULL,
+      last_sent_at timestamp NOT NULL DEFAULT now(),
+      created_at timestamp NOT NULL DEFAULT now()
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS email_verifications_email_idx ON email_verifications (email)`,
   ];
 
   for (const stmt of statements) {

@@ -57,6 +57,20 @@ function layout(title: string, bodyHtml: string): string {
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+export function verificationCodeEmail(name: string, code: string): { subject: string; html: string } {
+  return {
+    subject: `${code} is your OpenRadio verification code`,
+    html: layout("Verify your email", `
+      <p style="margin:0 0 12px;font-size:14px;color:#374151;">Hi ${esc(name)},</p>
+      <p style="margin:0 0 16px;font-size:14px;color:#374151;">Use this code to finish creating your OpenRadio account:</p>
+      <div style="margin:0 0 16px;text-align:center;">
+        <span style="display:inline-block;padding:12px 28px;background:#f4f5f7;border-radius:10px;font-size:28px;font-weight:bold;letter-spacing:8px;color:#111827;">${esc(code)}</span>
+      </div>
+      <p style="margin:0;font-size:13px;color:#6b7280;">The code expires in 10 minutes. If you didn't request it, you can safely ignore this email.</p>
+    `),
+  };
+}
+
 export function orderApprovedEmail(name: string, plan: string, credits: number, expiresAt: Date | null): { subject: string; html: string } {
   const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
   return {

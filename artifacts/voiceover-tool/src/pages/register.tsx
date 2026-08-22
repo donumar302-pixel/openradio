@@ -1,18 +1,28 @@
 import { BrandWordmark } from "@/components/brand-wordmark";
 import { GoogleAuthButton } from "@/components/google-auth-button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useAuth } from "@/hooks/use-auth";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Eye, EyeOff, Loader2, MailCheck } from "lucide-react";
 
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
-  const { register, registerPending } = useAuth();
+  const queryClient = useQueryClient();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
+  const [step, setStep] = useState<"form" | "code">("form");
+  const [code, setCode] = useState("");
+  const [pending, setPending] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setInterval(() => setResendIn((s) => s - 1), 1000);
+    return () => clearInterval(t);
+  }, [resendIn > 0]);
 
   const sanitizeReturnTo = (path: string | null): string => {
     if (!path || typeof path !== "string") return "/";
@@ -37,16 +47,52 @@ export default function RegisterPage() {
   const qs = cleanParams.toString();
   const loginLink = qs ? `/login?${qs}` : "/login";
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const postJson = async (url: string, body: unknown) => {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || "Something went wrong. Please try again.");
+    return data;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    register(
-      { name: username, email, password },
-      {
-        onSuccess: () => setLocation(redirectPath),
-        onError: (err: any) => setError(err?.error || "Registration failed. Please try again."),
-      }
-    );
+    setPending(true);
+    try {
+      await postJson("/api/auth/register", { name: username, email, password });
+      setStep("code");
+      setCode("");
+      setResendIn(60);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setPending(true);
+    try {
+      await postJson("/api/auth/register/verify", { email, code });
+      await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      setLocation(redirectPath);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setError("");
+    try {
+      await postJson("/api/auth/register/resend", { email });
+      setResendIn(60);
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
   return (
@@ -59,6 +105,69 @@ export default function RegisterPage() {
 
         {/* Card */}
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-8 py-8">
+          {step === "code" ? (
+            <>
+              <div className="flex justify-center mb-4">
+                <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center">
+                  <MailCheck size={22} className="text-[#f97316]" />
+                </div>
+              </div>
+              <h1 className="text-[22px] font-bold text-gray-900 text-center mb-2">Check your email</h1>
+              <p className="text-[13px] text-gray-500 text-center mb-6">
+                We sent a 6-digit code to <span className="font-semibold text-gray-700">{email}</span>. Enter it below to finish creating your account.
+              </p>
+
+              {error && (
+                <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-[13px] font-medium" data-testid="text-verify-error">
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleVerify} className="space-y-4">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="\d{6}"
+                  maxLength={6}
+                  value={code}
+                  onChange={e => setCode(e.target.value.replace(/\D/g, ""))}
+                  placeholder="••••••"
+                  required
+                  autoFocus
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[22px] tracking-[0.5em] text-center font-bold text-gray-900 placeholder:text-gray-300 bg-white focus:outline-none focus:border-[#f97316] focus:ring-2 focus:ring-[#f97316]/15 transition"
+                  data-testid="input-verify-code"
+                />
+                <button
+                  type="submit"
+                  disabled={pending || code.length !== 6}
+                  className="w-full py-2.5 rounded-xl bg-[#f97316] hover:bg-[#ea6c0a] text-white text-[14px] font-bold transition disabled:opacity-60 flex items-center justify-center gap-2"
+                  data-testid="btn-verify"
+                >
+                  {pending && <Loader2 size={15} className="animate-spin" />}
+                  {pending ? "Verifying..." : "Verify & Create Account"}
+                </button>
+              </form>
+
+              <div className="text-[13px] text-gray-500 text-center mt-5 space-y-2">
+                <p>
+                  Didn't get it?{" "}
+                  {resendIn > 0 ? (
+                    <span className="text-gray-400">Resend in {resendIn}s</span>
+                  ) : (
+                    <button type="button" onClick={handleResend} className="text-[#f97316] font-semibold hover:underline" data-testid="btn-resend-code">
+                      Resend code
+                    </button>
+                  )}
+                </p>
+                <p>
+                  <button type="button" onClick={() => { setStep("form"); setError(""); }} className="text-gray-400 hover:text-gray-600 hover:underline">
+                    Use a different email
+                  </button>
+                </p>
+              </div>
+            </>
+          ) : (
+          <>
           <h1 className="text-[22px] font-bold text-gray-900 text-center mb-6">Create an account</h1>
 
           <GoogleAuthButton label="Sign up with Google" />
@@ -131,12 +240,12 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              disabled={registerPending}
+              disabled={pending}
               className="w-full py-2.5 rounded-xl bg-[#f97316] hover:bg-[#ea6c0a] text-white text-[14px] font-bold transition disabled:opacity-60 mt-2 flex items-center justify-center gap-2"
               data-testid="btn-register"
             >
-              {registerPending && <Loader2 size={15} className="animate-spin" />}
-              {registerPending ? "Creating account..." : "Create Account"}
+              {pending && <Loader2 size={15} className="animate-spin" />}
+              {pending ? "Sending code..." : "Create Account"}
             </button>
           </form>
 
@@ -146,6 +255,8 @@ export default function RegisterPage() {
               Sign in
             </Link>
           </p>
+          </>
+          )}
         </div>
       </div>
     </div>

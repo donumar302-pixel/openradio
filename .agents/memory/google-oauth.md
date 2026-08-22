@@ -9,3 +9,7 @@ description: How Google sign-in works in the voiceover app and its residual risk
 - Redirect URI prefers `APP_ORIGIN` env (canonical https origin) and falls back to request host. When the custom domain goes live, set `APP_ORIGIN=https://www.openradio.io` on Railway and keep that URI registered in Google Console.
 - **Residual risk (accepted):** password registrations are not email-verified, so an attacker could pre-register a victim's email and the victim's first Google login links to that row (account pre-hijack). Full fix requires email verification for password signups.
 - Prod needs `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` set as Railway service variables — Replit secrets do not propagate to Railway.
+
+## Email/password signup requires email verification (Aug 2026)
+Signup is two-phase: /auth/register stores a pending row (email_verifications table, code hashed, 10-min TTL) and emails a 6-digit code via Resend; the account is only created by /auth/register/verify. Only gmail.com/icloud.com/outlook.com/hotmail.com domains are accepted (user directive — blocks temp mail). Google OAuth signups skip this (Google-verified).
+**How to apply:** in production a failed/unconfigured email send returns 503 (never a stuck code screen); in development the code is logged. Prod needs RESEND_API_KEY on Railway and a verified Resend domain + EMAIL_FROM, otherwise Resend only delivers to the account owner.
