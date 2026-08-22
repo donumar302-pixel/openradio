@@ -10,3 +10,8 @@ description: How schema changes reach prod and admin-panel conventions
 - User mutations (suspend/delete, single + bulk) must never touch effective admins (is_admin OR email allowlist) or the acting admin; promo redemption is a single transaction with a conditional counter update.
 - Notifications are fanned out one row per user; support replies also insert a notification.
 - Anti-abuse groups users by `signup_ip` (captured at register + Google signup).
+
+## Drizzle wraps pg errors + API JSON error handler (Aug 2026)
+Drizzle's DrizzleQueryError hides the pg error: `e.code` is undefined — the real code/message live on `e.cause.code` / `e.cause.message`. Any unique-violation (23505) check must look at both, otherwise duplicates fall through as raw "Failed query:" dumps.
+**Why:** reseller creation in prod showed an HTML/raw-query error instead of "already registered".
+**How to apply:** app.ts now has a JSON error middleware for /api (never let Express's default HTML error page reach the SPA); when catching DB errors check `e?.code ?? e?.cause?.code`.
