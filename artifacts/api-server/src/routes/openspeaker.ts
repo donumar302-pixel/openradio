@@ -2,6 +2,10 @@ import { Router } from "express";
 import multer from "multer";
 import { CLONE_CONSENT_TEXT } from "../lib/consent";
 import crypto from "crypto";
+import fsp from "node:fs/promises";
+import nodePath from "node:path";
+import nodeOs from "node:os";
+import { spawn } from "node:child_process";
 import { db, usersTable, osTasksTable, osDictionariesTable, voiceClonesTable, elVoiceIndexTable, type OsTask } from "@workspace/db";
 import { eq, and, desc, count, sql, gte, lt, isNotNull, notInArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
@@ -30,34 +34,34 @@ function badUpload(file: Express.Multer.File, kind: "audio" | "media" | "image",
   return null;
 }
 
+/** Run ffmpeg with a hard timeout; rejects with the tail of stderr on failure. */
+function runFfmpeg(args: string[], timeoutMs = 120_000): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const proc = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    proc.stderr.on("data", (d) => { stderr = (stderr + d.toString()).slice(-2000); });
+    const timer = setTimeout(() => { proc.kill("SIGKILL"); reject(new Error("ffmpeg timed out")); }, timeoutMs);
+    proc.on("error", (err) => { clearTimeout(timer); reject(err); });
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg exited with ${code}: ${stderr.slice(-400)}`));
+    });
+  });
+}
+
 /**
  * Extract the audio track from an uploaded video as MP3 (the dubbing provider
  * only accepts audio). Uses the system ffmpeg binary via temp files.
  */
 async function extractAudioTrack(file: Express.Multer.File): Promise<Express.Multer.File> {
-  const { spawn } = await import("node:child_process");
-  const fs = await import("node:fs/promises");
-  const os = await import("node:os");
-  const path = await import("node:path");
-
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "dub-"));
-  const inPath = path.join(dir, "input");
-  const outPath = path.join(dir, "audio.mp3");
+  const dir = await fsp.mkdtemp(nodePath.join(nodeOs.tmpdir(), "dub-"));
+  const inPath = nodePath.join(dir, "input");
+  const outPath = nodePath.join(dir, "audio.mp3");
   try {
-    await fs.writeFile(inPath, file.buffer);
-    await new Promise<void>((resolve, reject) => {
-      const proc = spawn("ffmpeg", ["-y", "-i", inPath, "-vn", "-acodec", "libmp3lame", "-b:a", "192k", outPath], { stdio: ["ignore", "ignore", "pipe"] });
-      let stderr = "";
-      proc.stderr.on("data", (d) => { stderr = (stderr + d.toString()).slice(-2000); });
-      const timer = setTimeout(() => { proc.kill("SIGKILL"); reject(new Error("ffmpeg timed out")); }, 120_000);
-      proc.on("error", (err) => { clearTimeout(timer); reject(err); });
-      proc.on("close", (code) => {
-        clearTimeout(timer);
-        if (code === 0) resolve();
-        else reject(new Error(`ffmpeg exited with ${code}: ${stderr.slice(-400)}`));
-      });
-    });
-    const buffer = await fs.readFile(outPath);
+    await fsp.writeFile(inPath, file.buffer);
+    await runFfmpeg(["-y", "-i", inPath, "-vn", "-acodec", "libmp3lame", "-b:a", "192k", outPath]);
+    const buffer = await fsp.readFile(outPath);
     if (buffer.length < 200) throw new Error("Extracted audio is empty — the video may have no audio track");
     const base = (file.originalname || "video").replace(/\.[^.]+$/, "");
     return {
@@ -68,7 +72,79 @@ async function extractAudioTrack(file: Express.Multer.File): Promise<Express.Mul
       originalname: `${base}.mp3`,
     };
   } finally {
-    await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+    await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/* ── Dubbed-video retention & muxing ─────────────────────────────────────
+   The dubbing provider only returns AUDIO. When the original upload was a
+   video we retain it on local disk until the task settles (which can take
+   minutes and may settle via webhook), then mux the dubbed audio back into
+   it so the user gets a dubbed VIDEO download. Retained sources are removed
+   as soon as the task settles; anything left behind (crashes, phase-1 insert
+   failures) is removed by age in the periodic sweep. */
+
+const DUB_VIDEO_DIR = nodePath.join(nodeOs.tmpdir(), "os-dub-videos");
+const DUB_SRC_MAX_AGE_MS = 24 * 60 * 60 * 1000;      // sources: tasks settle within minutes
+const DUB_OUT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;  // muxed results stay downloadable for a week
+
+/** Where the muxed dubbed video for a task lives (by convention). */
+function dubbedVideoPath(taskId: number): string {
+  return nodePath.join(DUB_VIDEO_DIR, `out-${taskId}.mp4`);
+}
+
+/** Persist the uploaded source video until the dubbing task settles. */
+async function retainSourceVideo(file: Express.Multer.File): Promise<string> {
+  await fsp.mkdir(DUB_VIDEO_DIR, { recursive: true });
+  const ext = nodePath.extname(file.originalname || "").slice(0, 8) || ".mp4";
+  const p = nodePath.join(DUB_VIDEO_DIR, `src-${crypto.randomBytes(12).toString("hex")}${ext}`);
+  await fsp.writeFile(p, file.buffer);
+  return p;
+}
+
+/** Download the dubbed audio and mux it into the retained source video (video stream copied). */
+async function muxDubbedVideo(srcVideoPath: string, audioUrl: string, outPath: string): Promise<void> {
+  const dir = await fsp.mkdtemp(nodePath.join(nodeOs.tmpdir(), "dubmux-"));
+  const audioPath = nodePath.join(dir, "dubbed-audio");
+  const tmpOut = nodePath.join(dir, "out.mp4");
+  try {
+    const resp = await fetch(audioUrl);
+    if (!resp.ok) throw new Error(`dubbed audio download failed with HTTP ${resp.status}`);
+    await fsp.writeFile(audioPath, Buffer.from(await resp.arrayBuffer()));
+    await runFfmpeg([
+      "-y", "-i", srcVideoPath, "-i", audioPath,
+      "-map", "0:v:0", "-map", "1:a:0",
+      "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+      "-movflags", "+faststart",
+      tmpOut,
+    ]);
+    await fsp.mkdir(DUB_VIDEO_DIR, { recursive: true });
+    // Write via temp + move so a partially-written file never appears at outPath.
+    try {
+      await fsp.rename(tmpOut, outPath);
+    } catch {
+      await fsp.copyFile(tmpOut, outPath);
+    }
+  } finally {
+    await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/** Remove aged-out retained sources and muxed results (crash/orphan safety net). */
+async function cleanupDubVideoDir(): Promise<void> {
+  let entries: string[];
+  try {
+    entries = await fsp.readdir(DUB_VIDEO_DIR);
+  } catch {
+    return; // directory doesn't exist yet
+  }
+  const now = Date.now();
+  for (const name of entries) {
+    const p = nodePath.join(DUB_VIDEO_DIR, name);
+    const st = await fsp.stat(p).catch(() => null);
+    if (!st) continue;
+    const maxAge = name.startsWith("out-") ? DUB_OUT_MAX_AGE_MS : DUB_SRC_MAX_AGE_MS;
+    if (now - st.mtimeMs > maxAge) await fsp.rm(p, { force: true }).catch(() => {});
   }
 }
 
@@ -146,7 +222,7 @@ function customerCreditsForTool(tool: string, providerCredits: number): number {
  * task from different stale snapshots.
  */
 async function applyTaskState(row: OsTask, state: OsTaskState): Promise<OsTask> {
-  return db.transaction(async (tx) => {
+  const saved = await db.transaction(async (tx) => {
     let [current] = await tx.select().from(osTasksTable)
       .where(eq(osTasksTable.id, row.id)).for("update");
     if (!current || isFinal(current.status)) return current ?? row;
@@ -203,6 +279,55 @@ async function applyTaskState(row: OsTask, state: OsTaskState): Promise<OsTask> 
     }).where(eq(osTasksTable.id, current.id)).returning();
     return saved ?? current;
   });
+  // Dubbing tasks whose original upload was a video: mux the dubbed audio back
+  // into the retained source video once the task is final (outside the tx —
+  // ffmpeg + the audio download can take seconds).
+  if (saved && saved.tool === "dubbing" && isFinal(saved.status)) {
+    return finalizeDubbedVideo(saved);
+  }
+  return saved;
+}
+
+// Tasks currently being finalized (in-process guard: the settle tx guarantees
+// only one caller transitions a task to final, but a concurrent caller that
+// observes the already-final row could otherwise start a second mux).
+const dubFinalizing = new Set<number>();
+
+/**
+ * When a dubbing task settles and the original upload was a video (a retained
+ * source path is recorded in the task input), mux the dubbed audio back into
+ * that video and expose it as a download. Falls back to the audio-only result
+ * if muxing fails. Always removes the retained source afterwards.
+ */
+async function finalizeDubbedVideo(row: OsTask): Promise<OsTask> {
+  const input = (row.input ?? {}) as Record<string, unknown>;
+  const srcPath = typeof input._sourceVideoPath === "string" ? input._sourceVideoPath : null;
+  if (!srcPath || dubFinalizing.has(row.id)) return row;
+  dubFinalizing.add(row.id);
+  try {
+    const cleanInput = { ...input };
+    delete cleanInput._sourceVideoPath;
+    let output = (row.output ?? null) as Record<string, unknown> | null;
+    if (row.status === "done") {
+      const m = (output ?? {}) as Record<string, any>;
+      const audioUrl = [m.audio_url, m.dubbed_audio_url, m.output_audio_url]
+        .find((u) => typeof u === "string" && u.startsWith("http")) ?? null;
+      try {
+        if (!audioUrl) throw new Error("provider output has no dubbed audio url");
+        await muxDubbedVideo(srcPath, audioUrl, dubbedVideoPath(row.id));
+        output = { ...m, dubbed_video_url: `/api/os/tasks/${row.id}/video` };
+      } catch (err) {
+        logger.error({ err, taskId: row.id }, "Dubbing: muxing dubbed audio into the original video failed — keeping audio-only result");
+      }
+    }
+    const [saved] = await db.update(osTasksTable)
+      .set({ input: cleanInput, output, updatedAt: new Date() })
+      .where(eq(osTasksTable.id, row.id)).returning();
+    return saved ?? row;
+  } finally {
+    dubFinalizing.delete(row.id);
+    await fsp.rm(srcPath, { force: true }).catch(() => {});
+  }
 }
 
 /** Refresh a non-final task from the provider; swallow transient provider errors. */
@@ -217,13 +342,19 @@ export async function refreshTask(row: OsTask): Promise<OsTask> {
   }
 }
 
+/** Strip internal (underscore-prefixed) keys, e.g. the retained video path, before sending to the client. */
+function publicJsonRecord(v: unknown): unknown {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return v ?? null;
+  return Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([k]) => !k.startsWith("_")));
+}
+
 export function taskJson(t: OsTask) {
   return {
     id: t.id,
     tool: t.tool,
     status: t.status,
     title: t.title,
-    input: t.input ?? null,
+    input: publicJsonRecord(t.input),
     output: t.output ?? null,
     error: t.error,
     creditsCharged: t.creditsCharged,
@@ -1132,10 +1263,12 @@ router.post("/dubbing", requireGlobalFeature("os-dubbing"), requirePlanFeature("
     return;
   }
   let file = req.file;
+  let sourceVideoPath: string | null = null;
 
   // The provider's dubbing endpoint only accepts AUDIO files — video uploads
   // are rejected with "Invalid file" (verified live). Extract the audio track
-  // from video uploads before submitting.
+  // from video uploads before submitting, and retain the original video so the
+  // dubbed audio can be muxed back into it when the task settles.
   if (String(file.mimetype || "").startsWith("video/")) {
     try {
       file = await extractAudioTrack(file);
@@ -1144,12 +1277,20 @@ router.post("/dubbing", requireGlobalFeature("os-dubbing"), requirePlanFeature("
       res.status(400).json({ error: "Could not read the audio track from this video. Please check the file has sound, or upload an MP3/WAV instead." });
       return;
     }
+    try {
+      sourceVideoPath = await retainSourceVideo(req.file);
+    } catch (err) {
+      logger.warn({ err, fileName: req.file.originalname }, "Dubbing: could not retain the source video — the result will be audio-only");
+    }
   }
 
   await runCreateTask({
     req, res, tool: "dubbing",
     title: `${req.file.originalname || "audio"} → ${targetLang}`,
-    input: { targetLang, sourceLang, numSpeakers, fileName: req.file.originalname, fileSize: req.file.size },
+    input: {
+      targetLang, sourceLang, numSpeakers, fileName: req.file.originalname, fileSize: req.file.size,
+      ...(sourceVideoPath ? { _sourceVideoPath: sourceVideoPath } : {}),
+    },
     estimate: Math.max(500, Math.ceil(file.size / 20_000)), // reconciled to real cost right after creation
     create: async (webhookUrl) => {
       const form = new FormData();
@@ -1443,6 +1584,27 @@ router.get("/tasks", async (req, res) => {
   res.json({ items: items.map(taskJson), total });
 });
 
+/** Download the muxed dubbed video (dubbing tasks whose original upload was a video). */
+router.get("/tasks/:id/video", async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [row] = await db.select().from(osTasksTable)
+    .where(and(eq(osTasksTable.id, id), eq(osTasksTable.userId, req.appUser!.id)));
+  if (!row || row.tool !== "dubbing" || row.status !== "done") {
+    res.status(404).json({ error: "Task not found" });
+    return;
+  }
+  const filePath = dubbedVideoPath(row.id);
+  try {
+    await fsp.access(filePath);
+  } catch {
+    res.status(410).json({ error: "The dubbed video is no longer available. Please download the audio, or run the dubbing again." });
+    return;
+  }
+  const base = String((row.input as any)?.fileName || "video").replace(/\.[^.]+$/, "").slice(0, 80) || "video";
+  res.download(filePath, `${base} (dubbed).mp4`);
+});
+
 router.get("/tasks/:id", async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -1489,6 +1651,12 @@ router.delete("/tasks/:id", async (req, res) => {
     if (updated.length > 0) await refundCredits(row.userId, row.creditsCharged);
   }
   await db.delete(osTasksTable).where(eq(osTasksTable.id, row.id));
+  // Remove any locally retained source / muxed dubbed video for this task.
+  if (row.tool === "dubbing") {
+    const src = (row.input as any)?._sourceVideoPath;
+    if (typeof src === "string") await fsp.rm(src, { force: true }).catch(() => {});
+    await fsp.rm(dubbedVideoPath(row.id), { force: true }).catch(() => {});
+  }
   res.status(204).send();
 });
 
@@ -1514,6 +1682,8 @@ export async function sweepStaleOsTasks(): Promise<void> {
   if (sweepRunning) return; // don't overlap if a sweep outlives the interval
   sweepRunning = true;
   try {
+    // Age out orphaned dubbing video files (crashes, deploys, phase-1 failures).
+    await cleanupDubVideoDir();
     const cutoff = new Date(Date.now() - SWEEP_STALE_AFTER_MS);
     const stale = await db.select().from(osTasksTable)
       .where(and(

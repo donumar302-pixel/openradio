@@ -127,11 +127,14 @@ export function taskDownloads(t: OsTask): { label: string; url: string }[] {
   const out: { label: string; url: string }[] = [];
   const seen = new Set<string>();
   const push = (label: string, url: unknown) => {
-    if (typeof url === "string" && url.startsWith("http") && !seen.has(url)) {
+    // App-relative URLs (starting with "/") are server-hosted downloads, e.g. the dubbed video.
+    if (typeof url === "string" && (url.startsWith("http") || url.startsWith("/")) && !seen.has(url)) {
       seen.add(url);
       out.push({ label, url });
     }
   };
+  // Dubbing with a video upload: the muxed dubbed video is the primary result.
+  push("Dubbed Video", m.dubbed_video_url);
   // Music (Suno) returns all_audio_urls + suno_result.clips (with titles) — no generic audio label.
   const songs = taskSongs(t);
   if (songs.length > 0) {

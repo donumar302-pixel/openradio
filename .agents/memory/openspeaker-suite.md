@@ -32,3 +32,8 @@ os_tasks rows are inserted BEFORE the provider call (status processing, external
 OpenSpeaker /v1/task/dubbing rejects video files with "Invalid file" (verified live); it also requires receive_url or errors "expected string, received undefined". The api-server extracts the audio track from video uploads with system ffmpeg before submitting.
 **Why:** the UI advertises MP4/MOV support, so video must keep working even though the provider is audio-only.
 **How to apply:** ffmpeg must exist in the Railway Docker image (apk add ffmpeg in the root Dockerfile) — removing it silently breaks video dubbing in prod only.
+
+## Dubbed video muxing is local-disk, single-instance
+Video uploads for dubbing are retained on local tmp disk until the task settles, then the dubbed audio is muxed back into the video (ffmpeg -c:v copy) and served from local disk (sources aged out after 24h, muxed results after 7d; internal paths live in underscore-prefixed task input keys stripped from client JSON).
+**Why:** the provider returns audio only; local tmp is the simplest retention that works on Railway's single instance without object storage.
+**How to apply:** this breaks on multi-instance deploys or if a redeploy happens mid-task/mid-retention (falls back to audio-only / download 410s). Moving to object storage is the fix if durability complaints appear. Only the settle-transition caller muxes (in-process Set guard); keep it that way to avoid double ffmpeg runs.
