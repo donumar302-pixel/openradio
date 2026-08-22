@@ -92,6 +92,11 @@ export async function ensureSchema(): Promise<void> {
       created_at timestamp NOT NULL DEFAULT now()
     )`,
     `CREATE INDEX IF NOT EXISTS os_dictionaries_user_idx ON os_dictionaries (user_id)`,
+    `CREATE TABLE IF NOT EXISTS el_voice_index (
+      voice_id text PRIMARY KEY,
+      data json NOT NULL,
+      updated_at timestamp NOT NULL DEFAULT now()
+    )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS os_dictionaries_external_idx ON os_dictionaries (external_id)`,
   ];
 

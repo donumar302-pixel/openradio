@@ -16,3 +16,8 @@ description: Durable quirks and guardrail decisions for the OpenSpeaker (api.ope
 - Deleting a still-processing task must confirm the provider-side cancel succeeded before refunding; on failure keep the row and return an error. **Why:** same credit-bypass risk.
 - Generation payload references (dictionary ids, `clone_` voice ids) are ownership-checked server-side; uploads are MIME+size validated server-side (browser `accept` is not a control).
 - Voice cloning requires an explicit `consent=true` field, rejected server-side otherwise, and the versioned attestation text + timestamp are persisted on the clone row. Cloning itself is intentionally free; charges happen only on generation.
+
+## ElevenLabs voice index snapshot
+The crawled EL voice index persists in el_voice_index (voice_id → raw JSON) with the sweep completion time in app_settings key el_index_meta.
+**Why:** upstream pagination is broken, so the ~8.7k catalog is built by a ~130-term crawl; without persistence every restart re-fired hundreds of upstream requests and showed a shrunken list.
+**How to apply:** boot loads the snapshot and skips the crawl when fresher than 24h and ≥1000 rows; incremental flushes persist on-demand search additions; any change here must keep the el_voice_index table mirrored in api-server ensureSchema() for Railway.

@@ -2,10 +2,11 @@ import { Router } from "express";
 import multer from "multer";
 import { CLONE_CONSENT_TEXT } from "../lib/consent";
 import crypto from "crypto";
-import { db, usersTable, osTasksTable, osDictionariesTable, voiceClonesTable, type OsTask } from "@workspace/db";
+import { db, usersTable, osTasksTable, osDictionariesTable, voiceClonesTable, elVoiceIndexTable, type OsTask } from "@workspace/db";
 import { eq, and, desc, count, sql, gte, lt, isNotNull, notInArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { requireActiveUser, isUserAdmin } from "../middleware/require-active-user";
+import { getSetting, setSetting } from "../lib/settings";
 import { requireFeature as requireGlobalFeature } from "../middleware/require-feature";
 import { planAllowsFeature, type FeatureKey } from "../lib/plans";
 import {
@@ -397,12 +398,95 @@ function elAddVoices(data: any): { added: number; first?: string } {
   const voices: any[] = Array.isArray(data?.data) ? data.data : [];
   let added = 0;
   for (const v of voices) {
-    if (v?.voice_id && !EL_INDEX.has(v.voice_id) && EL_INDEX.size < EL_INDEX_MAX) {
+    if (!v?.voice_id) continue;
+    const known = EL_INDEX.has(v.voice_id);
+    if (known) {
+      EL_INDEX.set(v.voice_id, v); // refresh data for voices we already track
+      elUnsavedIds.add(v.voice_id);
+    } else if (EL_INDEX.size < EL_INDEX_MAX) {
       EL_INDEX.set(v.voice_id, v);
+      elUnsavedIds.add(v.voice_id);
       added++;
     }
   }
+  if (elUnsavedIds.size > 0) elScheduleSnapshotFlush();
   return { added, first: voices[0]?.voice_id };
+}
+
+/* ── Snapshot persistence: the crawled index survives restarts ──────────
+   Rows live in el_voice_index (voice_id → raw voice JSON); the sweep's
+   completion time is stored in app_settings under EL_SNAPSHOT_META_KEY.
+   At startup the snapshot is loaded into EL_INDEX; the crawler only
+   re-runs when the snapshot is older than EL_SNAPSHOT_TTL_MS. */
+
+const EL_SNAPSHOT_META_KEY = "el_index_meta";
+const EL_SNAPSHOT_TTL_MS = 24 * 60 * 60_000; // re-crawl when older than ~24h
+const EL_SNAPSHOT_MIN = 1_000;               // fewer rows = partial crawl, don't trust it
+const EL_SNAPSHOT_CHUNK = 400;               // rows per upsert statement
+
+const elUnsavedIds = new Set<string>();      // voices added/refreshed since last DB write
+let elFlushTimer: NodeJS.Timeout | null = null;
+
+async function elUpsertRows(ids: string[]): Promise<void> {
+  for (let i = 0; i < ids.length; i += EL_SNAPSHOT_CHUNK) {
+    const rows = ids.slice(i, i + EL_SNAPSHOT_CHUNK)
+      .map((id) => EL_INDEX.get(id))
+      .filter(Boolean)
+      .map((v) => ({ voiceId: v.voice_id as string, data: v, updatedAt: new Date() }));
+    if (rows.length === 0) continue;
+    await db.insert(elVoiceIndexTable).values(rows).onConflictDoUpdate({
+      target: elVoiceIndexTable.voiceId,
+      set: { data: sql`excluded.data`, updatedAt: sql`excluded.updated_at` },
+    });
+  }
+}
+
+/* Debounced incremental flush so on-demand search crawls (and sweep progress)
+   are durable without a DB write per upstream page. */
+function elScheduleSnapshotFlush(): void {
+  if (elFlushTimer) return;
+  elFlushTimer = setTimeout(async () => {
+    elFlushTimer = null;
+    const ids = [...elUnsavedIds];
+    elUnsavedIds.clear();
+    try {
+      await elUpsertRows(ids);
+    } catch (err) {
+      for (const id of ids) elUnsavedIds.add(id); // retry on the next flush
+      logger.warn({ err, pending: ids.length }, "ElevenLabs snapshot incremental flush failed");
+    }
+  }, 15_000);
+  elFlushTimer.unref?.();
+}
+
+/* Load persisted rows into EL_INDEX. Returns true when the snapshot is
+   complete and fresh enough that the sweep can be skipped entirely. */
+async function elLoadSnapshot(): Promise<boolean> {
+  const rows = await db.select().from(elVoiceIndexTable);
+  for (const row of rows) {
+    const v: any = row.data;
+    if (v?.voice_id && !EL_INDEX.has(v.voice_id) && EL_INDEX.size < EL_INDEX_MAX) {
+      EL_INDEX.set(v.voice_id, v);
+    }
+  }
+  const meta = await getSetting<{ refreshedAt?: string } | undefined>(EL_SNAPSHOT_META_KEY);
+  const refreshedAt = meta?.refreshedAt ? Date.parse(meta.refreshedAt) : NaN;
+  const fresh =
+    rows.length >= EL_SNAPSHOT_MIN &&
+    Number.isFinite(refreshedAt) &&
+    Date.now() - refreshedAt < EL_SNAPSHOT_TTL_MS;
+  if (rows.length > 0) {
+    logger.info({ loaded: rows.length, fresh }, "ElevenLabs voice snapshot loaded");
+  }
+  return fresh;
+}
+
+/* Full save after a completed sweep: upsert everything and stamp refreshed-at. */
+async function elSaveSnapshot(): Promise<void> {
+  await elUpsertRows([...EL_INDEX.keys()]);
+  elUnsavedIds.clear();
+  await setSetting(EL_SNAPSHOT_META_KEY, { refreshedAt: new Date().toISOString() });
+  logger.info({ saved: EL_INDEX.size }, "ElevenLabs voice snapshot saved");
 }
 
 function elSetTermState(key: string, state: ElTermState): void {
@@ -464,14 +548,27 @@ function elCrawlTerm(term: string): Promise<void> {
   return run;
 }
 
-/* Kick off the background sweep once per process (fire-and-forget).
-   Failed terms are retried in bounded extra passes; only then is the index
-   marked complete (possibly degraded, which we log). */
+/* Kick off index initialization once per process (fire-and-forget):
+   load the persisted snapshot; if it is complete and fresh (<24h) skip the
+   sweep entirely, otherwise run the background sweep (failed terms retried
+   in bounded extra passes; a degraded finish is logged) and persist the
+   result for the next restart. */
 function elEnsureIndex(): void {
   if (elCrawlRunning || elCrawlDone) return;
   elCrawlRunning = true;
   (async () => {
     try {
+      let snapshotFresh = false;
+      try {
+        snapshotFresh = await elLoadSnapshot();
+      } catch (err) {
+        logger.warn({ err }, "ElevenLabs voice snapshot load failed — falling back to full crawl");
+      }
+      if (snapshotFresh) {
+        elCrawlDone = true;
+        logger.info({ indexed: EL_INDEX.size }, "ElevenLabs voice index restored from snapshot; crawl skipped");
+        return;
+      }
       const sweep = ["", ...EL_CRAWL_TERMS];
       for (let pass = 1; pass <= 3; pass++) {
         let pending = 0;
@@ -495,6 +592,11 @@ function elEnsureIndex(): void {
         if (pending === 0) break;
       }
       elCrawlDone = true;
+      try {
+        await elSaveSnapshot();
+      } catch (err) {
+        logger.warn({ err }, "ElevenLabs voice snapshot save failed — index stays in-memory only");
+      }
     } finally {
       elCrawlRunning = false;
     }
@@ -1331,6 +1433,13 @@ export async function sweepStaleOsTasks(): Promise<void> {
   } finally {
     sweepRunning = false;
   }
+}
+
+/** Kick off ElevenLabs voice-index initialization at boot (snapshot load,
+ *  then a crawl only if the snapshot is stale) instead of waiting for the
+ *  first Voice Library request. Fire-and-forget. */
+export function startElVoiceIndex(): void {
+  elEnsureIndex();
 }
 
 /** Start the periodic sweep. Returns the timer (unref'd so it never blocks shutdown). */

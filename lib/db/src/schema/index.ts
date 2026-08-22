@@ -179,6 +179,15 @@ export const supportMessagesTable = pgTable("support_messages", {
 
 export type SupportMessage = typeof supportMessagesTable.$inferSelect;
 
+/* ── ElevenLabs crawled voice index snapshot (voice_id → raw voice JSON).
+   Persists the in-memory Voice Library index across API-server restarts so
+   the full catalog is available immediately at boot. ─────────────────── */
+export const elVoiceIndexTable = pgTable("el_voice_index", {
+  voiceId: text("voice_id").primaryKey(),
+  data: json("data").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 /* ── Platform settings (key/value, JSON string values) ───────────────── */
 export const appSettingsTable = pgTable("app_settings", {
   key: text("key").primaryKey(),
