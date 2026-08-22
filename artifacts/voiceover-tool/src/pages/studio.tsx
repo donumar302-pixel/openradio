@@ -3,7 +3,7 @@ import {
   useListGenerations,
   getListGenerationsQueryKey,
 } from "@workspace/api-client-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { OsVoicePicker } from "@/components/os/voice-picker";
 import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
-import { osCreateTaskJson, osJson, taskAudioUrl, type OsVoice } from "@/lib/os-api";
+import { osCreateTaskJson, osJson, taskAudioUrl, type OsVoice, type OsTask } from "@/lib/os-api";
 import { estimateTtsCost, estimateEdgeTtsCost } from "@/lib/os-cost";
 
 interface MiniMaxVoice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; }
@@ -144,6 +144,7 @@ function VoicePreviewBtn({ url }: { url?: string | null }) {
 
 export default function StudioPage() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState("");
@@ -161,6 +162,9 @@ export default function StudioPage() {
   const [volume, setVolume] = useState(1);
   const [pitch, setPitch] = useState(0);
   const [latestAudio, setLatestAudio] = useState<string | null>(null);
+  // Fire/Fish/Edge return audio directly (no server-side record), so those
+  // generations are kept in a session-local history list.
+  const [sessionHistory, setSessionHistory] = useState<{ id: string; text: string; provider: string; url: string; at: number }[]>([]);
   const [rightTab, setRightTab] = useState<"settings" | "history">("settings");
   const [mobilePanel, setMobilePanel] = useState(false);
   const [openPopup, setOpenPopup] = useState<"emotion" | "pause" | "soundtag" | null>(null);
@@ -308,7 +312,21 @@ export default function StudioPage() {
       const url = taskAudioUrl(osTask);
       if (url) { setLatestAudio(url); toast({ title: "Generated!", description: "Your audio is ready." }); }
     }
+    if (osTask?.status === "done" || osTask?.status === "error") {
+      queryClient.invalidateQueries({ queryKey: ["studio-tts-history"] });
+    }
   }, [osTask?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // OpenSpeaker TTS task history (ElevenLabs + Voice Library) — persistent
+  const { data: osTaskHistory, isLoading: loadingOsHistory } = useQuery<{ items: OsTask[] }>({
+    queryKey: ["studio-tts-history"],
+    queryFn: () => osJson("/tasks?tool=tts&limit=20"),
+    enabled: rightTab === "history",
+    refetchInterval: (q) => (q.state.data?.items?.some((t) => t.status === "processing") ? 4000 : false),
+  });
+
+  const addSessionEntry = (provider: string, entryText: string, url: string) =>
+    setSessionHistory((h) => [{ id: `s-${Date.now()}-${h.length}`, text: entryText, provider, url, at: Date.now() }, ...h]);
   const [mmGenerating, setMmGenerating]     = useState(false);
   const [faGenerating, setFaGenerating]     = useState(false);
   const [edgeGenerating, setEdgeGenerating] = useState(false);
@@ -332,7 +350,9 @@ export default function StudioPage() {
         });
         if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as any).error || "Generation failed"); }
         const blob = await res.blob();
-        setLatestAudio(URL.createObjectURL(blob));
+        const url = URL.createObjectURL(blob);
+        setLatestAudio(url);
+        addSessionEntry("Fire TTS", text, url);
         toast({ title: "Generated!", description: "Your audio is ready." });
       } catch (e: any) {
         toast({ title: "Generation failed", description: e.message, variant: "destructive" });
@@ -349,7 +369,9 @@ export default function StudioPage() {
         });
         if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as any).error || "Generation failed"); }
         const blob = await res.blob();
-        setLatestAudio(URL.createObjectURL(blob));
+        const url = URL.createObjectURL(blob);
+        setLatestAudio(url);
+        addSessionEntry("Fish Audio", text, url);
         toast({ title: "Generated!", description: "Your audio is ready." });
       } catch (e: any) {
         toast({ title: "Generation failed", description: e.message, variant: "destructive" });
@@ -366,7 +388,9 @@ export default function StudioPage() {
         });
         if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as any).error || "Generation failed"); }
         const blob = await res.blob();
-        setLatestAudio(URL.createObjectURL(blob));
+        const url = URL.createObjectURL(blob);
+        setLatestAudio(url);
+        addSessionEntry("Edge TTS", text, url);
         toast({ title: "Generated!", description: "Your audio is ready." });
       } catch (e: any) {
         toast({ title: "Generation failed", description: e.message, variant: "destructive" });
@@ -386,6 +410,31 @@ export default function StudioPage() {
     : null;
   const insufficientCredits = useOsInsufficientCredits(costEstimate);
   const expressionEnabled = voiceProvider === "minimax";
+
+  // Merged history: OpenSpeaker TTS tasks (persistent) + legacy generations + session clips
+  const mergedHistory = useMemo(() => {
+    type Row = { id: string; at: number; text: string; sub: string; url: string | null; processing?: boolean };
+    const rows: Row[] = [];
+    for (const t of osTaskHistory?.items ?? []) {
+      if (t.status === "error") continue;
+      const vid = String(t.input?.voiceId ?? "");
+      const engine = vid.startsWith("elevenlabs_") ? "ElevenLabs" : "Voice Library";
+      const chars = t.input?.characters;
+      rows.push({
+        id: `os-${t.id}`, at: Date.parse(t.createdAt), text: t.title,
+        sub: `${engine}${typeof chars === "number" ? ` · ${chars} chars` : ""}`,
+        url: t.status === "done" ? taskAudioUrl(t) : null,
+        processing: t.status === "processing",
+      });
+    }
+    for (const g of (history?.items ?? []) as any[]) {
+      rows.push({ id: `gen-${g.id}`, at: Date.parse(g.createdAt), text: g.text, sub: `${g.voiceName} · ${g.characterCount} chars`, url: g.audioUrl });
+    }
+    for (const s of sessionHistory) {
+      rows.push({ id: s.id, at: s.at, text: s.text, sub: `${s.provider} · ${s.text.length} chars · this session`, url: s.url });
+    }
+    return rows.sort((a, b) => b.at - a.at).slice(0, 30);
+  }, [osTaskHistory, history, sessionHistory]);
 
   const mmByLang = mmVoices.reduce((acc, v) => {
     const g = v.isClone ? "My Clones" : (v.lang ?? "Other");
@@ -697,9 +746,9 @@ export default function StudioPage() {
       {/* History */}
       {rightTab === "history" && (
         <div className="flex-1 overflow-y-auto">
-          {loadingHistory ? (
+          {(loadingHistory || loadingOsHistory) && mergedHistory.length === 0 ? (
             <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-[#9ca3af]" /></div>
-          ) : !history?.items?.length ? (
+          ) : mergedHistory.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
               <History size={28} className="text-[#d1d5db] mb-3" />
               <p className="text-sm font-semibold text-[#6b7280]">No history yet</p>
@@ -707,11 +756,15 @@ export default function StudioPage() {
             </div>
           ) : (
             <div className="divide-y divide-[#f3f4f6]">
-              {history.items.map((gen: any) => (
-                <div key={gen.id} className="p-4 hover:bg-[#fafafa] transition-colors" data-testid={`history-item-${gen.id}`}>
-                  <p className="text-xs font-semibold text-foreground mb-1 line-clamp-2">{gen.text}</p>
-                  <p className="text-[10px] text-[#9ca3af] mb-2">{gen.voiceName} · {gen.characterCount} chars</p>
-                  <audio controls src={gen.audioUrl} className="w-full h-7" data-testid={`audio-history-${gen.id}`} />
+              {mergedHistory.map((row) => (
+                <div key={row.id} className="p-4 hover:bg-[#fafafa] transition-colors" data-testid={`history-item-${row.id}`}>
+                  <p className="text-xs font-semibold text-foreground mb-1 line-clamp-2">{row.text}</p>
+                  <p className="text-[10px] text-[#9ca3af] mb-2">{row.sub}</p>
+                  {row.processing ? (
+                    <p className="text-[10px] text-primary font-semibold flex items-center gap-1.5"><Loader2 size={10} className="animate-spin" /> Generating…</p>
+                  ) : row.url ? (
+                    <audio controls src={row.url} className="w-full h-7" data-testid={`audio-history-${row.id}`} />
+                  ) : null}
                 </div>
               ))}
             </div>
