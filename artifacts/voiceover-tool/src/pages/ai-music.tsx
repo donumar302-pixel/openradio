@@ -54,7 +54,10 @@ export default function AiMusicPage() {
             <Music4 size={18} className="text-primary" />
           </div>
           <h1 className="text-2xl font-extrabold text-foreground">AI Music</h1>
-          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">Suno</span>
+          <span className="flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+            <img src={`${import.meta.env.BASE_URL}logos/suno.png`} alt="" className="w-3.5 h-3.5 rounded-[3px] object-contain" />
+            Suno
+          </span>
         </div>
         <p className="text-muted-foreground text-sm sm:ml-12">Create complete songs with vocals from a description or your own lyrics</p>
       </div>

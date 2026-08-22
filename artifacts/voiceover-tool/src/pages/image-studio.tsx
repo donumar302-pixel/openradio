@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { OsTaskResult, OsTaskHistory } from "@/components/os/task-panel";
-import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-estimate";
+import { useOsInsufficientCredits } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osJson, osCreateTaskForm } from "@/lib/os-api";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,51 @@ interface ImageModel {
 }
 
 const ASPECT_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4"];
+
+/* ── Model branding: real provider logos + friendly names ─────────────── */
+const MODEL_LOGO = (name: string) => `${import.meta.env.BASE_URL}logos/${name}.png`;
+
+const MODEL_BRANDS: { prefix: string; logo: string; brand: string }[] = [
+  { prefix: "bytedance-seedream", logo: MODEL_LOGO("bytedance"), brand: "ByteDance" },
+  { prefix: "gpt-image",          logo: MODEL_LOGO("openai"),    brand: "OpenAI" },
+  { prefix: "gemini",             logo: MODEL_LOGO("gemini"),    brand: "Google" },
+  { prefix: "recraft",            logo: MODEL_LOGO("recraft"),   brand: "Recraft" },
+  { prefix: "krea",               logo: MODEL_LOGO("krea"),      brand: "Krea" },
+  { prefix: "kling",              logo: MODEL_LOGO("kling"),     brand: "Kling" },
+  { prefix: "flux",               logo: MODEL_LOGO("flux"),      brand: "Black Forest Labs" },
+  { prefix: "runway",             logo: MODEL_LOGO("runway"),    brand: "Runway" },
+  { prefix: "wan",                logo: MODEL_LOGO("wan"),       brand: "Alibaba Wan" },
+];
+
+const MODEL_NAMES: Record<string, string> = {
+  "bytedance-seedream-5-pro": "Seedream 5 Pro",
+  "bytedance-seedream-5-lite": "Seedream 5 Lite",
+  "bytedance-seedream-4.5": "Seedream 4.5",
+  "bytedance-seedream-4": "Seedream 4",
+  "recraft-v4.1": "Recraft V4.1",
+  "gpt-image-2": "GPT Image 2",
+  "gpt-image-1.5": "GPT Image 1.5",
+  "gpt-image-1": "GPT Image 1",
+  "gemini-3.1-flash-lite-image": "Gemini 3.1 Flash Lite",
+  "gemini-3.1-flash-image-preview": "Gemini 3.1 Flash (Nano Banana Pro)",
+  "gemini-3-pro-image-preview": "Gemini 3 Pro Image",
+  "gemini-2.5-flash-image": "Gemini 2.5 Flash (Nano Banana)",
+  "krea-2-medium": "Krea 2 Medium",
+  "krea-2-large": "Krea 2 Large",
+  "kling-omni-image": "Kling Omni Image",
+  "flux-2-pro": "FLUX.2 Pro",
+  "flux-1-kontext": "FLUX.1 Kontext",
+  "runway-gen4-image": "Runway Gen-4 Image",
+  "runway-gen4-image-turbo": "Runway Gen-4 Turbo",
+  "wan-2.5-preview-image": "Wan 2.5",
+};
+
+function modelMeta(id: string): { label: string; logo: string | null; brand: string | null } {
+  const b = MODEL_BRANDS.find((x) => id.startsWith(x.prefix));
+  const label = MODEL_NAMES[id]
+    ?? id.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return { label, logo: b?.logo ?? null, brand: b?.brand ?? null };
+}
 
 export default function ImageStudioPage() {
   const { toast } = useToast();
@@ -51,7 +96,7 @@ export default function ImageStudioPage() {
 
   const modelParameters = useMemo(() => ({ aspect_ratio: aspectRatio }), [aspectRatio]);
 
-  const { data: priceData, isFetching: pricing } = useQuery({
+  const { data: priceData } = useQuery({
     queryKey: ["os-image-price", modelId, imgCount, aspectRatio, refs.length],
     queryFn: () => osJson<{ credits: number }>("/image/price", {
       method: "POST",
@@ -116,7 +161,16 @@ export default function ImageStudioPage() {
               <SelectContent>
                 {models.map((m) => {
                   const id = String(m.model_id ?? m.id ?? "");
-                  return <SelectItem key={id} value={id}>{m.name ?? id}</SelectItem>;
+                  const meta = modelMeta(id);
+                  return (
+                    <SelectItem key={id} value={id}>
+                      <span className="flex items-center gap-2">
+                        {meta.logo && <img src={meta.logo} alt="" className="w-4 h-4 rounded-[4px] object-contain" />}
+                        <span>{m.name ?? meta.label}</span>
+                        {meta.brand && <span className="text-[10px] text-muted-foreground">{meta.brand}</span>}
+                      </span>
+                    </SelectItem>
+                  );
                 })}
               </SelectContent>
             </Select>
@@ -169,8 +223,6 @@ export default function ImageStudioPage() {
             )}
           </div>
         </div>
-
-        <OsCostEstimate estimate={priceData?.credits ?? null} estimating={pricing} />
 
         <Button onClick={handleSubmit} disabled={working || !modelId || insufficient} className="w-full bg-primary hover:bg-primary/90 font-bold">
           {submitting

@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { osJson, OS_PROVIDERS, type OsVoice } from "@/lib/os-api";
+import { osJson, osProviderLogo, OS_PROVIDERS, type OsVoice } from "@/lib/os-api";
 
 interface Props {
   value: string;              // prefixed voice_id or ""
@@ -54,6 +54,7 @@ export function OsVoicePicker({ value, valueName, onChange, placeholder = "Choos
     staleTime: 60_000,
   });
 
+  const tabLogo = osProviderLogo(provider);
   const voices: OsVoice[] = data?.data ?? [];
   const total = data?.pagination?.total ?? voices.length;
   const pageSize = data?.pagination?.page_size ?? 24;
@@ -101,10 +102,13 @@ export function OsVoicePicker({ value, valueName, onChange, placeholder = "Choos
                   key={p.id}
                   onClick={() => setProvider(p.id)}
                   className={cn(
-                    "px-3 py-1.5 rounded-full text-xs font-bold transition-colors",
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors",
                     provider === p.id ? "bg-primary text-white" : "bg-secondary text-muted-foreground hover:text-foreground",
                   )}
                 >
+                  {p.logo && (
+                    <img src={p.logo} alt="" className={cn("w-3.5 h-3.5 rounded-[3px] object-contain", provider === p.id && "bg-white/90 p-px")} />
+                  )}
                   {p.label}
                 </button>
               ))}
@@ -160,6 +164,7 @@ export function OsVoicePicker({ value, valueName, onChange, placeholder = "Choos
                           {[v.language, v.gender].filter(Boolean).join(" · ") || v.category || ""}
                         </p>
                       </div>
+                      {tabLogo && <img src={tabLogo} alt="" className="w-4 h-4 rounded-[4px] object-contain shrink-0 opacity-80" />}
                       {selected && <Check size={15} className="text-primary shrink-0" />}
                     </div>
                   );

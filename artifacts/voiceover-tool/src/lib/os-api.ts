@@ -25,14 +25,22 @@ export interface OsVoice {
   languages?: { language?: string; preview_url?: string | null }[];
 }
 
+const providerLogo = (name: string) => `${import.meta.env.BASE_URL}logos/${name}.png`;
+
 export const OS_PROVIDERS = [
-  { id: "elevenlabs", label: "ElevenLabs" },
-  { id: "minimax", label: "MiniMax" },
-  { id: "fishaudio", label: "Fish Audio" },
-  { id: "edge", label: "Edge" },
-  { id: "vbee", label: "Vbee" },
-  { id: "clone", label: "My Clones" },
+  { id: "elevenlabs", label: "ElevenLabs", logo: providerLogo("elevenlabs") },
+  { id: "minimax", label: "MiniMax", logo: providerLogo("minimax") },
+  { id: "fishaudio", label: "Fish Audio", logo: providerLogo("fishaudio") },
+  { id: "edge", label: "Edge", logo: providerLogo("edge") },
+  { id: "vbee", label: "Vbee", logo: providerLogo("vbee") },
+  { id: "clone", label: "My Clones", logo: null },
 ] as const;
+
+/** Logo for a provider id (voice pickers, library cards). */
+export function osProviderLogo(providerId: string): string | null {
+  const p = OS_PROVIDERS.find((x) => x.id === providerId);
+  return p?.logo ?? null;
+}
 
 export async function osJson<T = any>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api/os${path}`, init);
