@@ -43,7 +43,16 @@ export function addDays(from: Date, days: number): Date {
   return new Date(from.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
+// Exact PKR prices (not derived from USD × rate).
+export const PLAN_PRICE_PKR: Record<PlanId, number> = {
+  free: 0,
+  starter: 1149,
+  pro: 1999,
+  max: 3149,
+};
+
 export function priceInCurrency(plan: PlanId, currency: string): number {
+  if (currency === "PKR") return PLAN_PRICE_PKR[plan] ?? 0;
   const usd = PLAN_PRICE_USD[plan] ?? 0;
   const rate = EXCHANGE_RATES[currency] ?? 1;
   const raw = usd * rate;
@@ -134,7 +143,10 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     cta: "Get Started",
     features: [
       `${fmtCredits(PLAN_CREDITS.free)} characters / 30 days`,
-      "Text to Speech — ElevenLabs, Fish Audio & Fire TTS",
+      "ElevenLabs — Eleven v3",
+      "ElevenLabs — Multilingual v2.5",
+      "Fish Audio — S2.1 Pro",
+      "Fire TTS — Speech-02 HD",
       "Pronunciation Dictionary",
       "MP3 downloads",
       "Community support",
@@ -150,7 +162,7 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     features: [
       `${fmtCredits(PLAN_CREDITS.starter)} characters / 30 days`,
       "Everything in Basic",
-      "All TTS models — ElevenLabs, Fish Audio & Fire TTS",
+      "All TTS models unlocked",
       "Voice Cloning",
       "Speech to Speech",
       "Speech to Text",
