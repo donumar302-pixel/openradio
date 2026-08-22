@@ -1,12 +1,163 @@
 import { useState } from "react";
-import { Settings, User, Shield, Save, Eye, EyeOff, Check, Gift } from "lucide-react";
+import { Settings, User, Shield, Save, Eye, EyeOff, Check, Gift, KeyRound, Copy, Trash2, Plus } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+
+interface DevApiKey {
+  id: number;
+  name: string;
+  keyPrefix: string;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+function DeveloperApiSection() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [keyName, setKeyName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [newKey, setNewKey] = useState<string | null>(null);
+  const [keyCopied, setKeyCopied] = useState(false);
+
+  const isPaid = !!user && (user.isAdmin || user.plan !== "free");
+
+  const { data } = useQuery<{ keys: DevApiKey[] }>({
+    queryKey: ["dev-api-keys"],
+    queryFn: async () => {
+      const res = await fetch("/api/keys", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load API keys");
+      return res.json();
+    },
+    enabled: isPaid,
+  });
+  const keys = data?.keys ?? [];
+
+  const createKey = async () => {
+    setCreating(true);
+    try {
+      const res = await fetch("/api/keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: keyName.trim() || "API Key" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create key");
+      setNewKey(data.fullKey);
+      setKeyName("");
+      queryClient.invalidateQueries({ queryKey: ["dev-api-keys"] });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const revokeKey = async (id: number) => {
+    try {
+      const res = await fetch(`/api/keys/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to revoke key");
+      }
+      queryClient.invalidateQueries({ queryKey: ["dev-api-keys"] });
+      toast({ title: "Key revoked", description: "This API key can no longer be used." });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const copyNewKey = async () => {
+    if (!newKey) return;
+    await navigator.clipboard.writeText(newKey);
+    setKeyCopied(true);
+    setTimeout(() => setKeyCopied(false), 2000);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-[#e5e7eb] p-6 shadow-sm space-y-4">
+      <div className="flex items-center gap-2 mb-1">
+        <KeyRound size={16} className="text-primary" />
+        <h2 className="font-bold text-base">Developer API</h2>
+      </div>
+      <p className="text-muted-foreground text-sm -mt-1">
+        Use OpenRadio Text to Speech from your own apps. Credits are charged from your account balance.
+      </p>
+
+      {!isPaid ? (
+        <p className="text-sm font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          The Developer API is available on paid plans. Upgrade to create API keys.
+        </p>
+      ) : (
+        <>
+          {newKey && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-2">
+              <p className="text-sm font-bold text-green-800">Your new API key — copy it now, it won't be shown again:</p>
+              <div className="flex gap-2 items-center">
+                <code className="flex-1 text-xs bg-white border border-green-200 rounded-lg px-3 py-2 break-all">{newKey}</code>
+                <Button size="sm" variant="outline" onClick={copyNewKey} className="shrink-0">
+                  {keyCopied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+                </Button>
+              </div>
+              <button className="text-xs text-green-700 underline" onClick={() => setNewKey(null)}>I've saved it — hide</button>
+            </div>
+          )}
+
+          {keys.length > 0 && (
+            <div className="space-y-2">
+              {keys.map((k) => (
+                <div key={k.id} className="flex items-center gap-3 border border-[#e5e7eb] rounded-xl px-4 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{k.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      <code>{k.keyPrefix}…</code>
+                      {" · "}
+                      {k.lastUsedAt ? `last used ${new Date(k.lastUsedAt).toLocaleDateString()}` : "never used"}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => revokeKey(k.id)} className="text-red-500 hover:text-red-600 shrink-0">
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <Input
+              value={keyName}
+              onChange={(e) => setKeyName(e.target.value)}
+              placeholder="Key name (e.g. My App)"
+              maxLength={60}
+              className="flex-1"
+            />
+            <Button onClick={createKey} disabled={creating} size="sm" className="shrink-0 px-3 font-semibold">
+              <Plus size={14} className="mr-1" /> {creating ? "Creating…" : "Create Key"}
+            </Button>
+          </div>
+
+          <details className="text-sm">
+            <summary className="cursor-pointer font-semibold text-primary">How to use (quick example)</summary>
+            <pre className="mt-2 bg-[#0f172a] text-[#e2e8f0] text-xs rounded-xl p-4 overflow-x-auto whitespace-pre-wrap">{`curl -X POST https://openradio.io/api/v1/tts \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"text": "Hello from the API!", "voice_id": "VOICE_ID"}'
+
+# List voices:  GET /api/v1/voices?provider=elevenlabs&search=deep
+# Your account: GET /api/v1/me
+# Task status:  GET /api/v1/tasks/{id}`}</pre>
+          </details>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -208,6 +359,9 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Developer API keys */}
+      <DeveloperApiSection />
 
       {/* Password change */}
       <div className="bg-white rounded-2xl border border-[#e5e7eb] p-6 shadow-sm space-y-4">

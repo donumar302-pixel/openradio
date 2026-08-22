@@ -118,6 +118,20 @@ export async function ensureSchema(): Promise<void> {
     `CREATE INDEX IF NOT EXISTS orders_user_idx ON orders (user_id)`,
     `CREATE INDEX IF NOT EXISTS orders_status_idx ON orders (status)`,
     `CREATE UNIQUE INDEX IF NOT EXISTS orders_user_plan_pending_v2_idx ON orders (user_id, plan) WHERE status = 'pending' AND payment_method_id IS NOT NULL`,
+    /* ── Email notifications + Developer API ─────────────────────────── */
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS expiry_notified_at timestamp`,
+    `CREATE TABLE IF NOT EXISTS user_api_keys (
+      id serial PRIMARY KEY,
+      user_id integer NOT NULL,
+      name text NOT NULL DEFAULT 'API Key',
+      key_hash text NOT NULL,
+      key_prefix text NOT NULL,
+      last_used_at timestamp,
+      revoked_at timestamp,
+      created_at timestamp NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS user_api_keys_user_idx ON user_api_keys (user_id)`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS user_api_keys_hash_idx ON user_api_keys (key_hash)`,
   ];
 
   for (const stmt of statements) {

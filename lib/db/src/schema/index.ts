@@ -38,6 +38,9 @@ export const usersTable = pgTable("users", {
   resellerExpiresAt: timestamp("reseller_expires_at"),
   resellerId: integer("reseller_id"), // set on users created by a reseller
   signupIp: text("signup_ip"),
+  // Set to the planExpiresAt value we last emailed a reminder about, so each
+  // new expiry date triggers exactly one reminder email.
+  expiryNotifiedAt: timestamp("expiry_notified_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [uniqueIndex("users_email_idx").on(t.email)]);
 
@@ -55,6 +58,20 @@ export const apiKeysTable = pgTable("api_keys", {
   lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+/* ── User-facing Developer API keys (hashed; full key shown once) ────── */
+export const userApiKeysTable = pgTable("user_api_keys", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  name: text("name").notNull().default("API Key"),
+  keyHash: text("key_hash").notNull(),   // sha256 hex of the full key
+  keyPrefix: text("key_prefix").notNull(), // first chars, for display only
+  lastUsedAt: timestamp("last_used_at"),
+  revokedAt: timestamp("revoked_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [index("user_api_keys_user_idx").on(t.userId), uniqueIndex("user_api_keys_hash_idx").on(t.keyHash)]);
+
+export type UserApiKey = typeof userApiKeysTable.$inferSelect;
 
 export const voiceClonesTable = pgTable("voice_clones", {
   id: serial("id").primaryKey(),

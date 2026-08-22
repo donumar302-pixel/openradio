@@ -140,6 +140,15 @@ export default function StudioPage() {
   const [openPopup, setOpenPopup] = useState<"emotion" | "pause" | "soundtag" | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Pick up a script handed over from the AI Script Writer page.
+  useEffect(() => {
+    const handoff = sessionStorage.getItem("script-handoff");
+    if (handoff) {
+      sessionStorage.removeItem("script-handoff");
+      setText(handoff);
+    }
+  }, []);
+
   useEffect(() => {
     if (!openPopup) return;
     const close = () => setOpenPopup(null);

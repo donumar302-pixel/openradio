@@ -54,7 +54,7 @@ router.use(requireActiveUser);
 
 /* ── Credits: atomic reserve / refund / adjust ───────────────────────── */
 
-async function reserveCredits(userId: number, amount: number): Promise<boolean> {
+export async function reserveCredits(userId: number, amount: number): Promise<boolean> {
   if (amount <= 0) return true;
   const rows = await db.update(usersTable).set({
     credits: sql`${usersTable.credits} - ${amount}`,
@@ -64,7 +64,7 @@ async function reserveCredits(userId: number, amount: number): Promise<boolean> 
   return rows.length > 0;
 }
 
-async function refundCredits(userId: number, amount: number) {
+export async function refundCredits(userId: number, amount: number) {
   if (amount <= 0) return;
   await db.update(usersTable).set({
     credits: sql`${usersTable.credits} + ${amount}`,
@@ -164,7 +164,7 @@ async function applyTaskState(row: OsTask, state: OsTaskState): Promise<OsTask> 
 }
 
 /** Refresh a non-final task from the provider; swallow transient provider errors. */
-async function refreshTask(row: OsTask): Promise<OsTask> {
+export async function refreshTask(row: OsTask): Promise<OsTask> {
   if (isFinal(row.status) || !row.externalTaskId) return row;
   try {
     const state = await getTask(row.externalTaskId);
@@ -175,7 +175,7 @@ async function refreshTask(row: OsTask): Promise<OsTask> {
   }
 }
 
-function taskJson(t: OsTask) {
+export function taskJson(t: OsTask) {
   return {
     id: t.id,
     tool: t.tool,
@@ -273,7 +273,7 @@ async function assertDictionaryOwnership(req: any, dictionaryId: string): Promis
 }
 
 /** Ensure a clone_ voice belongs to the requesting user (IDOR guard). */
-async function assertCloneOwnership(req: any, voiceId: string): Promise<boolean> {
+export async function assertCloneOwnership(req: any, voiceId: string): Promise<boolean> {
   if (!voiceId.startsWith("clone_")) return true;
   if (isUserAdmin(req.appUser!)) return true;
   const [own] = await db.select({ id: voiceClonesTable.id }).from(voiceClonesTable)
@@ -627,7 +627,7 @@ function elVoiceMatches(v: any, f: AggFilters): boolean {
 }
 
 /* Local, stably-ordered query over the index (insertion order is stable). */
-async function elLocalQuery(f: AggFilters): Promise<any[]> {
+export async function elLocalQuery(f: AggFilters): Promise<any[]> {
   elEnsureIndex();
   // On-demand: pull the user's search term into the index so results go
   // beyond what the sweep found (up to 4 upstream pages, cached by term).

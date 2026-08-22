@@ -19,6 +19,7 @@ import {
   DeleteApiKeyParams,
 } from "@workspace/api-zod";
 import { planCredits, addDays, PLAN_DURATION_DAYS } from "../lib/plans";
+import { sendEmail, orderApprovedEmail, orderRejectedEmail } from "../lib/email";
 
 const router = Router();
 
@@ -485,6 +486,17 @@ router.patch("/orders/:id", async (req, res) => {
     if ("notFound" in result) { res.status(404).json({ error: "Order not found" }); return; }
     if ("conflict" in result) { res.status(409).json({ error: "This order has already been reviewed" }); return; }
     const u = result.updated;
+
+    // Notify the customer by email (fire-and-forget; must never block the API).
+    (async () => {
+      const [target] = await db.select().from(usersTable).where(eq(usersTable.id, u.userId));
+      if (!target) return;
+      const to = u.customerEmail || target.email;
+      const t = status === "approved"
+        ? orderApprovedEmail(target.name, u.plan, u.planCredits ?? planCredits(u.plan), target.planExpiresAt)
+        : orderRejectedEmail(target.name, u.plan, u.adminNote ?? null);
+      await sendEmail(to, t.subject, t.html);
+    })().catch((err) => req.log.warn({ err }, "Order review email failed"));
     res.json({
       ...u,
       proofData: undefined,

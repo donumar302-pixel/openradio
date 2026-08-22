@@ -35,6 +35,7 @@ import AudioIsolationPage from "@/pages/audio-isolation";
 import DubbingPage from "@/pages/dubbing";
 import SettingsPage from "@/pages/settings";
 import BatchTtsPage from "@/pages/batch-tts";
+import ScriptWriterPage from "@/pages/script-writer";
 import DialoguePage from "@/pages/dialogue";
 import PronunciationDictionaryPage from "@/pages/pronunciation-dictionary";
 import SoundEffectsPage from "@/pages/sound-effects";
@@ -144,6 +145,7 @@ function AppRoutes() {
         <Route path="/settings" component={SettingsPage} />
         <Route path="/support" component={SupportPage} />
         <Route path="/batch" component={BatchTtsPage} />
+        <Route path="/script-writer" component={ScriptWriterPage} />
         <Route path="/dialogue" component={DialoguePage} />
         <Route path="/dictionary" component={PronunciationDictionaryPage} />
         <Route path="/sound-effects" component={SoundEffectsPage} />

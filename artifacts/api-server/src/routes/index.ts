@@ -13,6 +13,9 @@ import accountExtrasRouter from "./account-extras";
 import resellerRouter from "./reseller";
 import openspeakerRouter from "./openspeaker";
 import ordersRouter from "./orders";
+import apiKeysRouter from "./api-keys";
+import devApiRouter from "./dev-api";
+import scriptRouter from "./script";
 import { requireAdmin } from "../middleware/require-admin";
 import { requireFeature } from "../middleware/require-feature";
 
@@ -32,5 +35,8 @@ router.use(accountExtrasRouter);
 router.use("/reseller", resellerRouter);
 router.use("/os", openspeakerRouter);
 router.use("/orders", ordersRouter);
+router.use("/keys", apiKeysRouter);
+router.use("/v1", devApiRouter);
+router.use("/script", scriptRouter);
 
 export default router;

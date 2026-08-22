@@ -9,7 +9,7 @@ import {
   Languages, Radio, Settings, BookAudio, Copy, Zap, CreditCard,
   ChevronRight, User, Moon, Lock, Layers, LifeBuoy,
   MessagesSquare, BookOpenText, Drum, Music4, ImageIcon,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, PenLine, KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +37,7 @@ const elItems: NavItem[] = [
 ];
 const minimaxItems: NavItem[] = [
   { label: "Bulk TTS",       href: "/batch",         icon: <Layers size={18} />, badge: "New",  badgeColor: "bg-blue-100 text-blue-600" },
+  { label: "Script Writer",  href: "/script-writer", icon: <PenLine size={18} />, badge: "New", badgeColor: "bg-blue-100 text-blue-600" },
   { label: "Voice Cloning",  href: "/voice-cloning", icon: <Copy size={18} />,   premium: true },
   { label: "Sound Effects",  href: "/sound-effects", icon: <Drum size={18} />,   premium: true, badge: "New", badgeColor: "bg-blue-100 text-blue-600" },
   { label: "AI Music",       href: "/music",         icon: <Music4 size={18} />, premium: true, badge: "New", badgeColor: "bg-blue-100 text-blue-600" },

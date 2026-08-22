@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureSchema } from "./lib/ensure-schema";
 import { startOsTaskSweeper, startElVoiceIndex } from "./routes/openspeaker";
+import { startPlanExpiryEmailSweeper } from "./lib/email";
 
 const rawPort = process.env["PORT"];
 
@@ -36,6 +37,9 @@ ensureSchema()
       // Restore the ElevenLabs voice index from its persisted snapshot (and
       // only re-crawl upstream when the snapshot is older than ~24h).
       startElVoiceIndex();
+
+      // Email users whose paid plan expires within the next 3 days.
+      startPlanExpiryEmailSweeper();
     });
   })
   .catch((err) => {
