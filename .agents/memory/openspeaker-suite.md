@@ -27,3 +27,8 @@ The crawled EL voice index persists in el_voice_index (voice_id → raw JSON) wi
 os_tasks rows are inserted BEFORE the provider call (status processing, externalTaskId null); provider failure settles the row to error via applyTaskState (atomic refund-once), and a create() response without task_id is settled error+refund instead of staying unpollable.
 **Why:** dubbing uploads take minutes — tasks used to vanish from History if the user navigated away or the provider rejected the file, and failures were never recorded.
 **How to apply:** never refund outside applyTaskState's row lock; known tradeoff — a transport timeout after provider acceptance still refunds (platform absorbs the cost, candidate for the stuck-credits sweep task).
+
+## Dubbing: provider accepts audio only
+OpenSpeaker /v1/task/dubbing rejects video files with "Invalid file" (verified live); it also requires receive_url or errors "expected string, received undefined". The api-server extracts the audio track from video uploads with system ffmpeg before submitting.
+**Why:** the UI advertises MP4/MOV support, so video must keep working even though the provider is audio-only.
+**How to apply:** ffmpeg must exist in the Railway Docker image (apk add ffmpeg in the root Dockerfile) — removing it silently breaks video dubbing in prod only.
