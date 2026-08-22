@@ -1,6 +1,7 @@
 import { db, usersTable } from "@workspace/db";
-import { and, eq, gte, isNotNull, lte, ne, or, isNull, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, lte, ne, notInArray, or, isNull, sql } from "drizzle-orm";
 import { logger } from "./logger";
+import { adminEmailList } from "./admin";
 
 /**
  * Transactional email via Resend (https://resend.com). Fails soft: when
@@ -156,6 +157,7 @@ export async function sweepExpiredFreeTrials(): Promise<void> {
       eq(usersTable.plan, "free"),
       eq(usersTable.isAdmin, false),
       eq(usersTable.isReseller, false),
+      notInArray(usersTable.email, adminEmailList()),
       isNotNull(usersTable.planExpiresAt),
       sql`${usersTable.planExpiresAt} < now()`,
       sql`${usersTable.credits} > 0`,

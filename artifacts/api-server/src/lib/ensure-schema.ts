@@ -1,6 +1,7 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "./logger";
+import { adminEmailList } from "./admin";
 
 /**
  * Idempotent startup migration. Railway deploys never run `drizzle push`,
@@ -146,10 +147,12 @@ export async function ensureSchema(): Promise<void> {
     `CREATE UNIQUE INDEX IF NOT EXISTS email_verifications_email_idx ON email_verifications (email)`,
     /* Free plan became a 7-day trial (Aug 2026): backfill an expiry for
        pre-existing free users, counted from their signup date. Idempotent —
-       only touches rows that never had an expiry; new signups set it themselves. */
+       only touches rows that never had an expiry; new signups set it themselves.
+       Allowlisted admin emails are exempt even when is_admin=false. */
     `UPDATE users SET plan_expires_at = created_at + interval '7 days'
       WHERE plan = 'free' AND plan_expires_at IS NULL
-        AND is_admin = false AND is_reseller = false`,
+        AND is_admin = false AND is_reseller = false
+        AND lower(email) NOT IN (${adminEmailList().map(e => `'${e.replace(/'/g, "''")}'`).join(",") || "''"})`,
     /* ── Dubbing video blobs (survive restarts/redeploys) ────────────── */
     `CREATE TABLE IF NOT EXISTS os_dub_videos (
       id serial PRIMARY KEY,

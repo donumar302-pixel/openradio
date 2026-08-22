@@ -78,7 +78,7 @@ router.post("/register", async (req, res) => {
 
   if (!EMAIL_VERIFICATION_ENABLED) {
     const [user] = await db.insert(usersTable)
-      .values({ name, email, passwordHash, credits: planCredits("free"), planExpiresAt: freeTrialExpiresAt(), signupIp: req.ip ?? null })
+      .values({ name, email, passwordHash, credits: planCredits("free"), planExpiresAt: isAdminEmail(email) ? null : freeTrialExpiresAt(), signupIp: req.ip ?? null })
       .returning();
     await loginSession(req, user.id);
     res.status(201).json({
@@ -153,7 +153,7 @@ router.post("/register/verify", async (req, res) => {
   }
 
   const [user] = await db.insert(usersTable)
-    .values({ name: row.name, email, passwordHash: row.passwordHash, credits: planCredits("free"), planExpiresAt: freeTrialExpiresAt(), signupIp: req.ip ?? null })
+    .values({ name: row.name, email, passwordHash: row.passwordHash, credits: planCredits("free"), planExpiresAt: isAdminEmail(email) ? null : freeTrialExpiresAt(), signupIp: req.ip ?? null })
     .returning();
   await db.delete(emailVerificationsTable).where(eq(emailVerificationsTable.id, row.id));
 
@@ -325,7 +325,7 @@ router.get("/google/callback", async (req, res) => {
       const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
       [user] = await db
         .insert(usersTable)
-        .values({ name: info.name || email.split("@")[0], email, passwordHash, credits: planCredits("free"), planExpiresAt: freeTrialExpiresAt(), signupIp: req.ip ?? null })
+        .values({ name: info.name || email.split("@")[0], email, passwordHash, credits: planCredits("free"), planExpiresAt: isAdminEmail(email) ? null : freeTrialExpiresAt(), signupIp: req.ip ?? null })
         .returning();
     }
 

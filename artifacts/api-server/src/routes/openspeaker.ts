@@ -215,10 +215,17 @@ router.use(requireActiveUser);
 
 export async function reserveCredits(userId: number, amount: number): Promise<boolean> {
   if (amount <= 0) return true;
+  // Expiry is enforced atomically here too (not just at request entry in
+  // requireActiveUser) so a request that crosses the expiry moment — e.g. a
+  // slow upload — cannot still reserve credits. Admins bypass expiry.
   const rows = await db.update(usersTable).set({
     credits: sql`${usersTable.credits} - ${amount}`,
     creditsUsed: sql`${usersTable.creditsUsed} + ${amount}`,
-  }).where(and(eq(usersTable.id, userId), gte(usersTable.credits, amount)))
+  }).where(and(
+    eq(usersTable.id, userId),
+    gte(usersTable.credits, amount),
+    sql`(${usersTable.isAdmin} = true OR ${usersTable.planExpiresAt} IS NULL OR ${usersTable.planExpiresAt} > now())`,
+  ))
     .returning({ id: usersTable.id });
   return rows.length > 0;
 }
