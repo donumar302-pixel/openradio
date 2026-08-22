@@ -61,34 +61,60 @@ export async function osGetTask(id: number): Promise<OsTask> {
 }
 
 export function taskAudioUrl(t: OsTask): string | null {
+  // Image tasks: the provider mirrors the generated image URL into audio_url,
+  // which would render a broken audio player. Images render separately.
+  if (t.tool === "image") return null;
   const m = t.output;
   if (!m) return null;
   return m.audio_url || m.dubbed_audio_url || m.output_audio_url || null;
 }
 
+/** result_images entries are objects ({ imageUrl, previewUrl, ... }); older/other shapes may be plain strings. */
+function imageEntryUrl(u: any): string | null {
+  if (typeof u === "string") return u;
+  if (u && typeof u === "object") {
+    const url = u.imageUrl ?? u.image_url ?? u.url ?? u.previewUrl ?? u.preview_url;
+    if (typeof url === "string") return url;
+  }
+  return null;
+}
+
 export function taskImageUrls(t: OsTask): string[] {
   const m = t.output;
   if (!m) return [];
-  if (Array.isArray(m.result_images)) return m.result_images.filter((u: any) => typeof u === "string");
-  if (Array.isArray(m.images)) return m.images.filter((u: any) => typeof u === "string");
-  return [];
+  const arr = Array.isArray(m.result_images) ? m.result_images : Array.isArray(m.images) ? m.images : [];
+  return arr.map(imageEntryUrl).filter((u: string | null): u is string => typeof u === "string");
 }
 
 /** All downloadable artifacts of a completed task (audio, srt, json, ...). */
 export function taskDownloads(t: OsTask): { label: string; url: string }[] {
   const m = t.output ?? {};
   const out: { label: string; url: string }[] = [];
+  const seen = new Set<string>();
   const push = (label: string, url: unknown) => {
-    if (typeof url === "string" && url.startsWith("http")) out.push({ label, url });
+    if (typeof url === "string" && url.startsWith("http") && !seen.has(url)) {
+      seen.add(url);
+      out.push({ label, url });
+    }
   };
-  push("Audio", m.audio_url);
+  // Music (Suno) returns all_audio_urls + suno_result.clips (with titles) — no generic audio label.
+  const songs: any[] = Array.isArray(m.all_audio_urls) ? m.all_audio_urls : Array.isArray(m.songs) ? m.songs : [];
+  if (songs.length > 0) {
+    const clips: any[] = Array.isArray(m.suno_result?.clips) ? m.suno_result.clips : [];
+    const usedTitles = new Set<string>();
+    songs.forEach((s: any, i: number) => {
+      let title = typeof clips[i]?.title === "string" && clips[i].title.trim() ? clips[i].title.trim() : `Song ${i + 1}`;
+      if (usedTitles.has(title)) title = `${title} (${i + 1})`; // Suno often reuses one title for both clips
+      usedTitles.add(title);
+      push(title, s?.audio_url ?? s);
+    });
+  } else {
+    push("Audio", taskAudioUrl(t));
+  }
   push("Voice Audio", m.replacement_audio_url);
   push("Subtitles (SRT)", m.srt_url);
   push("Transcript (JSON)", m.json_url);
   push("Transcript", m.transcript_url);
-  for (const u of taskImageUrls(t)) push(`Image ${out.length + 1}`, u);
-  if (Array.isArray(m.songs)) {
-    m.songs.forEach((s: any, i: number) => push(`Song ${i + 1}`, s?.audio_url ?? s));
-  }
+  taskImageUrls(t).forEach((u, i) => push(`Image ${i + 1}`, u));
   return out;
 }
