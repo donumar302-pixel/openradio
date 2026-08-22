@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, Megaphone, ToggleRight, AlertTriangle, Check } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { AdminPaymentMethods, PaymentMethod } from "@/components/admin-payment-methods";
 
 type FeatureKey =
   | "elevenlabs" | "minimax" | "fishaudio" | "edge" | "voice-cloning"
@@ -12,6 +13,7 @@ type FeatureKey =
 type AdminSettings = {
   banner: { enabled: boolean; text: string };
   features: Record<FeatureKey, boolean>;
+  payment_methods?: PaymentMethod[];
 };
 
 const FEATURE_LABELS: { key: FeatureKey; label: string; desc: string }[] = [
@@ -177,6 +179,8 @@ export default function AdminSettings() {
             </div>
             {featuresMutation.isError && <p className="text-[11px] text-red-400 mt-2">{(featuresMutation.error as Error)?.message}</p>}
           </div>
+
+          <AdminPaymentMethods methods={data?.payment_methods} />
         </>
       )}
     </div>

@@ -16,7 +16,7 @@ export function isUserAdmin(user: Pick<User, "isAdmin" | "email">): boolean {
   return user.isAdmin || isAdminEmail(user.email);
 }
 
-export async function requireActiveUser(req: Request, res: Response, next: NextFunction) {
+async function loadAuthenticatedUser(req: Request, res: Response, next: NextFunction, allowExpired: boolean) {
   if (!req.session.userId) {
     res.status(401).json({ error: "Please log in to continue." });
     return;
@@ -33,7 +33,7 @@ export async function requireActiveUser(req: Request, res: Response, next: NextF
       res.status(403).json({ error: "Your account has been suspended. Please contact support." });
       return;
     }
-    if (user.planExpiresAt && user.planExpiresAt.getTime() < Date.now()) {
+    if (!allowExpired && user.planExpiresAt && user.planExpiresAt.getTime() < Date.now()) {
       res.status(402).json({ error: "Your plan has expired. Please renew to continue." });
       return;
     }
@@ -41,4 +41,12 @@ export async function requireActiveUser(req: Request, res: Response, next: NextF
 
   req.appUser = user;
   next();
+}
+
+export async function requireAuthenticatedUser(req: Request, res: Response, next: NextFunction) {
+  return loadAuthenticatedUser(req, res, next, true);
+}
+
+export async function requireActiveUser(req: Request, res: Response, next: NextFunction) {
+  return loadAuthenticatedUser(req, res, next, false);
 }

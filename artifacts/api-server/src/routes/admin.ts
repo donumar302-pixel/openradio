@@ -8,7 +8,7 @@ import {
 } from "@workspace/db";
 import { getProviderCredits } from "../lib/openspeaker";
 import { eq, count, sum, desc, and, sql, or, ilike, inArray, isNotNull, ne } from "drizzle-orm";
-import { getSetting, setSetting, knownSettingKeys } from "../lib/settings";
+import { getSetting, setSetting, knownSettingKeys, normalizePaymentMethods } from "../lib/settings";
 import { isUserAdmin } from "../middleware/require-active-user";
 import { isAdminEmail } from "../lib/admin";
 import { PLAN_PRICE_USD, type PlanId } from "../lib/plans";
@@ -370,7 +370,11 @@ router.delete("/users/:id", async (req, res) => {
 });
 
 /* ── Orders ─────────────────────────────────────────────────────────── */
-router.get("/orders", async (req, res) => {
+// Plans that may be purchased/ordered (free is never an order).
+const PAID_PLANS = new Set(["starter", "pro", "max"]);
+
+router.get("/orders", async (_req, res) => {
+  // Never select proof_data (bytea) here; expose only a hasProof flag.
   const orders = await db.select({
     id: ordersTable.id,
     userId: ordersTable.userId,
@@ -378,13 +382,27 @@ router.get("/orders", async (req, res) => {
     status: ordersTable.status,
     notes: ordersTable.notes,
     adminNote: ordersTable.adminNote,
+    planCredits: ordersTable.planCredits,
+    durationDays: ordersTable.durationDays,
+    currency: ordersTable.currency,
+    amountMinor: ordersTable.amountMinor,
+    paymentMethodId: ordersTable.paymentMethodId,
+    paymentMethodSnapshot: ordersTable.paymentMethodSnapshot,
+    customerName: ordersTable.customerName,
+    customerEmail: ordersTable.customerEmail,
+    whatsapp: ordersTable.whatsapp,
+    transactionReference: ordersTable.transactionReference,
+    proofMime: ordersTable.proofMime,
+    proofFilename: ordersTable.proofFilename,
+    proofSize: ordersTable.proofSize,
+    reviewedBy: ordersTable.reviewedBy,
+    reviewedAt: ordersTable.reviewedAt,
     createdAt: ordersTable.createdAt,
     updatedAt: ordersTable.updatedAt,
   }).from(ordersTable).orderBy(desc(ordersTable.createdAt));
 
-  const userIds = [...new Set(orders.map(o => o.userId))];
-  let usersMap: Record<number, { name: string; email: string }> = {};
-  if (userIds.length > 0) {
+  const usersMap: Record<number, { name: string; email: string }> = {};
+  if (orders.length > 0) {
     const userRows = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email })
       .from(usersTable);
     for (const u of userRows) usersMap[u.id] = { name: u.name, email: u.email };
@@ -392,51 +410,113 @@ router.get("/orders", async (req, res) => {
 
   res.json(orders.map(o => ({
     ...o,
+    hasProof: o.proofSize != null && o.proofSize > 0,
     userName: usersMap[o.userId]?.name ?? "Unknown",
-    userEmail: usersMap[o.userId]?.email ?? "",
+    userEmail: usersMap[o.userId]?.email ?? o.customerEmail ?? "",
     createdAt: o.createdAt.toISOString(),
     updatedAt: o.updatedAt.toISOString(),
+    reviewedAt: o.reviewedAt?.toISOString() ?? null,
   })));
 });
 
 router.post("/orders", async (req, res) => {
   const { userId, plan, notes } = req.body;
   if (!userId || !plan) { res.status(400).json({ error: "userId and plan required" }); return; }
-  const [order] = await db.insert(ordersTable).values({ userId: Number(userId), plan, notes }).returning();
+  if (!PAID_PLANS.has(String(plan))) { res.status(400).json({ error: "Invalid plan" }); return; }
+  const [order] = await db.insert(ordersTable).values({
+    userId: Number(userId),
+    plan: String(plan),
+    notes: notes != null ? String(notes).slice(0, 2000) : null,
+  }).returning();
   res.status(201).json({ ...order, createdAt: order.createdAt.toISOString(), updatedAt: order.updatedAt.toISOString() });
 });
 
 router.patch("/orders/:id", async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  const { status, adminNote } = req.body;
-  if (!status) { res.status(400).json({ error: "status required" }); return; }
-
-  const updates: Record<string, any> = { status, updatedAt: new Date() };
-  if (adminNote !== undefined) updates.adminNote = adminNote;
-
-  if (status === "approved") {
-    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
-    if (order) {
-      await db.update(usersTable).set({
-        plan: order.plan,
-        credits: planCredits(order.plan),
-        planExpiresAt: addDays(new Date(), PLAN_DURATION_DAYS),
-        status: "active",
-      }).where(eq(usersTable.id, order.userId));
-    }
+  const { status, adminNote } = req.body ?? {};
+  if (status !== "approved" && status !== "rejected") {
+    res.status(400).json({ error: "status must be 'approved' or 'rejected'" });
+    return;
   }
+  const note = adminNote !== undefined
+    ? (typeof adminNote === "string" ? adminNote.trim().slice(0, 2000) : null)
+    : undefined;
 
-  const [updated] = await db.update(ordersTable).set(updates)
-    .where(eq(ordersTable.id, id)).returning();
-  if (!updated) { res.status(404).json({ error: "Order not found" }); return; }
-  res.json({ ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() });
+  const reviewerId = req.appUser?.id ?? req.session.userId ?? null;
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      // Lock the order row; only a pending order may be finalized.
+      const [order] = await tx.select().from(ordersTable)
+        .where(eq(ordersTable.id, id))
+        .for("update");
+      if (!order) return { notFound: true as const };
+      if (order.status !== "pending") return { conflict: true as const };
+
+      const now = new Date();
+      const updates: Record<string, unknown> = {
+        status,
+        reviewedBy: reviewerId,
+        reviewedAt: now,
+        updatedAt: now,
+      };
+      if (note !== undefined) updates.adminNote = note;
+
+      if (status === "approved") {
+        const credits = order.planCredits ?? planCredits(order.plan);
+        const days = order.durationDays ?? PLAN_DURATION_DAYS;
+        await tx.update(usersTable).set({
+          plan: order.plan,
+          credits,
+          planExpiresAt: addDays(now, days),
+          status: "active",
+        }).where(eq(usersTable.id, order.userId));
+      }
+
+      const [updated] = await tx.update(ordersTable).set(updates)
+        .where(and(eq(ordersTable.id, id), eq(ordersTable.status, "pending")))
+        .returning();
+      // If the conditional update matched nothing, another tx finalized it.
+      if (!updated) return { conflict: true as const };
+      return { updated };
+    });
+
+    if ("notFound" in result) { res.status(404).json({ error: "Order not found" }); return; }
+    if ("conflict" in result) { res.status(409).json({ error: "This order has already been reviewed" }); return; }
+    const u = result.updated;
+    res.json({
+      ...u,
+      proofData: undefined,
+      hasProof: u.proofSize != null && u.proofSize > 0,
+      createdAt: u.createdAt.toISOString(),
+      updatedAt: u.updatedAt.toISOString(),
+      reviewedAt: u.reviewedAt?.toISOString() ?? null,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to review order");
+    res.status(500).json({ error: "Failed to review order" });
+  }
 });
 
 router.delete("/orders/:id", async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  await db.delete(ordersTable).where(eq(ordersTable.id, id));
+  // Never delete a pending order — it must be approved or rejected first.
+  const deleted = await db.delete(ordersTable)
+    .where(and(eq(ordersTable.id, id), ne(ordersTable.status, "pending")))
+    .returning({ id: ordersTable.id });
+  if (deleted.length === 0) {
+    // Distinguish "not found" from "still pending".
+    const [existing] = await db.select({ status: ordersTable.status })
+      .from(ordersTable).where(eq(ordersTable.id, id));
+    if (existing && existing.status === "pending") {
+      res.status(409).json({ error: "Cannot delete a pending order. Approve or reject it first." });
+      return;
+    }
+    res.status(404).json({ error: "Order not found" });
+    return;
+  }
   res.status(204).send();
 });
 
@@ -750,7 +830,16 @@ router.get("/settings", async (_req, res) => {
 router.put("/settings/:key", async (req, res) => {
   const key = req.params.key;
   if (!knownSettingKeys().includes(key)) { res.status(400).json({ error: "Unknown setting" }); return; }
-  await setSetting(key, req.body?.value);
+  let value = req.body?.value;
+  if (key === "payment_methods") {
+    try {
+      value = normalizePaymentMethods(value);
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : "Invalid payment methods" });
+      return;
+    }
+  }
+  await setSetting(key, value);
   res.json({ ok: true, [key]: await getSetting(key) });
 });
 

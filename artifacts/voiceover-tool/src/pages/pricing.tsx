@@ -1,9 +1,11 @@
-import { useState } from "react";
-import { Link } from "wouter";
+import { useState, useEffect } from "react";
+import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
 import { ArrowRight, Loader2, Zap, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/hooks/use-auth";
+import { CheckoutDialog } from "@/components/checkout-dialog";
 
 interface Currency { code: string; symbol: string; }
 interface Plan {
@@ -94,8 +96,45 @@ function FeatureGroup({ features, title }: { features: string[], title?: string 
 
 export default function PricingPage() {
   const { data, isLoading, isError } = useQuery({ queryKey: ["plans"], queryFn: fetchPlans });
+  const { isAuthenticated } = useAuth();
+  const [, setLocation] = useLocation();
+
   const [currency, setCurrency] = useState("USD");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [checkoutPlanId, setCheckoutPlanId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const checkoutParam = searchParams.get("checkout");
+      const currencyParam = searchParams.get("currency");
+
+      if (checkoutParam && ["starter", "pro", "max"].includes(checkoutParam)) {
+        setCheckoutPlanId(checkoutParam);
+        if (currencyParam && /^[A-Z]{3}$/.test(currencyParam)) setCurrency(currencyParam);
+
+        // Clear query params after opening checkout.
+        window.history.replaceState({}, "", "/pricing");
+      } else if (currencyParam) {
+        setCurrency(currencyParam);
+      }
+    }
+  }, []);
+
+  const handlePlanClick = (e: React.MouseEvent, plan: Plan) => {
+    e.preventDefault();
+    const price = plan.prices[currency] ?? 0;
+
+    if (price === 0) {
+      if (isAuthenticated) {
+        setLocation("/");
+      } else {
+        setLocation("/register");
+      }
+    } else {
+      setCheckoutPlanId(plan.id);
+    }
+  };
 
   const currencies = data?.currencies ?? [];
   const plans      = data?.plans ?? [];
@@ -103,6 +142,11 @@ export default function PricingPage() {
 
   return (
     <div className="dark min-h-[100dvh] bg-[#020202] text-white flex flex-col font-sans relative overflow-hidden selection:bg-orange-500/30">
+      <CheckoutDialog
+        planId={checkoutPlanId}
+        currency={currency}
+        onClose={() => setCheckoutPlanId(null)}
+      />
       {/* Background Ambience */}
       <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-orange-500/10 blur-[150px] rounded-full pointer-events-none" />
       <div className="absolute top-[40%] left-1/2 -translate-x-1/2 w-full max-w-[1200px] h-[400px] bg-orange-500/5 blur-[150px] rounded-full pointer-events-none" />
@@ -233,8 +277,8 @@ export default function PricingPage() {
                       </div>
 
                       {/* CTA Button */}
-                      <Link 
-                        href="/register" 
+                      <button
+                        onClick={(e) => handlePlanClick(e, plan)}
                         className={`w-full block py-4 text-center rounded-xl text-[13px] font-black uppercase tracking-widest transition-all duration-300 ${
                           isHighlighted
                             ? "bg-orange-500 hover:bg-orange-400 text-white shadow-[0_0_20px_-5px_rgba(249,115,22,0.4)] hover:shadow-[0_0_30px_-5px_rgba(249,115,22,0.6)] hover:scale-[1.02]"
@@ -242,7 +286,7 @@ export default function PricingPage() {
                         }`}
                       >
                         {plan.cta}
-                      </Link>
+                      </button>
 
                       {/* Divider */}
                       <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-8" />
@@ -325,12 +369,12 @@ export default function PricingPage() {
               <p className="text-white/50 text-base font-medium mb-10 max-w-lg mx-auto">
                 Begin with our Basic plan—no credit card required. Upgrade seamlessly as your creative needs grow.
               </p>
-              <Link 
-                href="/register"
+              <button
+                onClick={(e) => handlePlanClick(e, plans[0] || { id: 'free', prices: { [currency]: 0 } } as any)}
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-[14px] font-black uppercase tracking-widest transition-all shadow-[0_0_30px_-10px_rgba(249,115,22,0.6)] hover:shadow-[0_0_40px_-5px_rgba(249,115,22,0.8)] hover:scale-105"
               >
                 Start for Free <ArrowRight size={16} />
-              </Link>
+              </button>
             </div>
           </motion.div>
         </section>

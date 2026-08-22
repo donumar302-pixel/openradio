@@ -7,8 +7,24 @@ import { eq } from "drizzle-orm";
 import { RegisterBody, LoginBody } from "@workspace/api-zod";
 import { isAdminEmail } from "../lib/admin";
 import { planCredits } from "../lib/plans";
+import { logger } from "../lib/logger";
 
 const router = Router();
+
+/**
+ * Sanitize a caller-supplied returnTo into a safe same-origin path. Anything
+ * that is not a simple relative path (no scheme, no host, no protocol-relative
+ * "//") collapses to "/". Prevents open-redirect via the OAuth flow.
+ */
+function sanitizeReturnTo(value: unknown): string {
+  if (typeof value !== "string") return "/";
+  const v = value.trim();
+  if (!v.startsWith("/")) return "/";       // must be a relative path
+  if (v.startsWith("//") || v.startsWith("/\\")) return "/"; // protocol-relative
+  if (/[\r\n]/.test(v)) return "/";
+  if (v.length > 512) return "/";
+  return v;
+}
 
 router.post("/register", async (req, res) => {
   const parsed = RegisterBody.safeParse(req.body);
@@ -99,7 +115,10 @@ router.get("/google", (req, res) => {
     return;
   }
   const state = crypto.randomBytes(16).toString("hex");
-  (req.session as { oauthState?: string }).oauthState = state;
+  req.session.oauthState = state;
+  // Remember where to return the user after login (e.g. a checkout page that
+  // carries the selected plan/currency). Stored alongside the OAuth state.
+  req.session.oauthReturnTo = sanitizeReturnTo(req.query.returnTo);
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: googleRedirectUri(req),
@@ -114,12 +133,15 @@ router.get("/google", (req, res) => {
 router.get("/google/callback", async (req, res) => {
   try {
     const { code, state } = req.query;
-    const sess = req.session as { oauthState?: string; userId?: number };
+    const sess = req.session;
     if (typeof code !== "string" || !code || typeof state !== "string" || !sess.oauthState || state !== sess.oauthState) {
       res.redirect("/login?error=google");
       return;
     }
+    // Consume the stored returnTo before regeneration wipes the session.
+    const returnTo = sanitizeReturnTo(sess.oauthReturnTo);
     delete sess.oauthState;
+    delete sess.oauthReturnTo;
 
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -133,7 +155,7 @@ router.get("/google/callback", async (req, res) => {
       }),
     });
     if (!tokenRes.ok) {
-      console.error("Google token exchange failed:", tokenRes.status, await tokenRes.text());
+      logger.error({ status: tokenRes.status, body: await tokenRes.text() }, "Google token exchange failed");
       res.redirect("/login?error=google");
       return;
     }
@@ -166,10 +188,12 @@ router.get("/google/callback", async (req, res) => {
         .returning();
     }
 
+    // returnTo was already sanitized above; regeneration wipes the old
+    // session, so we do not need to carry it forward — redirect directly.
     await loginSession(req, user.id);
-    res.redirect("/");
+    res.redirect(returnTo);
   } catch (err) {
-    console.error("Google OAuth error:", err);
+    logger.error({ err }, "Google OAuth error");
     res.redirect("/login?error=google");
   }
 });

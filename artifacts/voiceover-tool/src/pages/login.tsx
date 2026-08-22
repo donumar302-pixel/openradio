@@ -17,13 +17,36 @@ export default function LoginPage() {
       : ""
   );
 
+  const sanitizeReturnTo = (path: string | null): string => {
+    if (!path || typeof path !== "string") return "/";
+    if (path.includes("\n") || path.includes("\r")) return "/";
+    if (!path.startsWith("/") || path.startsWith("//") || path.startsWith("/\\")) return "/";
+    return path;
+  };
+
+  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const checkout = searchParams.get("checkout");
+  const currency = searchParams.get("currency");
+  let redirectPath = "/";
+
+  if (checkout && currency) {
+    redirectPath = `/pricing?checkout=${checkout}&currency=${currency}`;
+  } else {
+    redirectPath = sanitizeReturnTo(searchParams.get("returnTo"));
+  }
+
+  const cleanParams = new URLSearchParams(searchParams);
+  cleanParams.delete("error");
+  const qs = cleanParams.toString();
+  const registerLink = qs ? `/register?${qs}` : "/register";
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     login(
       { email, password },
       {
-        onSuccess: () => setLocation("/"),
+        onSuccess: () => setLocation(redirectPath),
         onError: (err: any) => setError(err?.error || "Invalid email or password"),
       }
     );
@@ -107,7 +130,7 @@ export default function LoginPage() {
 
           <p className="text-[13px] text-gray-500 text-center mt-5">
             Don't have an account?{" "}
-            <Link href="/register" className="text-[#f97316] font-semibold hover:underline">
+            <Link href={registerLink} className="text-[#f97316] font-semibold hover:underline">
               Create one
             </Link>
           </p>

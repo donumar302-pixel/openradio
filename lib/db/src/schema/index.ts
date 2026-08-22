@@ -1,6 +1,17 @@
-import { pgTable, serial, text, boolean, integer, timestamp, uniqueIndex, varchar, json, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, integer, timestamp, uniqueIndex, varchar, json, index, customType } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+
+/**
+ * Postgres `bytea` column mapped to a Node Buffer. drizzle has no first-class
+ * bytea type, so define it once here for binary blobs (e.g. payment proof).
+ */
+export const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 // Session store table for connect-pg-simple. Managed here (instead of the
 // library's createTableIfMissing) because the bundled server cannot resolve
@@ -118,9 +129,35 @@ export const ordersTable = pgTable("orders", {
   status: text("status").notNull().default("pending"),
   notes: text("notes"),
   adminNote: text("admin_note"),
+  // ── Purchase snapshot (nullable for legacy admin-created rows) ──────────
+  planCredits: integer("plan_credits"),
+  durationDays: integer("duration_days"),
+  currency: text("currency"),
+  amountMinor: integer("amount_minor"),
+  paymentMethodId: text("payment_method_id"),
+  paymentMethodSnapshot: json("payment_method_snapshot"),
+  customerName: text("customer_name"),
+  customerEmail: text("customer_email"),
+  whatsapp: text("whatsapp"),
+  transactionReference: text("transaction_reference"),
+  // ── Proof of payment (bytea + metadata) ─────────────────────────────────
+  proofData: bytea("proof_data"),
+  proofMime: text("proof_mime"),
+  proofFilename: text("proof_filename"),
+  proofSize: integer("proof_size"),
+  // ── Review audit ────────────────────────────────────────────────────────
+  reviewedBy: integer("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("orders_user_idx").on(t.userId),
+  index("orders_status_idx").on(t.status),
+  // Enforce at most one pending order per (user, plan) at the DB level.
+  uniqueIndex("orders_user_plan_pending_v2_idx")
+    .on(t.userId, t.plan)
+    .where(sql`${t.status} = 'pending' AND ${t.paymentMethodId} IS NOT NULL`),
+]);
 
 export type Order = typeof ordersTable.$inferSelect;
 

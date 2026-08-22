@@ -1,7 +1,28 @@
 export function GoogleAuthButton({ label }: { label: string }) {
+  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+
+  const sanitizeReturnTo = (path: string | null): string => {
+    if (!path || typeof path !== "string") return "/";
+    if (path.includes("\n") || path.includes("\r")) return "/";
+    if (!path.startsWith("/") || path.startsWith("//") || path.startsWith("/\\")) return "/";
+    return path;
+  };
+
+  const checkout = searchParams.get("checkout");
+  const currency = searchParams.get("currency");
+  let returnTo = searchParams.get("returnTo");
+
+  if (checkout && currency && (!returnTo || returnTo === "/")) {
+    returnTo = `/pricing?checkout=${checkout}&currency=${currency}`;
+  } else {
+    returnTo = sanitizeReturnTo(returnTo);
+  }
+
+  const href = returnTo !== "/" ? `/api/auth/google?returnTo=${encodeURIComponent(returnTo)}` : "/api/auth/google";
+
   return (
     <a
-      href="/api/auth/google"
+      href={href}
       className="w-full flex items-center justify-center gap-2.5 py-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-[14px] font-bold text-gray-700 transition"
       data-testid="btn-google-auth"
     >

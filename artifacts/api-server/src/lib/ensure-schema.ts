@@ -98,6 +98,26 @@ export async function ensureSchema(): Promise<void> {
       updated_at timestamp NOT NULL DEFAULT now()
     )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS os_dictionaries_external_idx ON os_dictionaries (external_id)`,
+    /* ── Orders: purchase snapshot + proof + review audit ─────────────── */
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS plan_credits integer`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS duration_days integer`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS currency text`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS amount_minor integer`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method_id text`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method_snapshot json`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_name text`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_email text`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS whatsapp text`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS transaction_reference text`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS proof_data bytea`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS proof_mime text`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS proof_filename text`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS proof_size integer`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS reviewed_by integer`,
+    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS reviewed_at timestamp`,
+    `CREATE INDEX IF NOT EXISTS orders_user_idx ON orders (user_id)`,
+    `CREATE INDEX IF NOT EXISTS orders_status_idx ON orders (status)`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS orders_user_plan_pending_v2_idx ON orders (user_id, plan) WHERE status = 'pending' AND payment_method_id IS NOT NULL`,
   ];
 
   for (const stmt of statements) {

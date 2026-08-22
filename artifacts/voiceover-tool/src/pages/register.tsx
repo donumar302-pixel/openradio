@@ -14,13 +14,36 @@ export default function RegisterPage() {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
 
+  const sanitizeReturnTo = (path: string | null): string => {
+    if (!path || typeof path !== "string") return "/";
+    if (path.includes("\n") || path.includes("\r")) return "/";
+    if (!path.startsWith("/") || path.startsWith("//") || path.startsWith("/\\")) return "/";
+    return path;
+  };
+
+  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const checkout = searchParams.get("checkout");
+  const currency = searchParams.get("currency");
+  let redirectPath = "/";
+
+  if (checkout && currency) {
+    redirectPath = `/pricing?checkout=${checkout}&currency=${currency}`;
+  } else {
+    redirectPath = sanitizeReturnTo(searchParams.get("returnTo"));
+  }
+
+  const cleanParams = new URLSearchParams(searchParams);
+  cleanParams.delete("error");
+  const qs = cleanParams.toString();
+  const loginLink = qs ? `/login?${qs}` : "/login";
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     register(
       { name: username, email, password },
       {
-        onSuccess: () => setLocation("/"),
+        onSuccess: () => setLocation(redirectPath),
         onError: (err: any) => setError(err?.error || "Registration failed. Please try again."),
       }
     );
@@ -119,7 +142,7 @@ export default function RegisterPage() {
 
           <p className="text-[13px] text-gray-500 text-center mt-5">
             Already registered?{" "}
-            <Link href="/login" className="text-[#f97316] font-semibold hover:underline">
+            <Link href={loginLink} className="text-[#f97316] font-semibold hover:underline">
               Sign in
             </Link>
           </p>
