@@ -12,11 +12,12 @@ export const PLAN_CREDITS: Record<string, number> = {
 export const PLAN_DURATION_DAYS = 30;
 
 // USD base prices (monthly). Other currencies are derived from these.
+// Derived from the PKR base prices at 290 PKR = 1 USD.
 export const PLAN_PRICE_USD: Record<PlanId, number> = {
   free: 0,
-  starter: 3,
-  pro: 7.5,
-  max: 10,
+  starter: 3.96, // ₨1,149 / 290
+  pro: 6.89,     // ₨1,999 / 290
+  max: 10.86,    // ₨3,149 / 290
 };
 
 // Exchange rates relative to USD. Kept server-side only — never exposed to the
