@@ -137,7 +137,6 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
       "Text to Speech — ElevenLabs, Fish Audio & Fire TTS",
       "Pronunciation Dictionary",
       "MP3 downloads",
-      "Edge TTS — 400+ voices",
       "Community support",
     ],
   },
@@ -188,7 +187,6 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
     features: [
       `${fmtCredits(PLAN_CREDITS.max)} characters / 30 days`,
       "Everything in Pro",
-      "Bulk TTS",
       "All premium & emotional voices",
       "Commercial license",
       "Highest priority support",
