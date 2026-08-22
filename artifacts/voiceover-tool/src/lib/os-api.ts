@@ -1,5 +1,12 @@
 /** Client helpers for the OpenSpeaker tool-suite API (/api/os). */
 
+export class OsApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "OsApiError";
+  }
+}
+
 export interface OsTask {
   id: number;
   tool: string;
@@ -44,7 +51,7 @@ export function osProviderLogo(providerId: string): string | null {
 export async function osJson<T = any>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api/os${path}`, init);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Request failed");
+  if (!res.ok) throw new OsApiError(data.error || "Request failed", res.status);
   return data as T;
 }
 

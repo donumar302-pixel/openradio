@@ -1,5 +1,5 @@
 import { ImageIcon, Loader2, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { OsTaskResult, OsTaskHistory } from "@/components/os/task-panel";
 import { useOsInsufficientCredits } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
-import { osJson, osCreateTaskForm } from "@/lib/os-api";
+import { OsApiError, osJson, osCreateTaskForm } from "@/lib/os-api";
 import { cn } from "@/lib/utils";
 
 interface ImageModel {
@@ -21,6 +21,11 @@ interface ImageModel {
 }
 
 const ASPECT_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4"];
+const QUOTE_FAILURE_TTL_MS = 60_000;
+
+function imageModelId(model: ImageModel): string {
+  return String(model.model_id ?? model.id ?? "");
+}
 
 /* ── Model branding: real provider logos + friendly names ─────────────── */
 const MODEL_LOGO = (name: string) => `${import.meta.env.BASE_URL}logos/${name}.png`;
@@ -74,6 +79,9 @@ export default function ImageStudioPage() {
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [imgCount, setImgCount] = useState(1);
   const [refs, setRefs] = useState<File[]>([]);
+  const [failedQuoteAt, setFailedQuoteAt] = useState<Record<string, number>>({});
+  const [availabilityMessage, setAvailabilityMessage] = useState("");
+  const fallbackActive = useRef(false);
   const { task, submitting, run, working } = useOsTask("image");
 
   const { data: modelsData } = useQuery({
@@ -87,16 +95,52 @@ export default function ImageStudioPage() {
     return Array.isArray(raw) ? raw : [];
   }, [modelsData]);
 
-  useEffect(() => {
-    if (!modelId && models.length > 0) {
-      const first = models[0];
-      setModelId(String(first.model_id ?? first.id ?? ""));
-    }
-  }, [models, modelId]);
-
   const modelParameters = useMemo(() => ({ aspect_ratio: aspectRatio }), [aspectRatio]);
+  const quoteConfigKey = useMemo(
+    () => `${imgCount}:${aspectRatio}:${refs.length}`,
+    [imgCount, aspectRatio, refs.length],
+  );
 
-  const { data: priceData, isFetching: priceLoading, isError: priceError } = useQuery({
+  const unavailableModelIds = useMemo(() => {
+    const now = Date.now();
+    return new Set(models
+      .map(imageModelId)
+      .filter((id) => {
+        const failedAt = failedQuoteAt[`${quoteConfigKey}:${id}`];
+        return failedAt !== undefined && now - failedAt < QUOTE_FAILURE_TTL_MS;
+      }));
+  }, [failedQuoteAt, models, quoteConfigKey]);
+
+  useEffect(() => {
+    if (modelId || models.length === 0) return;
+    const firstAvailable = models.map(imageModelId).find((id) => id && !unavailableModelIds.has(id));
+    if (firstAvailable) setModelId(firstAvailable);
+  }, [modelId, models, unavailableModelIds]);
+
+  useEffect(() => {
+    fallbackActive.current = false;
+    setAvailabilityMessage("");
+  }, [quoteConfigKey]);
+
+  useEffect(() => {
+    const expiries = Object.values(failedQuoteAt).map((failedAt) => failedAt + QUOTE_FAILURE_TTL_MS);
+    if (expiries.length === 0) return;
+    const delay = Math.max(0, Math.min(...expiries) - Date.now()) + 25;
+    const timer = window.setTimeout(() => {
+      const now = Date.now();
+      setFailedQuoteAt((current) => Object.fromEntries(
+        Object.entries(current).filter(([, failedAt]) => now - failedAt < QUOTE_FAILURE_TTL_MS),
+      ));
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [failedQuoteAt]);
+
+  const {
+    data: priceData,
+    error: priceQueryError,
+    isFetching: priceLoading,
+    isError: priceError,
+  } = useQuery({
     queryKey: ["os-image-price", modelId, imgCount, aspectRatio, refs.length],
     queryFn: () => osJson<{ credits: number }>("/image/price", {
       method: "POST",
@@ -107,7 +151,53 @@ export default function ImageStudioPage() {
     staleTime: 60_000,
   });
 
+  useEffect(() => {
+    const isModelQuoteFailure = priceQueryError instanceof OsApiError
+      && (priceQueryError.status === 400 || priceQueryError.status === 422 || priceQueryError.status === 502);
+    if (!isModelQuoteFailure || priceLoading || !modelId) return;
+
+    const failedModel = models.find((model) => imageModelId(model) === modelId);
+    const failedLabel = failedModel?.name ?? modelMeta(modelId).label;
+    const failedKey = `${quoteConfigKey}:${modelId}`;
+    const failedIds = new Set(unavailableModelIds);
+    failedIds.add(modelId);
+    setFailedQuoteAt((current) => ({ ...current, [failedKey]: Date.now() }));
+
+    const ids = models.map(imageModelId).filter(Boolean);
+    const currentIndex = ids.indexOf(modelId);
+    const orderedCandidates = currentIndex >= 0
+      ? [...ids.slice(currentIndex + 1), ...ids.slice(0, currentIndex)]
+      : ids;
+    const nextModel = orderedCandidates.find((id) => !failedIds.has(id));
+
+    if (!fallbackActive.current) {
+      toast({
+        title: "Model unavailable",
+        description: nextModel
+          ? `${failedLabel} cannot be priced for these settings. Trying another model.`
+          : `${failedLabel} cannot be priced for these settings.`,
+        variant: "destructive",
+      });
+      fallbackActive.current = true;
+    }
+
+    setAvailabilityMessage(nextModel
+      ? `${failedLabel} is unavailable for these settings. Trying another model…`
+      : "No image model can be priced for these settings. Try changing the settings or adding a reference image.");
+    setModelId(nextModel ?? "");
+  }, [modelId, models, priceLoading, priceQueryError, quoteConfigKey, toast, unavailableModelIds]);
+
+  useEffect(() => {
+    if (priceData && !priceLoading && fallbackActive.current) {
+      const selected = models.find((model) => imageModelId(model) === modelId);
+      const selectedLabel = selected?.name ?? (modelId ? modelMeta(modelId).label : "another model");
+      setAvailabilityMessage(`Switched to ${selectedLabel}, which is available for these settings.`);
+      fallbackActive.current = false;
+    }
+  }, [modelId, models, priceData, priceLoading]);
+
   const insufficient = useOsInsufficientCredits(priceData?.credits ?? null);
+  const noAvailableModels = models.length > 0 && models.every((model) => unavailableModelIds.has(imageModelId(model)));
 
   const handleSubmit = () => {
     if (!prompt.trim()) { toast({ title: "Missing prompt", description: "Describe the image you want.", variant: "destructive" }); return; }
@@ -156,24 +246,38 @@ export default function ImageStudioPage() {
         <div className="grid sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label className="font-semibold">Model</Label>
-            <Select value={modelId} onValueChange={setModelId}>
+            <Select
+              value={modelId}
+              onValueChange={(value) => {
+                fallbackActive.current = false;
+                setAvailabilityMessage("");
+                setModelId(value);
+              }}
+            >
               <SelectTrigger className="text-sm"><SelectValue placeholder="Choose a model" /></SelectTrigger>
               <SelectContent>
                 {models.map((m) => {
-                  const id = String(m.model_id ?? m.id ?? "");
+                  const id = imageModelId(m);
                   const meta = modelMeta(id);
+                  const unavailable = unavailableModelIds.has(id);
                   return (
-                    <SelectItem key={id} value={id}>
+                    <SelectItem key={id} value={id} disabled={unavailable}>
                       <span className="flex items-center gap-2">
                         {meta.logo && <img src={meta.logo} alt="" className="w-4 h-4 rounded-[4px] object-contain" />}
                         <span>{m.name ?? meta.label}</span>
                         {meta.brand && <span className="text-[10px] text-muted-foreground">{meta.brand}</span>}
+                        {unavailable && <span className="text-[10px] text-destructive">Unavailable for these settings</span>}
                       </span>
                     </SelectItem>
                   );
                 })}
               </SelectContent>
             </Select>
+            {availabilityMessage && (
+              <p className={cn("text-xs", noAvailableModels ? "text-destructive" : "text-muted-foreground")}>
+                {availabilityMessage}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label className="font-semibold">Aspect Ratio</Label>
@@ -204,7 +308,9 @@ export default function ImageStudioPage() {
             This generation will use
           </span>
           <span className="text-sm font-extrabold text-primary">
-            {priceError
+            {!modelId && noAvailableModels
+              ? "No model available"
+              : priceError
               ? "Price unavailable"
               : priceLoading || !priceData
                 ? "Calculating…"
@@ -240,6 +346,8 @@ export default function ImageStudioPage() {
         <Button onClick={handleSubmit} disabled={working || !modelId || priceLoading || !priceData || priceError || insufficient} className="w-full bg-primary hover:bg-primary/90 font-bold">
           {submitting
             ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</>
+            : !modelId && noAvailableModels
+              ? <>No priced model available</>
             : priceLoading || (!priceData && !priceError)
               ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Calculating price…</>
               : priceError
