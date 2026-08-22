@@ -44,3 +44,10 @@ email-ownership verification**. Anyone who registers the allowlisted email becom
 Architect flagged this critical; the user has repeatedly deferred it. Do not silently "fix"
 with email infra — surface it and let the user decide. Real fix = verified email ownership
 or a secure admin-bootstrap secret before elevation.
+
+## Legacy direct-provider routes removed (security audit)
+The legacy /api/tts, /api/minimax, /api/fishaudio, /api/edge and /api/voices routers were deleted after an audit found 8 endpoints that hit paid providers with NO credit deduction (kill-switch features default to ON unless explicitly false, so they were reachable). Only /api/os/*, /api/v1 and /api/script bill correctly — do not resurrect direct-provider routes.
+**Why:** any logged-in user could generate ElevenLabs STS/STT/SFX/music/dubbing and MiniMax clones for free.
+
+## Voice clone creation is intentionally FREE (user-confirmed Aug 2026)
+Both clone creation endpoints charge 0 credits by explicit product decision — billing happens only when the clone is used for generation (per character). Do not "fix" this as a missing charge.
