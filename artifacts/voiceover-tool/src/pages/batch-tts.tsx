@@ -1,19 +1,16 @@
 import { useState, useRef, useCallback } from "react";
 import JSZip from "jszip";
-import { useListVoices, getListVoicesQueryKey } from "@workspace/api-client-react";
 import {
   Upload, FileText, Trash2, Play, Download, Loader2,
   CheckCircle2, XCircle, Clock, Layers, StopCircle, PackageOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-
-const MODELS = [
-  { id: "eleven_v3",         label: "Eleven v3" },
-  { id: "eleven_turbo_v2_5", label: "Multilingual v2.5" },
-];
+import { OsVoicePicker } from "@/components/os/voice-picker";
+import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-estimate";
+import { osCreateTaskJson, osGetTask, osJson, taskAudioUrl } from "@/lib/os-api";
+import { estimateTtsCost } from "@/lib/os-cost";
 
 const MAX_LINES = 100;
 const MAX_CHARS = 5000;
@@ -25,6 +22,7 @@ interface LineItem {
   state: LineState;
   audioUrl?: string;
   error?: string;
+  taskId?: number;
 }
 
 function parseFile(content: string, fileName: string): string[] {
@@ -70,15 +68,18 @@ export default function BatchTtsPage() {
   const { toast } = useToast();
   const [lines, setLines] = useState<LineItem[]>([]);
   const [voiceId, setVoiceId] = useState("");
-  const [modelId, setModelId] = useState("eleven_v3");
+  const [voiceName, setVoiceName] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const stopRef = useRef(false);
+  const runIdRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: voices } = useListVoices({ query: { queryKey: getListVoicesQueryKey() } });
-
-  const selectedVoiceName = voices?.find(v => v.voiceId === voiceId)?.name ?? "Select a voice";
+  // Total cost of the lines that still need generating (1 credit/char via OpenSpeaker).
+  const remainingCost = lines
+    .filter(l => l.state !== "done")
+    .reduce((sum, l) => sum + estimateTtsCost(l.text), 0);
+  const insufficientCredits = useOsInsufficientCredits(lines.length > 0 ? remainingCost : null);
 
   const loadFile = useCallback((file: File) => {
     if (!file.name.match(/\.(txt|csv)$/i)) {
@@ -109,43 +110,81 @@ export default function BatchTtsPage() {
   const doneCnt = lines.filter(l => l.state === "done").length;
   const totalCnt = lines.length;
 
+  /** Cancel a still-processing task server-side (provider delete + refund). */
+  const cancelTask = async (taskId: number): Promise<boolean> => {
+    try {
+      await osJson(`/tasks/${taskId}`, { method: "DELETE" });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const runBatch = async () => {
     if (!voiceId) { toast({ title: "Voice required", description: "Please select a voice first.", variant: "destructive" }); return; }
     if (lines.length === 0) { toast({ title: "No lines", description: "Upload a file first.", variant: "destructive" }); return; }
+    if (isRunning) return; // never allow two loops at once
 
+    const runId = ++runIdRef.current;
     stopRef.current = false;
     setIsRunning(true);
 
     for (let i = 0; i < lines.length; i++) {
-      if (stopRef.current) break;
+      if (stopRef.current || runIdRef.current !== runId) break;
       if (lines[i].state === "done") continue;
 
       setLines(prev => prev.map(l => l.id === i ? { ...l, state: "generating" } : l));
 
       try {
-        const res = await fetch("/api/tts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: lines[i].text, voiceId, modelId, stability: 0.5, similarityBoost: 0.75 }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error((err as any).error || `HTTP ${res.status}`);
+        // All engines generate through the OpenSpeaker library (prefixed voice id).
+        let task = await osCreateTaskJson("/tts", { text: lines[i].text, voiceId, speed: 1 });
+        setLines(prev => prev.map(l => l.id === i ? { ...l, taskId: task.id } : l));
+        const deadline = Date.now() + 300_000;
+        let timedOut = false;
+        while (task.status === "processing") {
+          if (stopRef.current) break;
+          if (Date.now() > deadline) { timedOut = true; break; }
+          await new Promise(r => setTimeout(r, 1500));
+          task = await osGetTask(task.id);
         }
-        const data = await res.json() as { audioUrl: string };
-        setLines(prev => prev.map(l => l.id === i ? { ...l, state: "done", audioUrl: data.audioUrl } : l));
+        if (task.status === "processing") {
+          // Stopped or timed out while the provider is still working: cancel
+          // server-side so reserved credits are refunded. Only give the line
+          // up once cancellation is confirmed; otherwise settle it by polling.
+          const cancelled = await cancelTask(task.id);
+          if (!cancelled) {
+            while (task.status === "processing" && runIdRef.current === runId) {
+              await new Promise(r => setTimeout(r, 2500));
+              task = await osGetTask(task.id);
+            }
+          }
+          if (cancelled || task.status === "processing") {
+            setLines(prev => prev.map(l => l.id === i ? { ...l, state: "idle", taskId: undefined } : l));
+            if (timedOut && !stopRef.current) continue; // move on; credits were refunded
+            break;
+          }
+        }
+        if (task.status === "error") throw new Error(task.error || "Generation failed");
+        const audioUrl = taskAudioUrl(task);
+        if (!audioUrl) throw new Error("No audio returned");
+        setLines(prev => prev.map(l => l.id === i ? { ...l, state: "done", audioUrl } : l));
+        if (stopRef.current) break;
       } catch (e: any) {
         setLines(prev => prev.map(l => l.id === i ? { ...l, state: "error", error: e.message } : l));
       }
     }
 
-    setIsRunning(false);
-    if (!stopRef.current) {
-      toast({ title: "Batch complete!", description: `${lines.filter((_, i) => true).length} lines processed.` });
+    if (runIdRef.current === runId) {
+      setIsRunning(false);
+      if (!stopRef.current) {
+        toast({ title: "Batch complete!", description: "All lines processed." });
+      }
     }
   };
 
-  const stopBatch = () => { stopRef.current = true; setIsRunning(false); };
+  // Stop only signals the loop; isRunning stays true until the active line is
+  // settled (cancelled with refund, or finished) so a second run can't overlap.
+  const stopBatch = () => { stopRef.current = true; };
 
   const downloadZip = async () => {
     const done = lines.filter(l => l.state === "done" && l.audioUrl);
@@ -213,45 +252,27 @@ export default function BatchTtsPage() {
       {/* Settings + actions bar */}
       {lines.length > 0 && (
         <div className="bg-white border border-[#e5e7eb] rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          {/* Voice select */}
-          <div className="flex-1 min-w-0">
+          {/* Voice select — full OpenSpeaker library (all engines + clones) */}
+          <div className="flex-1 min-w-0 w-full">
             <p className="text-[11px] font-bold text-[#9ca3af] uppercase tracking-wide mb-1">Voice</p>
-            <Select value={voiceId} onValueChange={setVoiceId} disabled={isRunning}>
-              <SelectTrigger className="h-9 text-sm w-full">
-                <SelectValue placeholder="Select a voice" />
-              </SelectTrigger>
-              <SelectContent className="max-h-60">
-                {voices?.map(v => (
-                  <SelectItem key={v.voiceId} value={v.voiceId}>
-                    {v.name}
-                    {v.category && <span className="ml-1 text-[11px] text-muted-foreground">({v.category})</span>}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Model select */}
-          <div className="w-44">
-            <p className="text-[11px] font-bold text-[#9ca3af] uppercase tracking-wide mb-1">Model</p>
-            <Select value={modelId} onValueChange={setModelId} disabled={isRunning}>
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MODELS.map(m => (
-                  <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <OsVoicePicker
+              value={voiceId}
+              valueName={voiceName}
+              onChange={(id, name) => { if (!isRunning) { setVoiceId(id); setVoiceName(name); } }}
+              placeholder="Select a voice"
+            />
           </div>
 
           {/* Actions */}
           <div className="flex items-end gap-2 self-end sm:self-auto">
             {!isRunning ? (
-              <Button onClick={runBatch} className="h-9 px-5 text-sm font-bold" disabled={!voiceId || lines.length === 0}>
+              <Button
+                onClick={runBatch}
+                className="h-9 px-5 text-sm font-bold"
+                disabled={!voiceId || lines.length === 0 || insufficientCredits}
+              >
                 <Layers size={14} className="mr-2" />
-                Generate All
+                {insufficientCredits ? "Not enough credits" : "Generate All"}
               </Button>
             ) : (
               <Button variant="destructive" onClick={stopBatch} className="h-9 px-5 text-sm font-bold">
@@ -270,6 +291,11 @@ export default function BatchTtsPage() {
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Cost estimate — mirrors the server's 1 credit/char OpenSpeaker charge */}
+      {lines.length > 0 && doneCnt < totalCnt && (
+        <OsCostEstimate estimate={remainingCost} />
       )}
 
       {/* Progress bar */}
