@@ -164,9 +164,9 @@ export default function Home() {
     staleTime: 30_000,
   });
 
-  const { data: voiceData } = useQuery<{ builtin: VoiceClone[]; clones: VoiceClone[] }>({
-    queryKey: ["minimax-voices"],
-    queryFn: () => fetch("/api/minimax/voices").then(r => r.json()),
+  const { data: voiceData } = useQuery<{ clones: VoiceClone[] }>({
+    queryKey: ["os-voice-clones"],
+    queryFn: () => fetch("/api/os/voice-clones").then(r => r.json()),
     staleTime: 60_000,
   });
 

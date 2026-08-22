@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Search, Zap, BookAudio, PlayCircle, StopCircle, Copy, Check, Mic2,
+  Search, BookAudio, PlayCircle, StopCircle, Copy, Check, Mic2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
@@ -11,19 +11,18 @@ import { osJson, type OsVoice } from "@/lib/os-api";
 
 const LOGO = (name: string) => `${import.meta.env.BASE_URL}logos/${name}.png`;
 
-type ProviderId = "elevenlabs" | "minimax" | "fishaudio" | "edge" | "vbee" | "clone" | "fire";
+type ProviderId = "elevenlabs" | "minimax" | "fishaudio" | "edge" | "vbee" | "clone";
 type Tab = "all" | ProviderId;
 
 const OS_PROVIDER_IDS = ["elevenlabs", "minimax", "fishaudio", "edge", "vbee"] as const;
 
 const PROVIDER_META: Record<ProviderId, { label: string; logo?: string; icon?: React.ReactNode; cls: string }> = {
   elevenlabs: { label: "ElevenLabs", logo: LOGO("elevenlabs"), cls: "bg-orange-100 text-orange-700" },
-  minimax:    { label: "MiniMax",    logo: LOGO("minimax"),    cls: "bg-red-100 text-red-600" },
+  minimax:    { label: "Fire TTS",   logo: LOGO("minimax"),    cls: "bg-violet-100 text-violet-600" },
   fishaudio:  { label: "Fish Audio", logo: LOGO("fishaudio"),  cls: "bg-emerald-100 text-emerald-600" },
   edge:       { label: "Edge TTS",   logo: LOGO("edge"),       cls: "bg-sky-100 text-sky-600" },
   vbee:       { label: "Vbee",       logo: LOGO("vbee"),       cls: "bg-indigo-100 text-indigo-600" },
   clone:      { label: "My Clones",  icon: <Mic2 size={13} />, cls: "bg-purple-100 text-purple-600" },
-  fire:       { label: "Fire TTS",   icon: <Zap size={13} />,  cls: "bg-violet-100 text-violet-600" },
 };
 
 const PAGE_SIZE = 24;
@@ -157,7 +156,6 @@ function VoiceCard({ v, onUse, playingId, onPlay }: {
 
 /* ── Page ───────────────────────────────────────────────────────────────── */
 
-interface FireVoice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; }
 
 export default function VoiceLibraryPage() {
   const [, navigate] = useLocation();
@@ -184,14 +182,6 @@ export default function VoiceLibraryPage() {
 
   useEffect(() => { setPage(1); }, [tab, q, language, gender]);
 
-  /* Fire TTS local voices (in-house engine) */
-  const { data: fireData } = useQuery<{ builtin: FireVoice[]; clones: { dbId: number; voiceId: string; name: string }[] }>({
-    queryKey: ["minimax-voices"],
-    queryFn: () => fetch("/api/minimax/voices").then(r => r.json()),
-    staleTime: 60_000,
-  });
-  const fireVoices: FireVoice[] = fireData?.builtin ?? [];
-
   /* Aggregated catalog (single stable global page across all providers).
      Also feeds the per-provider tab badge counts via its `totals` map. */
   const aggPage = tab === "all" ? page : 1;
@@ -216,7 +206,7 @@ export default function VoiceLibraryPage() {
   });
 
   /* Single-provider tab query */
-  const providerTab = tab !== "all" && tab !== "fire" ? tab : null;
+  const providerTab = tab !== "all" ? tab : null;
   const { data: provData, isLoading: provLoading } = useQuery({
     ...osVoicesQuery(providerTab ?? "elevenlabs", page, q, language, gender),
     enabled: !!providerTab,
@@ -224,12 +214,8 @@ export default function VoiceLibraryPage() {
       providerTab === "elevenlabs" && (query.state.data as any)?.indexing ? 8_000 : false,
   });
 
-  const fireClones = fireData?.clones ?? [];
   const counts: Record<string, number> = { ...(aggData?.totals ?? {}) };
-  counts.fire = fireVoices.length + fireClones.length;
   const aggTotal = aggData?.pagination?.total ?? 0;
-  // The All tab shows exactly the aggregated catalog — Fire TTS (in-house
-  // engine) voices live on their own tab and are not counted here.
   const grandTotal = aggTotal;
 
   const isLoading = tab === "all" ? aggLoading : providerTab ? provLoading : false;
@@ -247,26 +233,6 @@ export default function VoiceLibraryPage() {
         preview: previewOf(v),
       }));
     }
-    if (tab === "fire") {
-      const matches = (name: string) => {
-        if (q && !name.toLowerCase().includes(q.toLowerCase())) return false;
-        if (gender === "male" && !/male|man|boy/i.test(name)) return false;
-        if (gender === "female" && !/female|woman|girl/i.test(name)) return false;
-        return true;
-      };
-      const cloneCards: CardVoice[] = fireClones
-        .filter((c) => !q || c.name.toLowerCase().includes(q.toLowerCase()))
-        .map((c): CardVoice => ({
-          id: c.voiceId, name: c.name, provider: "fire", tag: "My Clone",
-        }));
-      const builtinCards: CardVoice[] = fireVoices
-        .filter((v) => matches(v.name))
-        .map((v): CardVoice => ({
-          id: v.id, name: v.name, provider: "fire",
-          tag: [v.lang, v.style].filter(Boolean).join(" · ") || "Fire TTS",
-        }));
-      return [...cloneCards, ...builtinCards];
-    }
     return (provData?.data ?? []).map((v): CardVoice => ({
       id: v.voice_id,
       name: v.name,
@@ -275,24 +241,23 @@ export default function VoiceLibraryPage() {
       description: v.description ?? null,
       preview: previewOf(v),
     }));
-  }, [tab, aggData, provData, fireVoices, fireClones, q, gender]);
+  }, [tab, aggData, provData]);
 
   /* Pagination */
   const totalPages = useMemo(() => {
     if (tab === "all") return Math.max(1, Math.ceil(aggTotal / PAGE_SIZE));
-    if (tab === "fire" || tab === "clone") return 1;
+    if (tab === "clone") return 1;
     const total = provData?.pagination?.total ?? 0;
     return Math.max(1, Math.ceil(total / PAGE_SIZE));
   }, [tab, aggTotal, provData]);
 
   const useVoice = (v: CardVoice) => {
-    if (v.provider === "fire") navigate(`/studio?voice=mm:${v.id}`);
-    else navigate(`/studio?voice=os:${v.id}`);
+    navigate(`/studio?voice=os:${v.id}`);
   };
 
   const tabs: { id: Tab; label: string; logo?: string; icon?: React.ReactNode; count: number }[] = [
     { id: "all", label: "All Voices", icon: <BookAudio size={14} />, count: grandTotal },
-    ...(["elevenlabs", "minimax", "fishaudio", "edge", "vbee", "fire", "clone"] as ProviderId[]).map((p) => ({
+    ...(["elevenlabs", "minimax", "fishaudio", "edge", "vbee", "clone"] as ProviderId[]).map((p) => ({
       id: p as Tab,
       label: PROVIDER_META[p].label,
       logo: PROVIDER_META[p].logo,
@@ -350,8 +315,8 @@ export default function VoiceLibraryPage() {
               </div>
             )}
 
-            {/* Language — not supported for local Fire voices or clones */}
-            {tab !== "fire" && tab !== "clone" && (
+            {/* Language — not supported for clones */}
+            {tab !== "clone" && (
               <select
                 value={language} onChange={e => setLanguage(e.target.value)}
                 className="text-[12px] border border-[#e5e7eb] rounded-xl px-3 py-2 bg-white text-[#6b7280] focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"

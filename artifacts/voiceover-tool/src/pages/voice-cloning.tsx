@@ -23,35 +23,23 @@ interface VoiceClone {
   description?: string | null;
 }
 
-type Engine = "minimax" | "openspeaker";
-
 export default function VoiceCloningPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const [engine, setEngine] = useState<Engine>("openspeaker");
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<{ clone: VoiceClone; eng: Engine } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ clone: VoiceClone } | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  const { data: mmData } = useQuery<{ builtin: any[]; clones: { dbId: number; voiceId: string; name: string; description?: string | null }[] }>({
-    queryKey: ["minimax-voices"],
-    queryFn: () => fetch("/api/minimax/voices").then(r => r.json()),
-  });
 
   const { data: osData } = useQuery<{ clones: VoiceClone[] }>({
     queryKey: ["os-voice-clones"],
     queryFn: () => fetch("/api/os/voice-clones").then(r => r.json()),
   });
 
-  const mmClones: VoiceClone[] = (mmData?.clones ?? []).map(c => ({
-    id: c.dbId, voiceId: c.voiceId, name: c.name, description: c.description,
-  }));
   const osClones = osData?.clones ?? [];
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -74,25 +62,20 @@ export default function VoiceCloningPage() {
       form.append("audio", file);
       form.append("name", name.trim());
       form.append("consent", "true");
-      if (engine === "minimax" && description.trim()) form.append("description", description.trim());
 
-      const url = engine === "minimax" ? "/api/minimax/voice-clone" : "/api/os/voice-clone";
-      const res = await fetch(url, { method: "POST", body: form });
+      const res = await fetch("/api/os/voice-clone", { method: "POST", body: form });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as any).error || "Cloning failed");
       }
       toast({
         title: "Voice cloned!",
-        description: engine === "minimax"
-          ? `"${name}" is ready to use in Fire TTS.`
-          : `"${name}" is ready — find it under My Clones in the Voice Library.`,
+        description: `"${name}" is ready — find it under My Clones in the Voice Library.`,
       });
       setFile(null);
       setName("");
-      setDescription("");
       setConsent(false);
-      qc.invalidateQueries({ queryKey: [engine === "minimax" ? "minimax-voices" : "os-voice-clones"] });
+      qc.invalidateQueries({ queryKey: ["os-voice-clones"] });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
@@ -102,8 +85,8 @@ export default function VoiceCloningPage() {
 
   const handleDelete = async () => {
     if (!pendingDelete) return;
-    const { clone, eng } = pendingDelete;
-    const url = eng === "minimax" ? `/api/minimax/voice-clone/${clone.id}` : `/api/os/voice-clones/${clone.id}`;
+    const { clone } = pendingDelete;
+    const url = `/api/os/voice-clones/${clone.id}`;
     setDeleting(true);
     try {
       const res = await fetch(url, { method: "DELETE" });
@@ -112,7 +95,7 @@ export default function VoiceCloningPage() {
         throw new Error((err as any).error || `Delete failed (${res.status})`);
       }
       toast({ title: "Deleted", description: `"${clone.name}" removed.` });
-      qc.invalidateQueries({ queryKey: [eng === "minimax" ? "minimax-voices" : "os-voice-clones"] });
+      qc.invalidateQueries({ queryKey: ["os-voice-clones"] });
       setPendingDelete(null);
     } catch (e: any) {
       toast({ title: "Couldn't delete clone", description: e.message, variant: "destructive" });
@@ -127,9 +110,9 @@ export default function VoiceCloningPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const CloneList = ({ clones, eng, accent, hint }: { clones: VoiceClone[]; eng: Engine; accent: string; hint: string }) => (
+  const CloneList = ({ clones, accent, hint }: { clones: VoiceClone[]; accent: string; hint: string }) => (
     <div className="space-y-3">
-      <h2 className="font-bold text-base text-foreground">{eng === "minimax" ? "Fire TTS Clones" : "Multilingual Clones"} ({clones.length})</h2>
+      <h2 className="font-bold text-base text-foreground">My Clones ({clones.length})</h2>
       {clones.length === 0 ? (
         <div className="bg-white border border-dashed border-[#e5e7eb] rounded-2xl p-8 flex flex-col items-center text-center">
           <Mic2 className="h-8 w-8 text-[#d1d5db] mb-2" />
@@ -138,7 +121,7 @@ export default function VoiceCloningPage() {
       ) : (
         <div className="space-y-3">
           {clones.map(clone => (
-            <div key={`${eng}-${clone.id}`} className="bg-white border border-[#f3f4f6] rounded-xl p-4 flex items-center gap-3 hover:border-violet-200 transition-colors shadow-sm">
+            <div key={clone.id} className="bg-white border border-[#f3f4f6] rounded-xl p-4 flex items-center gap-3 hover:border-violet-200 transition-colors shadow-sm">
               <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-black text-base", accent)}>
                 {clone.name[0]}
               </div>
@@ -152,7 +135,7 @@ export default function VoiceCloningPage() {
                   </button>
                 </div>
               </div>
-              <button onClick={() => setPendingDelete({ clone, eng })}
+              <button onClick={() => setPendingDelete({ clone })}
                 aria-label={`Delete ${clone.name}`}
                 className="p-2 rounded-lg hover:bg-red-50 text-[#9ca3af] hover:text-red-500 transition-colors shrink-0">
                 <Trash2 size={15} />
@@ -194,23 +177,8 @@ export default function VoiceCloningPage() {
         <div className="bg-white border border-[#f3f4f6] rounded-2xl p-6 space-y-5 shadow-sm">
           <h2 className="font-bold text-base text-foreground">Create New Clone</h2>
 
-          {/* Engine */}
-          <div className="grid grid-cols-2 gap-2 p-1 bg-[#f3f4f6] rounded-xl">
-            {([
-              { id: "openspeaker" as const, label: "Multilingual" },
-              { id: "minimax" as const, label: "Fire TTS" },
-            ]).map(e => (
-              <button key={e.id} onClick={() => setEngine(e.id)}
-                className={cn("py-2 rounded-lg text-sm font-bold transition-all",
-                  engine === e.id ? "bg-white shadow-sm text-foreground" : "text-[#9ca3af] hover:text-foreground")}>
-                {e.label}
-              </button>
-            ))}
-          </div>
           <p className="text-xs text-[#9ca3af]">
-            {engine === "openspeaker"
-              ? "Works in the Studio Voice Library, Voice Changer and Dubbing. Sample must be 3–30 seconds, under 10 MB."
-              : "Optimized for Fire TTS generation with emotions."}
+            Works in the Studio Voice Library, Voice Changer and Dubbing. Sample must be 3–30 seconds, under 10 MB.
           </p>
 
           {/* Name */}
@@ -224,19 +192,6 @@ export default function VoiceCloningPage() {
             />
           </div>
 
-          {/* Description (Fire only) */}
-          {engine === "minimax" && (
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-foreground">Description <span className="text-[#9ca3af] font-normal">(optional)</span></label>
-              <input
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                placeholder="e.g. Male deep voice, calm tone"
-                className="w-full h-10 px-3 text-sm border border-[#e5e7eb] rounded-lg outline-none focus:border-violet-400 transition-colors"
-              />
-            </div>
-          )}
-
           {/* Audio upload */}
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-foreground">Voice Sample</label>
@@ -246,7 +201,7 @@ export default function VoiceCloningPage() {
             )}>
               <Upload size={22} className={file ? "text-violet-500 mb-2" : "text-[#9ca3af] mb-2"} />
               <p className="text-sm font-medium text-foreground">{file ? file.name : "Click to upload audio"}</p>
-              <p className="text-xs text-[#9ca3af] mt-1">MP3, WAV, M4A {engine === "openspeaker" ? "• 3–30 seconds" : "• Min. 10 seconds"}</p>
+              <p className="text-xs text-[#9ca3af] mt-1">MP3, WAV, M4A • 3–30 seconds</p>
               <input type="file" accept="audio/*" onChange={handleFile} className="hidden" />
             </label>
           </div>
@@ -280,19 +235,12 @@ export default function VoiceCloningPage() {
           </button>
         </div>
 
-        {/* My clones lists */}
+        {/* My clones list */}
         <div className="space-y-8">
           <CloneList
             clones={osClones}
-            eng="openspeaker"
             accent="bg-blue-100 text-blue-600"
             hint="Available under My Clones in the Studio Voice Library, Voice Changer and Dubbing"
-          />
-          <CloneList
-            clones={mmClones}
-            eng="minimax"
-            accent="bg-violet-100 text-violet-600"
-            hint="Available in the Fire TTS voice selector"
           />
         </div>
       </div>
@@ -303,7 +251,7 @@ export default function VoiceCloningPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete "{pendingDelete?.clone.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes the voice clone{pendingDelete?.eng === "openspeaker" ? " from your account and the voice provider" : ""}.
+              This permanently deletes the voice clone from your account and the voice provider.
               This cannot be undone — to use this voice again you would need to re-upload a sample, and the new clone will have a different voice ID.
             </AlertDialogDescription>
           </AlertDialogHeader>

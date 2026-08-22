@@ -5,18 +5,9 @@
  * reserves the estimate and may reconcile to the provider's real cost.
  */
 
-/**
- * TTS: 1 credit per character. The same rate applies to the direct studio
- * engines (ElevenLabs /api/tts, MiniMax /api/minimax/tts, Fish Audio
- * /api/fishaudio/tts) — all reserve text.length credits.
- */
+/** TTS: 1 credit per character (all platforms route through OpenSpeaker /tts). */
 export function estimateTtsCost(text: string): number {
   return text.length;
-}
-
-/** Edge TTS: 1 credit per 500 characters, minimum 1 (see /api/edge-tts). */
-export function estimateEdgeTtsCost(text: string): number {
-  return Math.max(1, Math.ceil(text.length / 500));
 }
 
 /** Dialogue: 1 credit per character of the full script. */

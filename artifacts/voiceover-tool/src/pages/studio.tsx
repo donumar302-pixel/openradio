@@ -14,10 +14,7 @@ import { OsVoicePicker } from "@/components/os/voice-picker";
 import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osCreateTaskJson, osJson, taskAudioUrl, type OsVoice, type OsTask } from "@/lib/os-api";
-import { estimateTtsCost, estimateEdgeTtsCost } from "@/lib/os-cost";
-
-interface MiniMaxVoice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; }
-interface FishVoice { id: string; name: string; lang?: string; style?: string; }
+import { estimateTtsCost } from "@/lib/os-cost";
 
 const asset = (p: string) => `${import.meta.env.BASE_URL}${p}`.replace(/([^:]\/)\/+/g, "$1");
 
@@ -28,47 +25,30 @@ const PROVIDER_LOGOS: Record<string, string> = {
   fishaudio: asset("providers/fishaudio.png"),
 };
 
-const MM_MODELS = [
-  { id: "speech-02-hd", label: "Fire HD", badge: "Best" },
-];
+// Every Studio platform is served by the OpenSpeaker library — voices, generation
+// and history all go through /api/os (never direct provider APIs).
+const OS_PROVIDER_OF = {
+  el: "elevenlabs",
+  minimax: "minimax",
+  fishaudio: "fishaudio",
+  edge: "edge",
+} as const;
+type StudioPlatform = keyof typeof OS_PROVIDER_OF;
 
-const FA_MODELS = [
-  { id: "s2.1-pro-free", label: "Fish Pro", badge: "Best" },
-];
+const PLATFORM_LABEL: Record<StudioPlatform, string> = {
+  el: "ElevenLabs", minimax: "Fire TTS", fishaudio: "Fish Audio", edge: "Edge TTS",
+};
 
-const FA_LANGUAGES = [
-  { code: "",    label: "All Languages" },
-  { code: "en",  label: "🇺🇸 English" },
-  { code: "zh",  label: "🇨🇳 Chinese" },
-  { code: "ja",  label: "🇯🇵 Japanese" },
-  { code: "ko",  label: "🇰🇷 Korean" },
-  { code: "hi",  label: "🇮🇳 Hindi" },
-  { code: "ur",  label: "🇵🇰 Urdu" },
-  { code: "ar",  label: "🇸🇦 Arabic" },
-  { code: "es",  label: "🇪🇸 Spanish" },
-  { code: "fr",  label: "🇫🇷 French" },
-  { code: "de",  label: "🇩🇪 German" },
-  { code: "ru",  label: "🇷🇺 Russian" },
-  { code: "pt",  label: "🇧🇷 Portuguese" },
-  { code: "it",  label: "🇮🇹 Italian" },
-  { code: "tr",  label: "🇹🇷 Turkish" },
-  { code: "id",  label: "🇮🇩 Indonesian" },
-  { code: "vi",  label: "🇻🇳 Vietnamese" },
-  { code: "th",  label: "🇹🇭 Thai" },
-  { code: "pl",  label: "🇵🇱 Polish" },
-  { code: "nl",  label: "🇳🇱 Dutch" },
-  { code: "sv",  label: "🇸🇪 Swedish" },
-  { code: "cs",  label: "🇨🇿 Czech" },
-  { code: "ro",  label: "🇷🇴 Romanian" },
-  { code: "hu",  label: "🇭🇺 Hungarian" },
-  { code: "el",  label: "🇬🇷 Greek" },
-  { code: "da",  label: "🇩🇰 Danish" },
-  { code: "fi",  label: "🇫🇮 Finnish" },
-  { code: "nb",  label: "🇳🇴 Norwegian" },
-  { code: "uk",  label: "🇺🇦 Ukrainian" },
-  { code: "ms",  label: "🇲🇾 Malay" },
-  { code: "fil", label: "🇵🇭 Filipino" },
-];
+/** Engine label from an OpenSpeaker prefixed voice id (elevenlabs_xxx, minimax_xxx, …). */
+function engineOfVoiceId(voiceId: string): string {
+  if (voiceId.startsWith("elevenlabs_")) return "ElevenLabs";
+  if (voiceId.startsWith("minimax_")) return "Fire TTS";
+  if (voiceId.startsWith("fishaudio_")) return "Fish Audio";
+  if (voiceId.startsWith("edge_")) return "Edge TTS";
+  if (voiceId.startsWith("clone_") || voiceId.startsWith("voiceclone_")) return "My Clone";
+  return "Voice Library";
+}
+
 
 const EMOTIONS = [
   { id: "happy",     emoji: "😄", label: "Happy" },
@@ -148,23 +128,13 @@ export default function StudioPage() {
 
   const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState("");
-  const [voiceProvider, setVoiceProvider] = useState<"el" | "minimax" | "fishaudio" | "edge" | "os">("el");
+  const [voiceProvider, setVoiceProvider] = useState<StudioPlatform | "os">("el");
   const [osVoiceName, setOsVoiceName] = useState("");
   const [elVoiceName, setElVoiceName] = useState("");
   const [elSearch, setElSearch] = useState("");
   const [dictionaryId, setDictionaryId] = useState("");
-  const [mmModel, setMmModel] = useState("speech-02-hd");
-  const [faModel, setFaModel] = useState("s2.1-pro-free");
-  const [faLang, setFaLang] = useState("");
-  const [stability, setStability] = useState(0.5);
-  const [similarityBoost, setSimilarityBoost] = useState(0.75);
   const [speed, setSpeed] = useState(1);
-  const [volume, setVolume] = useState(1);
-  const [pitch, setPitch] = useState(0);
   const [latestAudio, setLatestAudio] = useState<string | null>(null);
-  // Fire/Fish/Edge return audio directly (no server-side record), so those
-  // generations are kept in a session-local history list.
-  const [sessionHistory, setSessionHistory] = useState<{ id: string; text: string; provider: string; url: string; at: number }[]>([]);
   const [rightTab, setRightTab] = useState<"settings" | "history">("settings");
   const [mobilePanel, setMobilePanel] = useState(false);
   const [openPopup, setOpenPopup] = useState<"emotion" | "pause" | "soundtag" | null>(null);
@@ -193,16 +163,14 @@ export default function StudioPage() {
       setOsVoiceName(id.replace(/^[a-z]+_/, "").replace(/[-_]/g, " "));
       return;
     }
-    if (raw === "el") {
-      // ElevenLabs voices are served via the OpenSpeaker library → prefixed ids
-      setVoiceProvider("el");
-      setVoiceId(id.startsWith("elevenlabs_") ? id : `elevenlabs_${id}`);
-      return;
-    }
-    const provider: "minimax" | "fishaudio" | "edge" =
-      raw === "mm" ? "minimax" : raw === "fa" ? "fishaudio" : "edge";
+    // All platforms are served via the OpenSpeaker library → prefixed ids
+    const provider: StudioPlatform =
+      raw === "mm" || raw === "minimax" ? "minimax"
+      : raw === "fa" || raw === "fishaudio" ? "fishaudio"
+      : raw === "edge" ? "edge" : "el";
+    const prefix = `${OS_PROVIDER_OF[provider]}_`;
     setVoiceProvider(provider);
-    setVoiceId(id);
+    setVoiceId(id.startsWith(prefix) ? id : `${prefix}${id}`);
   }, []);
 
   function insertAtCursor(before: string, after = "") {
@@ -220,33 +188,34 @@ export default function StudioPage() {
     });
   }
 
-  // ElevenLabs voices come from the OpenSpeaker library (full index, server-side search)
+  // Platform voices come from the OpenSpeaker library (full index, server-side search)
+  const osProvider = voiceProvider === "os" ? null : OS_PROVIDER_OF[voiceProvider];
   const debouncedElSearch = useDebouncedValue(elSearch);
   const { data: elVoiceData, isLoading: loadingVoices } = useQuery({
-    queryKey: ["studio-el-voices", debouncedElSearch],
+    queryKey: ["studio-voices", osProvider, debouncedElSearch],
     queryFn: () => {
-      const params = new URLSearchParams({ provider: "elevenlabs", page: "1", page_size: "60" });
+      const params = new URLSearchParams({ provider: osProvider!, page: "1", page_size: "60" });
       if (debouncedElSearch) params.set("search", debouncedElSearch);
       return osJson<{ data: OsVoice[]; pagination?: { total?: number } }>(`/voices?${params}`);
     },
-    enabled: voiceProvider === "el",
+    enabled: !!osProvider,
     staleTime: 60_000,
   });
   const elVoices: OsVoice[] = elVoiceData?.data ?? [];
   const elTotal = elVoiceData?.pagination?.total ?? elVoices.length;
 
-  // Keep the selected EL voice's metadata even when the list/search moves on,
+  // Keep the selected voice's metadata even when the list/search moves on,
   // and resolve deep-linked ids (?voice=el:xxx) that aren't on the first page.
   const [selectedElMeta, setSelectedElMeta] = useState<OsVoice | null>(null);
-  const needElResolve = voiceProvider === "el" && !!voiceId
+  const needElResolve = !!osProvider && !!voiceId
     && selectedElMeta?.voice_id !== voiceId
     && !elVoices.some((v) => v.voice_id === voiceId);
   const { data: elResolveData } = useQuery({
-    queryKey: ["studio-el-resolve", voiceId],
+    queryKey: ["studio-voice-resolve", osProvider, voiceId],
     queryFn: () => {
       const params = new URLSearchParams({
-        provider: "elevenlabs", page: "1", page_size: "5",
-        search: voiceId.replace(/^elevenlabs_/, ""),
+        provider: osProvider!, page: "1", page_size: "5",
+        search: voiceId.replace(/^[a-z]+_/, ""),
       });
       return osJson<{ data: OsVoice[] }>(`/voices?${params}`);
     },
@@ -258,43 +227,6 @@ export default function StudioPage() {
     if (found) { setSelectedElMeta(found); setElVoiceName(found.name); }
   }, [elResolveData, voiceId]);
 
-  const { data: mmVoiceData } = useQuery<{ builtin: MiniMaxVoice[]; clones: MiniMaxVoice[] }>({
-    queryKey: ["minimax-voices"],
-    queryFn: () => fetch("/api/minimax/voices").then(r => r.json()),
-    staleTime: 60_000,
-  });
-  const mmVoices: MiniMaxVoice[] = [
-    ...(mmVoiceData?.clones ?? []).map(c => ({ ...c, isClone: true })),
-    ...(mmVoiceData?.builtin ?? []),
-  ];
-
-  const { data: faVoiceData } = useQuery<{ voices: FishVoice[] }>({
-    queryKey: ["fishaudio-voices", faLang],
-    queryFn: () => fetch(`/api/fishaudio/voices${faLang ? `?language=${faLang}` : ""}`).then(r => r.json()),
-    staleTime: 120_000,
-  });
-  const faVoices: FishVoice[] = faVoiceData?.voices ?? [];
-
-  const { data: edgeVoiceData } = useQuery<{ voices: { id: string; name: string; shortName: string; locale: string; gender: string }[] }>({
-    queryKey: ["edge-voices"],
-    queryFn: () => fetch("/api/edge/voices").then(r => r.json()),
-    staleTime: 3_600_000,
-  });
-  const edgeVoices = edgeVoiceData?.voices ?? [];
-  const edgeByLocale = edgeVoices.reduce<Record<string, typeof edgeVoices>>((acc, v) => {
-    const key = v.locale;
-    if (!acc[key]) acc[key] = [];
-    acc[key]!.push(v);
-    return acc;
-  }, {});
-
-  const faByLang = faVoices.reduce<Record<string, FishVoice[]>>((acc, v) => {
-    const key = v.lang ?? "Multi";
-    if (!acc[key]) acc[key] = [];
-    acc[key]!.push(v);
-    return acc;
-  }, {});
-
   const { data: history, isLoading: loadingHistory } = useListGenerations(
     { limit: 20 },
     { query: { queryKey: getListGenerationsQueryKey({ limit: 20 }) } }
@@ -304,7 +236,6 @@ export default function StudioPage() {
   const { data: dictData } = useQuery<{ dictionaries: { id: string; name: string }[] }>({
     queryKey: ["os-dictionaries"],
     queryFn: () => osJson("/dictionaries"),
-    enabled: voiceProvider === "os",
     staleTime: 60_000,
   });
   useEffect(() => {
@@ -317,7 +248,7 @@ export default function StudioPage() {
     }
   }, [osTask?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // OpenSpeaker TTS task history (ElevenLabs + Voice Library) — persistent
+  // OpenSpeaker TTS task history — persistent for every platform
   const { data: osTaskHistory, isLoading: loadingOsHistory } = useQuery<{ items: OsTask[] }>({
     queryKey: ["studio-tts-history"],
     queryFn: () => osJson("/tasks?tool=tts&limit=20"),
@@ -325,100 +256,27 @@ export default function StudioPage() {
     refetchInterval: (q) => (q.state.data?.items?.some((t) => t.status === "processing") ? 4000 : false),
   });
 
-  const addSessionEntry = (provider: string, entryText: string, url: string) =>
-    setSessionHistory((h) => [{ id: `s-${Date.now()}-${h.length}`, text: entryText, provider, url, at: Date.now() }, ...h]);
-  const [mmGenerating, setMmGenerating]     = useState(false);
-  const [faGenerating, setFaGenerating]     = useState(false);
-  const [edgeGenerating, setEdgeGenerating] = useState(false);
-
   const handleGenerate = async () => {
     if (!text.trim()) { toast({ title: "Text required", description: "Please enter some text.", variant: "destructive" }); return; }
     if (!voiceId) { toast({ title: "Voice required", description: "Please select a voice.", variant: "destructive" }); return; }
-
-    if (voiceProvider === "os") {
-      setLatestAudio(null);
-      osRun(() => osCreateTaskJson("/tts", { text, voiceId, speed, dictionaryId: dictionaryId || undefined }));
-      return;
-    }
-
-    if (voiceProvider === "minimax") {
-      setMmGenerating(true); setLatestAudio(null);
-      try {
-        const res = await fetch("/api/minimax/tts", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, voiceId, model: mmModel, speed, volume, pitch }),
-        });
-        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as any).error || "Generation failed"); }
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        setLatestAudio(url);
-        addSessionEntry("Fire TTS", text, url);
-        toast({ title: "Generated!", description: "Your audio is ready." });
-      } catch (e: any) {
-        toast({ title: "Generation failed", description: e.message, variant: "destructive" });
-      } finally { setMmGenerating(false); }
-      return;
-    }
-
-    if (voiceProvider === "fishaudio") {
-      setFaGenerating(true); setLatestAudio(null);
-      try {
-        const res = await fetch("/api/fishaudio/tts", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, voiceId, model: faModel, speed }),
-        });
-        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as any).error || "Generation failed"); }
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        setLatestAudio(url);
-        addSessionEntry("Fish Audio", text, url);
-        toast({ title: "Generated!", description: "Your audio is ready." });
-      } catch (e: any) {
-        toast({ title: "Generation failed", description: e.message, variant: "destructive" });
-      } finally { setFaGenerating(false); }
-      return;
-    }
-
-    if (voiceProvider === "edge") {
-      setEdgeGenerating(true); setLatestAudio(null);
-      try {
-        const res = await fetch("/api/edge/tts", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, voiceId }),
-        });
-        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as any).error || "Generation failed"); }
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        setLatestAudio(url);
-        addSessionEntry("Edge TTS", text, url);
-        toast({ title: "Generated!", description: "Your audio is ready." });
-      } catch (e: any) {
-        toast({ title: "Generation failed", description: e.message, variant: "destructive" });
-      } finally { setEdgeGenerating(false); }
-      return;
-    }
-
-    // ElevenLabs — served through the OpenSpeaker library (prefixed voice id)
+    // Every platform generates through the OpenSpeaker library (prefixed voice id)
     setLatestAudio(null);
-    osRun(() => osCreateTaskJson("/tts", { text, voiceId, speed }));
+    osRun(() => osCreateTaskJson("/tts", { text, voiceId, speed, dictionaryId: dictionaryId || undefined }));
   };
 
-  const isGenerating = mmGenerating || faGenerating || edgeGenerating || ((voiceProvider === "os" || voiceProvider === "el") && osWorking);
-  // Mirrors the server's per-engine charge: 1 credit/char everywhere except Edge (1 per 500 chars).
-  const costEstimate = text.trim()
-    ? voiceProvider === "edge" ? estimateEdgeTtsCost(text) : estimateTtsCost(text)
-    : null;
+  const isGenerating = osWorking;
+  // Mirrors the server's charge: 1 credit/char via OpenSpeaker.
+  const costEstimate = text.trim() ? estimateTtsCost(text) : null;
   const insufficientCredits = useOsInsufficientCredits(costEstimate);
   const expressionEnabled = voiceProvider === "minimax";
 
-  // Merged history: OpenSpeaker TTS tasks (persistent) + legacy generations + session clips
+  // Merged history: OpenSpeaker TTS tasks (persistent, all platforms) + legacy generations
   const mergedHistory = useMemo(() => {
     type Row = { id: string; at: number; text: string; sub: string; url: string | null; processing?: boolean };
     const rows: Row[] = [];
     for (const t of osTaskHistory?.items ?? []) {
       if (t.status === "error") continue;
-      const vid = String(t.input?.voiceId ?? "");
-      const engine = vid.startsWith("elevenlabs_") ? "ElevenLabs" : "Voice Library";
+      const engine = engineOfVoiceId(String(t.input?.voiceId ?? ""));
       const chars = t.input?.characters;
       rows.push({
         id: `os-${t.id}`, at: Date.parse(t.createdAt), text: t.title,
@@ -430,50 +288,21 @@ export default function StudioPage() {
     for (const g of (history?.items ?? []) as any[]) {
       rows.push({ id: `gen-${g.id}`, at: Date.parse(g.createdAt), text: g.text, sub: `${g.voiceName} · ${g.characterCount} chars`, url: g.audioUrl });
     }
-    for (const s of sessionHistory) {
-      rows.push({ id: s.id, at: s.at, text: s.text, sub: `${s.provider} · ${s.text.length} chars · this session`, url: s.url });
-    }
     return rows.sort((a, b) => b.at - a.at).slice(0, 30);
-  }, [osTaskHistory, history, sessionHistory]);
+  }, [osTaskHistory, history]);
 
-  const mmByLang = mmVoices.reduce((acc, v) => {
-    const g = v.isClone ? "My Clones" : (v.lang ?? "Other");
-    if (!acc[g]) acc[g] = [];
-    acc[g].push(v);
-    return acc;
-  }, {} as Record<string, MiniMaxVoice[]>);
-
-  const selectedElVoice   = voiceProvider === "el"
+  const selectedElVoice = voiceProvider !== "os"
     ? (elVoices.find((v) => v.voice_id === voiceId) ?? (selectedElMeta?.voice_id === voiceId ? selectedElMeta : undefined))
     : undefined;
-  const selectedMmVoice   = voiceProvider === "minimax"   ? mmVoices.find((v) => v.id === voiceId)    : undefined;
-  const selectedFaVoice   = voiceProvider === "fishaudio" ? faVoices.find((v) => v.id === voiceId)    : undefined;
-  const selectedEdgeVoice = voiceProvider === "edge"      ? edgeVoices.find((v) => v.id === voiceId)  : undefined;
   const [voiceOpen, setVoiceOpen] = useState(false);
   useEffect(() => { setElSearch(""); }, [voiceProvider]);
 
-  const handleVoiceSelect = (composite: string) => {
-    const colonIdx = composite.indexOf(":");
-    const raw = composite.slice(0, colonIdx);
-    const provider: "el" | "minimax" | "fishaudio" | "edge" =
-      raw === "mm" ? "minimax" : raw === "fa" ? "fishaudio" : raw === "edge" ? "edge" : "el";
-    let id = composite.slice(colonIdx + 1);
-    // ElevenLabs runs through the OpenSpeaker library → id must be prefixed
-    if (provider === "el" && !id.startsWith("elevenlabs_")) id = `elevenlabs_${id}`;
-    setVoiceProvider(provider); setVoiceId(id); setVoiceOpen(false);
-    setMobilePanel(false);
-  };
-
   const selectedVoiceLabel = useMemo(() => {
     if (!voiceId) return null;
-    if (voiceProvider === "el")       return selectedElVoice?.name ?? elVoiceName ?? null;
-    if (voiceProvider === "minimax"   && selectedMmVoice)   return selectedMmVoice.name + (selectedMmVoice.style ? ` · ${selectedMmVoice.style}` : "");
-    if (voiceProvider === "fishaudio" && selectedFaVoice)   return selectedFaVoice.name + (selectedFaVoice.style ? ` · ${selectedFaVoice.style}` : "");
-    if (voiceProvider === "edge"      && selectedEdgeVoice) return selectedEdgeVoice.name;
-    return null;
-  }, [voiceId, voiceProvider, selectedElVoice, elVoiceName, selectedMmVoice, selectedFaVoice, selectedEdgeVoice]);
+    return selectedElVoice?.name ?? elVoiceName ?? null;
+  }, [voiceId, selectedElVoice, elVoiceName]);
 
-  const resetSettings = () => { setStability(0.5); setSimilarityBoost(0.75); setSpeed(1); setVolume(1); setPitch(0); };
+  const resetSettings = () => { setSpeed(1); };
 
   const RightPanelContent = (
     <>
@@ -536,7 +365,7 @@ export default function StudioPage() {
                 <RotateCcw size={10} /> Reset Value
               </button>
             </div>
-            {(selectedElVoice || selectedMmVoice || selectedFaVoice || selectedEdgeVoice) && (
+            {voiceProvider !== "os" && selectedElVoice && (
               <div className={cn("flex items-center gap-3 p-2.5 border rounded-xl mb-3",
                 voiceProvider === "minimax" ? "border-violet-200 bg-violet-50"
                 : voiceProvider === "fishaudio" ? "border-emerald-200 bg-emerald-50"
@@ -549,10 +378,10 @@ export default function StudioPage() {
                   : voiceProvider === "edge" ? "bg-sky-100 text-sky-600"
                   : "bg-gradient-to-br from-primary/30 to-orange-200 text-primary"
                 )}>
-                  {(selectedElVoice?.name ?? selectedMmVoice?.name ?? selectedFaVoice?.name ?? selectedEdgeVoice?.name ?? "V")[0]}
+                  {(selectedElVoice.name ?? "V")[0]}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold truncate">{selectedElVoice?.name ?? selectedMmVoice?.name ?? selectedFaVoice?.name ?? selectedEdgeVoice?.name}</p>
+                  <p className="text-sm font-bold truncate">{selectedElVoice.name}</p>
                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                     <span className={cn("inline-block text-[10px] px-1.5 py-0.5 rounded font-semibold",
                       voiceProvider === "minimax" ? "bg-violet-100 text-violet-600"
@@ -560,23 +389,14 @@ export default function StudioPage() {
                       : voiceProvider === "edge" ? "bg-sky-100 text-sky-600"
                       : "bg-[#f3f4f6] text-[#6b7280]"
                     )}>
-                      {voiceProvider === "minimax"
-                        ? (selectedMmVoice?.isClone ? "Clone" : selectedMmVoice?.lang ?? "AI")
-                        : voiceProvider === "fishaudio"
-                          ? (selectedFaVoice?.lang ?? "Multi")
-                          : voiceProvider === "edge"
-                            ? (selectedEdgeVoice?.locale ?? "Multi")
-                            : ([selectedElVoice?.language, selectedElVoice?.gender].filter(Boolean).join(" · ") || selectedElVoice?.category || "voice")}
+                      {[selectedElVoice.language, selectedElVoice.gender].filter(Boolean).join(" · ") || selectedElVoice.category || "voice"}
                     </span>
-                    {voiceProvider === "minimax" && <span className="flex items-center gap-0.5 text-[10px] text-violet-500 font-semibold"><Zap size={9} className="fill-violet-500" /> Fire TTS</span>}
-                    {voiceProvider === "minimax" && selectedMmVoice?.style && <span className="text-[10px] text-[#9ca3af]">{selectedMmVoice.style}</span>}
-                    {voiceProvider === "fishaudio" && <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-semibold"><img src={PROVIDER_LOGOS.fishaudio} alt="" className="w-3 h-3 rounded-sm object-contain" /> Fish Audio</span>}
-                    {voiceProvider === "fishaudio" && selectedFaVoice?.style && <span className="text-[10px] text-[#9ca3af]">{selectedFaVoice.style}</span>}
-                    {voiceProvider === "edge" && <span className="flex items-center gap-1 text-[10px] text-sky-600 font-semibold"><img src={PROVIDER_LOGOS.edge} alt="" className="w-3 h-3 rounded-sm object-contain" /> Edge TTS</span>}
-                    {voiceProvider === "edge" && selectedEdgeVoice?.gender && <span className="text-[10px] text-[#9ca3af]">{selectedEdgeVoice.gender}</span>}
+                    <span className="flex items-center gap-1 text-[10px] text-[#6b7280] font-semibold">
+                      <img src={PROVIDER_LOGOS[voiceProvider]} alt="" className="w-3 h-3 rounded-sm object-contain" /> {PLATFORM_LABEL[voiceProvider]}
+                    </span>
                   </div>
                 </div>
-                {voiceProvider === "el" && selectedElVoice && <VoicePreviewBtn key={selectedElVoice.voice_id} url={osPreviewUrl(selectedElVoice)} />}
+                <VoicePreviewBtn key={selectedElVoice.voice_id} url={osPreviewUrl(selectedElVoice)} />
               </div>
             )}
             {voiceProvider === "os" && (
@@ -602,20 +422,6 @@ export default function StudioPage() {
                 </div>
               </div>
             )}
-            {voiceProvider === "fishaudio" && (
-              <div className="mb-2">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-[#9ca3af] mb-1 block">Language Filter</label>
-                <select
-                  value={faLang}
-                  onChange={e => { setFaLang(e.target.value); setVoiceId(""); }}
-                  className="w-full h-9 px-3 border border-[#e5e7eb] rounded-lg text-sm bg-white text-foreground focus:outline-none focus:border-emerald-400 cursor-pointer"
-                >
-                  {FA_LANGUAGES.map(l => (
-                    <option key={l.code} value={l.code}>{l.label}</option>
-                  ))}
-                </select>
-              </div>
-            )}
             {voiceProvider !== "os" && (
             <Popover open={voiceOpen} onOpenChange={setVoiceOpen}>
               <PopoverTrigger asChild>
@@ -629,7 +435,7 @@ export default function StudioPage() {
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-[240px] p-0" align="start" side="bottom">
-                <Command shouldFilter={voiceProvider !== "el"}>
+                <Command shouldFilter={false}>
                   <CommandInput
                     placeholder="Search voices..."
                     className="h-9 text-sm"
@@ -638,12 +444,12 @@ export default function StudioPage() {
                   />
                   <CommandList className="max-h-72">
                     <CommandEmpty className="py-6 text-center text-sm text-[#9ca3af]">
-                      {voiceProvider === "el" && loadingVoices ? "Loading voices…" : "No voice found."}
+                      {loadingVoices ? "Loading voices…" : "No voice found."}
                     </CommandEmpty>
 
-                    {/* ElevenLabs voices (full OpenSpeaker index, server-side search) */}
-                    {voiceProvider === "el" && !loadingVoices && (
-                      <CommandGroup heading={`ElevenLabs · ${elTotal.toLocaleString()} voices${elSearch ? "" : " — type to search all"}`}>
+                    {/* Platform voices (full OpenSpeaker index, server-side search) */}
+                    {!loadingVoices && (
+                      <CommandGroup heading={`${PLATFORM_LABEL[voiceProvider]} · ${elTotal.toLocaleString()} voices${elSearch ? "" : " — type to search all"}`}>
                         {elVoices.map((v) => (
                           <CommandItem key={v.voice_id} value={v.voice_id}
                             onSelect={() => { setVoiceId(v.voice_id); setElVoiceName(v.name); setSelectedElMeta(v); setVoiceOpen(false); setMobilePanel(false); }}
@@ -659,57 +465,6 @@ export default function StudioPage() {
                         ))}
                       </CommandGroup>
                     )}
-
-                    {/* Fire TTS / MiniMax voices */}
-                    {voiceProvider === "minimax" && Object.entries(mmByLang).map(([lang, langVoices]) => (
-                      <CommandGroup key={`mm-${lang}`} heading={lang}>
-                        {langVoices.map(v => (
-                          <CommandItem key={`mm:${v.id}`} value={`mm:${v.id}:${v.name} ${v.style ?? ""} ${lang}`}
-                            onSelect={() => handleVoiceSelect(`mm:${v.id}`)} className="flex items-center gap-2 py-2 cursor-pointer">
-                            <div className="w-7 h-7 rounded-md bg-violet-50 flex items-center justify-center shrink-0 text-violet-600 font-bold text-xs">{v.name[0]}</div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
-                              <p className="text-[10px] text-[#9ca3af]">{v.isClone ? "Clone" : (v.style ?? lang)}</p>
-                            </div>
-                            {voiceId === v.id && <Check size={13} className="text-violet-600 shrink-0" />}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    ))}
-
-                    {/* Fish Audio voices */}
-                    {voiceProvider === "fishaudio" && Object.entries(faByLang).map(([lang, langVoices]) => (
-                      <CommandGroup key={`fa-${lang}`} heading={lang}>
-                        {langVoices.map(v => (
-                          <CommandItem key={`fa:${v.id}`} value={`fa:${v.id}:${v.name} ${v.style ?? ""} ${v.lang ?? ""}`}
-                            onSelect={() => handleVoiceSelect(`fa:${v.id}`)} className="flex items-center gap-2 py-2 cursor-pointer">
-                            <div className="w-7 h-7 rounded-md bg-emerald-50 flex items-center justify-center shrink-0 text-emerald-600 font-bold text-xs">{v.name[0]}</div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
-                              <p className="text-[10px] text-[#9ca3af]">{v.style ?? v.lang ?? "Multi"}</p>
-                            </div>
-                            {voiceId === v.id && <Check size={13} className="text-emerald-600 shrink-0" />}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    ))}
-
-                    {/* Edge TTS voices */}
-                    {voiceProvider === "edge" && Object.entries(edgeByLocale).map(([locale, locVoices]) => (
-                      <CommandGroup key={`edge-${locale}`} heading={locale}>
-                        {locVoices.map(v => (
-                          <CommandItem key={`edge:${v.id}`} value={`edge:${v.id}:${v.name} ${locale}`}
-                            onSelect={() => handleVoiceSelect(`edge:${v.id}`)} className="flex items-center gap-2 py-2 cursor-pointer">
-                            <div className="w-7 h-7 rounded-md bg-sky-50 flex items-center justify-center shrink-0 text-sky-600 font-bold text-xs">{v.name[0]}</div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold leading-tight truncate">{v.name}</p>
-                              <p className="text-[10px] text-[#9ca3af]">{v.gender} · {locale}</p>
-                            </div>
-                            {voiceId === v.id && <Check size={13} className="text-sky-600 shrink-0" />}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    ))}
                   </CommandList>
                 </Command>
               </PopoverContent>
@@ -732,13 +487,7 @@ export default function StudioPage() {
                 <RotateCcw size={10} /> Reset
               </button>
             </div>
-            <SliderRow label="Speed" value={speed} onChange={setSpeed} min={0.5} max={2} step={0.1} />
-            {voiceProvider === "minimax" && (
-              <>
-                <SliderRow label="Pitch" value={pitch} onChange={setPitch} min={-12} max={12} step={1} />
-                <SliderRow label="Volume" value={volume} onChange={setVolume} min={0} max={10} step={0.1} />
-              </>
-            )}
+            <SliderRow label="Speed" value={speed} onChange={setSpeed} min={0.5} max={1.5} step={0.1} />
           </div>
         </div>
       )}
