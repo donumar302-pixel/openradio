@@ -3,6 +3,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Upload, Loader2, Trash2, Mic2, Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { OsCostEstimate } from "@/components/os/cost-estimate";
 import { VOICE_CLONE_CREATE_COST } from "@/lib/os-cost";
 
@@ -26,6 +36,8 @@ export default function VoiceCloningPage() {
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ clone: VoiceClone; eng: Engine } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: mmData } = useQuery<{ builtin: any[]; clones: { dbId: number; voiceId: string; name: string; description?: string | null }[] }>({
     queryKey: ["minimax-voices"],
@@ -88,11 +100,25 @@ export default function VoiceCloningPage() {
     }
   };
 
-  const handleDelete = async (clone: VoiceClone, eng: Engine) => {
+  const handleDelete = async () => {
+    if (!pendingDelete) return;
+    const { clone, eng } = pendingDelete;
     const url = eng === "minimax" ? `/api/minimax/voice-clone/${clone.id}` : `/api/os/voice-clones/${clone.id}`;
-    await fetch(url, { method: "DELETE" });
-    toast({ title: "Deleted", description: `"${clone.name}" removed.` });
-    qc.invalidateQueries({ queryKey: [eng === "minimax" ? "minimax-voices" : "os-voice-clones"] });
+    setDeleting(true);
+    try {
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).error || `Delete failed (${res.status})`);
+      }
+      toast({ title: "Deleted", description: `"${clone.name}" removed.` });
+      qc.invalidateQueries({ queryKey: [eng === "minimax" ? "minimax-voices" : "os-voice-clones"] });
+      setPendingDelete(null);
+    } catch (e: any) {
+      toast({ title: "Couldn't delete clone", description: e.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const copyId = (voiceId: string) => {
@@ -126,7 +152,8 @@ export default function VoiceCloningPage() {
                   </button>
                 </div>
               </div>
-              <button onClick={() => handleDelete(clone, eng)}
+              <button onClick={() => setPendingDelete({ clone, eng })}
+                aria-label={`Delete ${clone.name}`}
                 className="p-2 rounded-lg hover:bg-red-50 text-[#9ca3af] hover:text-red-500 transition-colors shrink-0">
                 <Trash2 size={15} />
               </button>
@@ -269,6 +296,29 @@ export default function VoiceCloningPage() {
           />
         </div>
       </div>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => { if (!open && !deleting) setPendingDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{pendingDelete?.clone.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes the voice clone{pendingDelete?.eng === "openspeaker" ? " from your account and the voice provider" : ""}.
+              This cannot be undone — to use this voice again you would need to re-upload a sample, and the new clone will have a different voice ID.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDelete(); }}
+              disabled={deleting}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {deleting ? <><Loader2 className="h-4 w-4 animate-spin" />Deleting...</> : "Delete permanently"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
