@@ -331,7 +331,7 @@ router.get("/voices", async (req, res) => {
 
 /* ── Aggregated catalog: one stable global page across all providers ──── */
 
-const AGG_PROVIDERS = ["elevenlabs", "minimax", "fishaudio", "edge", "vbee"] as const;
+const AGG_PROVIDERS = ["elevenlabs", "minimax", "fishaudio", "edge"] as const;
 
 type AggFilters = { search: string; language: string; gender: string };
 

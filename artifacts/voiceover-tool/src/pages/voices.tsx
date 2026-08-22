@@ -11,17 +11,16 @@ import { osJson, type OsVoice } from "@/lib/os-api";
 
 const LOGO = (name: string) => `${import.meta.env.BASE_URL}logos/${name}.png`;
 
-type ProviderId = "elevenlabs" | "minimax" | "fishaudio" | "edge" | "vbee" | "clone";
+type ProviderId = "elevenlabs" | "minimax" | "fishaudio" | "edge" | "clone";
 type Tab = "all" | ProviderId;
 
-const OS_PROVIDER_IDS = ["elevenlabs", "minimax", "fishaudio", "edge", "vbee"] as const;
+const OS_PROVIDER_IDS = ["elevenlabs", "minimax", "fishaudio", "edge"] as const;
 
 const PROVIDER_META: Record<ProviderId, { label: string; logo?: string; icon?: React.ReactNode; cls: string }> = {
   elevenlabs: { label: "ElevenLabs", logo: LOGO("elevenlabs"), cls: "bg-orange-100 text-orange-700" },
   minimax:    { label: "Fire TTS",   logo: LOGO("minimax"),    cls: "bg-violet-100 text-violet-600" },
   fishaudio:  { label: "Fish Audio", logo: LOGO("fishaudio"),  cls: "bg-emerald-100 text-emerald-600" },
   edge:       { label: "Edge TTS",   logo: LOGO("edge"),       cls: "bg-sky-100 text-sky-600" },
-  vbee:       { label: "Vbee",       logo: LOGO("vbee"),       cls: "bg-indigo-100 text-indigo-600" },
   clone:      { label: "My Clones",  icon: <Mic2 size={13} />, cls: "bg-purple-100 text-purple-600" },
 };
 
@@ -257,7 +256,7 @@ export default function VoiceLibraryPage() {
 
   const tabs: { id: Tab; label: string; logo?: string; icon?: React.ReactNode; count: number }[] = [
     { id: "all", label: "All Voices", icon: <BookAudio size={14} />, count: grandTotal },
-    ...(["elevenlabs", "minimax", "fishaudio", "edge", "vbee", "clone"] as ProviderId[]).map((p) => ({
+    ...(["elevenlabs", "minimax", "fishaudio", "edge", "clone"] as ProviderId[]).map((p) => ({
       id: p as Tab,
       label: PROVIDER_META[p].label,
       logo: PROVIDER_META[p].logo,

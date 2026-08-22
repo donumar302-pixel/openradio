@@ -122,7 +122,7 @@ export async function getProviderCredits(): Promise<number | null> {
   }
 }
 
-export const OS_VOICE_PROVIDERS = ["elevenlabs", "minimax", "clone", "edge", "vbee", "fishaudio"] as const;
+export const OS_VOICE_PROVIDERS = ["elevenlabs", "minimax", "clone", "edge", "fishaudio"] as const;
 export type OsVoiceProvider = (typeof OS_VOICE_PROVIDERS)[number];
 
 export function isOsVoiceProvider(p: string): p is OsVoiceProvider {
@@ -130,7 +130,7 @@ export function isOsVoiceProvider(p: string): p is OsVoiceProvider {
 }
 
 /** Valid voice_id prefixes for generation (kokoro intentionally excluded — not an active source). */
-const VOICE_ID_RE = /^(elevenlabs|minimax|clone|edge|vbee|fishaudio)_.+/;
+const VOICE_ID_RE = /^(elevenlabs|minimax|clone|edge|fishaudio)_.+/;
 
 export function isValidOsVoiceId(voiceId: unknown): voiceId is string {
   return typeof voiceId === "string" && VOICE_ID_RE.test(voiceId);

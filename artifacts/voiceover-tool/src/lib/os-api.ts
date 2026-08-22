@@ -32,7 +32,6 @@ export const OS_PROVIDERS = [
   { id: "minimax", label: "MiniMax", logo: providerLogo("minimax") },
   { id: "fishaudio", label: "Fish Audio", logo: providerLogo("fishaudio") },
   { id: "edge", label: "Edge", logo: providerLogo("edge") },
-  { id: "vbee", label: "Vbee", logo: providerLogo("vbee") },
   { id: "clone", label: "My Clones", logo: null },
 ] as const;
 
