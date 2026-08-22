@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Upload, Loader2, Trash2, Mic2, Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { OsCostEstimate } from "@/components/os/cost-estimate";
+import { VOICE_CLONE_CREATE_COST } from "@/lib/os-cost";
 
 interface VoiceClone {
   id: number;
@@ -231,6 +233,11 @@ export default function VoiceCloningPage() {
               and I will not use it to impersonate, deceive, or harm anyone.
             </span>
           </label>
+
+          <OsCostEstimate
+            estimate={VOICE_CLONE_CREATE_COST}
+            footnote="Creating a clone is free — credits are only charged when you generate audio with it (e.g. 1 credit per character in TTS)."
+          />
 
           <button
             onClick={handleClone}

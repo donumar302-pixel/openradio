@@ -5,9 +5,18 @@
  * reserves the estimate and may reconcile to the provider's real cost.
  */
 
-/** TTS: 1 credit per character. */
+/**
+ * TTS: 1 credit per character. The same rate applies to the direct studio
+ * engines (ElevenLabs /api/tts, MiniMax /api/minimax/tts, Fish Audio
+ * /api/fishaudio/tts) — all reserve text.length credits.
+ */
 export function estimateTtsCost(text: string): number {
   return text.length;
+}
+
+/** Edge TTS: 1 credit per 500 characters, minimum 1 (see /api/edge-tts). */
+export function estimateEdgeTtsCost(text: string): number {
+  return Math.max(1, Math.ceil(text.length / 500));
 }
 
 /** Dialogue: 1 credit per character of the full script. */
@@ -42,3 +51,10 @@ export function estimateSoundEffectCost(autoDuration: boolean, durationSeconds: 
 
 /** Music: flat 4,000-credit reserve — reconciled to the provider's real cost. */
 export const MUSIC_COST_ESTIMATE = 4000;
+
+/**
+ * Voice clone creation: free. Neither /api/os/voice-clone (OpenSpeaker) nor
+ * /api/minimax/voice-clone reserves credits — charges only apply later when
+ * the clone is used to generate audio (e.g. per-character TTS).
+ */
+export const VOICE_CLONE_CREATE_COST = 0;

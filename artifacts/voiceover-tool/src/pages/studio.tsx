@@ -17,7 +17,7 @@ import { OsVoicePicker } from "@/components/os/voice-picker";
 import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
 import { osCreateTaskJson, osJson, taskAudioUrl } from "@/lib/os-api";
-import { estimateTtsCost } from "@/lib/os-cost";
+import { estimateTtsCost, estimateEdgeTtsCost } from "@/lib/os-cost";
 
 interface MiniMaxVoice { id: string; name: string; lang?: string; style?: string; isClone?: boolean; }
 interface FishVoice { id: string; name: string; lang?: string; style?: string; }
@@ -343,8 +343,11 @@ export default function StudioPage() {
   };
 
   const isGenerating = generateSpeech.isPending || mmGenerating || faGenerating || edgeGenerating || (voiceProvider === "os" && osWorking);
-  const osEstimate = voiceProvider === "os" && text.trim() ? estimateTtsCost(text) : null;
-  const osInsufficient = useOsInsufficientCredits(osEstimate);
+  // Mirrors the server's per-engine charge: 1 credit/char everywhere except Edge (1 per 500 chars).
+  const costEstimate = text.trim()
+    ? voiceProvider === "edge" ? estimateEdgeTtsCost(text) : estimateTtsCost(text)
+    : null;
+  const insufficientCredits = useOsInsufficientCredits(costEstimate);
   const expressionEnabled = voiceProvider === "minimax";
 
   const voicesByCategory = voices?.reduce((acc, voice) => {
@@ -854,12 +857,13 @@ export default function StudioPage() {
             <span className="text-xs text-[#9ca3af] shrink-0">{text.length} / 5,000</span>
           </div>
 
-          {/* Cost estimate (OpenSpeaker engine only — other engines don't use credits tasks) */}
-          {voiceProvider === "os" && (
-            <div className="px-4 sm:px-7 pb-3 shrink-0">
-              <OsCostEstimate estimate={osEstimate} />
-            </div>
-          )}
+          {/* Cost estimate — every engine charges credits (per character; Edge per 500 chars) */}
+          <div className="px-4 sm:px-7 pb-3 shrink-0">
+            <OsCostEstimate
+              estimate={costEstimate}
+              footnote={voiceProvider === "os" ? undefined : "Charged when generation starts — refunded automatically if it fails."}
+            />
+          </div>
 
           {/* Bottom action bar */}
           <div className="flex items-center gap-3 px-4 sm:px-7 py-3 border-t border-[#f3f4f6] bg-white shrink-0">
@@ -871,10 +875,10 @@ export default function StudioPage() {
             <div className="flex-1" />
             <button
               onClick={handleGenerate}
-              disabled={isGenerating || !text.trim() || !voiceId || osInsufficient}
+              disabled={isGenerating || !text.trim() || !voiceId || insufficientCredits}
               className={cn(
                 "flex items-center gap-2 px-4 sm:px-6 py-2 rounded-lg text-sm font-bold transition-all",
-                isGenerating || !text.trim() || !voiceId || osInsufficient
+                isGenerating || !text.trim() || !voiceId || insufficientCredits
                   ? "bg-[#f3f4f6] text-[#9ca3af] cursor-not-allowed"
                   : voiceProvider === "minimax"
                     ? "bg-violet-600 text-white hover:bg-violet-700 shadow-sm"
@@ -886,7 +890,7 @@ export default function StudioPage() {
             >
               {isGenerating
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>
-                : osInsufficient
+                : insufficientCredits
                   ? <>Not enough credits</>
                   : voiceProvider === "minimax"
                   ? <><Zap className="h-4 w-4 fill-white" /> Generate</>

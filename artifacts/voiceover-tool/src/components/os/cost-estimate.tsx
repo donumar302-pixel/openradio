@@ -24,12 +24,15 @@ export function useOsInsufficientCredits(estimate: number | null | undefined): b
 export function OsCostEstimate({
   estimate,
   estimating = false,
+  footnote,
   className,
 }: {
-  /** Estimated credits, or null/undefined when it can't be computed yet (e.g. no file selected). */
+  /** Estimated credits (0 renders as "Free"), or null/undefined when it can't be computed yet (e.g. no file selected). */
   estimate: number | null | undefined;
   /** True while a dynamic quote is being fetched (e.g. image pricing). */
   estimating?: boolean;
+  /** Overrides the default "final cost may differ" footnote (shown only when credits are sufficient). */
+  footnote?: string;
   className?: string;
 }) {
   const { user } = useAuth();
@@ -54,7 +57,7 @@ export function OsCostEstimate({
             <Loader2 size={13} className="animate-spin text-muted-foreground" />
           ) : typeof estimate === "number" ? (
             <span className={insufficient ? "text-red-600" : undefined}>
-              {Math.max(1, Math.ceil(estimate)).toLocaleString()} credits
+              {estimate === 0 ? "Free" : `${Math.max(1, Math.ceil(estimate)).toLocaleString()} credits`}
             </span>
           ) : (
             <span className="text-muted-foreground font-normal">—</span>
@@ -79,7 +82,7 @@ export function OsCostEstimate({
             </Link>
           </>
         ) : (
-          "Final cost may differ — unused reserved credits are refunded."
+          footnote ?? "Final cost may differ — unused reserved credits are refunded."
         )}
       </p>
     </div>
