@@ -139,16 +139,36 @@ export function taskImageUrls(t: OsTask): string[] {
     .map((u) => taskFileUrl(t.id, u));
 }
 
+/** Clean, branded filename for a downloaded artifact: "<task title> - <label>.<ext>". */
+function downloadName(t: OsTask, label: string, url: string): string {
+  let ext = "";
+  try {
+    const path = url.startsWith("http") ? new URL(url).pathname : url.split("?")[0];
+    const m = path.match(/\.([a-z0-9]{1,5})$/i);
+    if (m) ext = `.${m[1].toLowerCase()}`;
+  } catch { /* keep empty */ }
+  const base = `${(t.title || "OpenRadio").trim()} - ${label}`.replace(/[/\\:*?"<>|\r\n]/g, "_").slice(0, 120);
+  return `${base}${ext}`;
+}
+
 /** All downloadable artifacts of a completed task (audio, srt, json, ...). */
 export function taskDownloads(t: OsTask): { label: string; url: string }[] {
   const m = t.output ?? {};
   const out: { label: string; url: string }[] = [];
   const seen = new Set<string>();
   const push = (label: string, url: unknown) => {
-    // App-relative URLs (starting with "/") are server-hosted downloads, e.g. the dubbed video.
-    if (typeof url === "string" && (url.startsWith("http") || url.startsWith("/")) && !seen.has(url)) {
-      seen.add(url);
-      out.push({ label, url: taskFileUrl(t.id, url) });
+    if (typeof url !== "string" || seen.has(url)) return;
+    seen.add(url);
+    if (url.startsWith("http")) {
+      // Provider file: proxy through our server AND force a clean branded filename.
+      out.push({ label, url: taskFileUrl(t.id, url, { download: true, name: downloadName(t, label, url) }) });
+    } else if (url.startsWith(`${OS_BASE}/tasks/`) && url.includes("/file?")) {
+      // Already-proxied player URL (e.g. songs): add the download disposition.
+      const name = encodeURIComponent(downloadName(t, label, decodeURIComponent(url.split("u=")[1]?.split("&")[0] ?? "")));
+      out.push({ label, url: `${url}&dl=1&name=${name}` });
+    } else if (url.startsWith("/")) {
+      // Other app-relative URLs (e.g. the dubbed video route) set their own filename.
+      out.push({ label, url });
     }
   };
   // Dubbing with a video upload: the muxed dubbed video is the primary result.
