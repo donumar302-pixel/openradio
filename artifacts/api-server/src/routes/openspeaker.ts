@@ -15,7 +15,7 @@ import { requireFeature as requireGlobalFeature } from "../middleware/require-fe
 import { planAllowsFeature, type FeatureKey } from "../lib/plans";
 import {
   osGetJson, osPostJson, osPostForm, osPutJson, osDelete,
-  getTask, deleteTasks, OpenSpeakerError,
+  getTask, deleteTasks, OpenSpeakerError, sanitizeProviderText,
   isOsVoiceProvider, isValidOsVoiceId, type OsTaskState,
 } from "../lib/openspeaker";
 
@@ -320,7 +320,7 @@ async function applyTaskState(row: OsTask, state: OsTaskState): Promise<OsTask> 
     const [saved] = await tx.update(osTasksTable).set({
       status,
       output: state.metadata ?? current.output,
-      error: status === "error" ? (state.error_message ?? "Generation failed") : null,
+      error: status === "error" ? sanitizeProviderText(state.error_message ?? "") || "Generation failed" : null,
       creditsCharged,
       refunded,
       updatedAt: new Date(),
@@ -441,7 +441,8 @@ export function taskJson(t: OsTask) {
     title: t.title,
     input: publicJsonRecord(t.input),
     output: t.output ?? null,
-    error: t.error,
+    // Old rows may hold pre-scrub provider messages — sanitize on the way out too.
+    error: t.error ? sanitizeProviderText(t.error) || "Generation failed" : t.error,
     creditsCharged: t.creditsCharged,
     refunded: t.refunded,
     createdAt: t.createdAt.toISOString(),

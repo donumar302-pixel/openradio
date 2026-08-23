@@ -23,9 +23,24 @@ export class OpenSpeakerError extends Error {
   }
 }
 
+/**
+ * White-label scrub: customers must only ever see OUR branding. Upstream
+ * error messages can name the provider (OpenSpeaker/ai33) or leak URLs —
+ * strip all of that before a message can reach an end user.
+ */
+export function sanitizeProviderText(s: string): string {
+  return s
+    .replace(/https?:\/\/\S+/gi, "") // no upstream URLs in user-facing text
+    .replace(/open[\s_-]*speaker/gi, "OpenRadio")
+    .replace(/(cdn\.)?ai33(\.pro)?/gi, "OpenRadio")
+    .replace(/\breplit\b/gi, "OpenRadio")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function apiKey(): string {
   const key = process.env.OPENSPEAKER_API_KEY;
-  if (!key) throw new OpenSpeakerError("OpenSpeaker is not configured on this server.", 503);
+  if (!key) throw new OpenSpeakerError("The voice service is not configured on this server.", 503);
   return key;
 }
 
@@ -55,7 +70,7 @@ async function parseJson<T = any>(res: Response, what: string): Promise<T> {
         : typeof body?.error === "string" ? body.error : null)
       ?? `${what} failed`;
     logger.warn({ status: res.status, what, msg }, "OpenSpeaker API error");
-    throw new OpenSpeakerError(String(msg), res.status >= 500 ? 502 : res.status === 401 ? 503 : 400);
+    throw new OpenSpeakerError(sanitizeProviderText(String(msg)) || `${what} failed`, res.status >= 500 ? 502 : res.status === 401 ? 503 : 400);
   }
   return body as T;
 }
