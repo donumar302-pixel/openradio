@@ -90,6 +90,18 @@ function AppRoutes() {
     );
   }
 
+  // Reseller panel is reachable from anywhere, on any device, regardless of
+  // main-app session state: /reseller and any sub-path always resolve to the
+  // panel (for logged-in resellers) or the dedicated reseller login page
+  // (for everyone else — including users logged in with a non-reseller account,
+  // who can sign in with their reseller credentials there).
+  if (location.startsWith("/reseller")) {
+    if (isAuthenticated && isReseller) {
+      return <ResellerPanel />;
+    }
+    return <ResellerLogin />;
+  }
+
   if (!isAuthenticated) {
     return (
       <Switch>
@@ -103,7 +115,6 @@ function AppRoutes() {
         <Route path="/refund-policy" component={RefundPage} />
         <Route path="/cookies" component={CookiesPage} />
         <Route path="/contact" component={ContactPage} />
-        <Route path="/reseller" component={ResellerLogin} />
         <Route><Redirect to="/" /></Route>
       </Switch>
     );
@@ -114,13 +125,6 @@ function AppRoutes() {
       return <Redirect to="/" />;
     }
     return <AdminRoutes />;
-  }
-
-  if (location.startsWith("/reseller")) {
-    if (!isReseller) {
-      return <Redirect to="/" />;
-    }
-    return <ResellerPanel />;
   }
 
   if (location === "/pricing") {

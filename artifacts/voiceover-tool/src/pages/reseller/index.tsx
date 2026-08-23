@@ -354,7 +354,9 @@ export default function ResellerPanel() {
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    window.location.href = "/login";
+    // Stay in the reseller area — logging out of the panel should land on the
+    // reseller login page, not the main app's login.
+    window.location.href = "/reseller";
   };
 
   const expired = isPast(me?.expiresAt ?? null);
