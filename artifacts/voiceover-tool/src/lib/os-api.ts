@@ -48,8 +48,10 @@ export function osProviderLogo(providerId: string): string | null {
   return p?.logo ?? null;
 }
 
+const OS_BASE = "/api/os";
+
 export async function osJson<T = any>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api/os${path}`, init);
+  const res = await fetch(`${OS_BASE}${path}`, init);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new OsApiError(data.error || "Request failed", res.status);
   return data as T;
@@ -74,13 +76,27 @@ export async function osGetTask(id: number): Promise<OsTask> {
   return data.task;
 }
 
+/**
+ * Route a provider file URL (cdn.ai33.pro etc.) through our server proxy.
+ * End-user networks often can't reach the provider CDN directly — every
+ * player/download must use this instead of the raw URL.
+ */
+export function taskFileUrl(taskId: number, url: string, opts?: { download?: boolean; name?: string }): string {
+  if (!/^https?:\/\//i.test(url)) return url; // already app-relative (server-hosted)
+  const params = new URLSearchParams({ u: url });
+  if (opts?.download) params.set("dl", "1");
+  if (opts?.name) params.set("name", opts.name);
+  return `${OS_BASE}/tasks/${taskId}/file?${params.toString()}`;
+}
+
 export function taskAudioUrl(t: OsTask): string | null {
   // Image tasks: the provider mirrors the generated image URL into audio_url,
   // which would render a broken audio player. Images render separately.
   if (t.tool === "image") return null;
   const m = t.output;
   if (!m) return null;
-  return m.audio_url || m.dubbed_audio_url || m.output_audio_url || null;
+  const raw = m.audio_url || m.dubbed_audio_url || m.output_audio_url || null;
+  return raw ? taskFileUrl(t.id, raw) : null;
 }
 
 /** Music (Suno) generations return multiple songs: all_audio_urls + suno_result.clips (with titles). */
@@ -99,7 +115,7 @@ export function taskSongs(t: OsTask): { title: string; url: string }[] {
     let title = typeof clips[i]?.title === "string" && clips[i].title.trim() ? clips[i].title.trim() : `Song ${i + 1}`;
     if (usedTitles.has(title)) title = `${title} (${i + 1})`; // Suno often reuses one title for both clips
     usedTitles.add(title);
-    out.push({ title, url });
+    out.push({ title, url: taskFileUrl(t.id, url) });
   });
   return out;
 }
@@ -118,7 +134,9 @@ export function taskImageUrls(t: OsTask): string[] {
   const m = t.output;
   if (!m) return [];
   const arr = Array.isArray(m.result_images) ? m.result_images : Array.isArray(m.images) ? m.images : [];
-  return arr.map(imageEntryUrl).filter((u: string | null): u is string => typeof u === "string");
+  return arr.map(imageEntryUrl)
+    .filter((u: string | null): u is string => typeof u === "string")
+    .map((u) => taskFileUrl(t.id, u));
 }
 
 /** All downloadable artifacts of a completed task (audio, srt, json, ...). */
@@ -130,7 +148,7 @@ export function taskDownloads(t: OsTask): { label: string; url: string }[] {
     // App-relative URLs (starting with "/") are server-hosted downloads, e.g. the dubbed video.
     if (typeof url === "string" && (url.startsWith("http") || url.startsWith("/")) && !seen.has(url)) {
       seen.add(url);
-      out.push({ label, url });
+      out.push({ label, url: taskFileUrl(t.id, url) });
     }
   };
   // Dubbing with a video upload: the muxed dubbed video is the primary result.

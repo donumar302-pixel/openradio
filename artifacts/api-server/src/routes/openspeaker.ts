@@ -1669,6 +1669,50 @@ router.get("/tasks", async (req, res) => {
   res.json({ items: items.map(taskJson), total });
 });
 
+/**
+ * Proxy-stream a task result file (audio/srt/json/image) through our server.
+ * The provider CDN (cdn.ai33.pro) is often unreachable from end-user networks,
+ * so the browser must never be sent there directly. Only URLs that actually
+ * appear in the task's stored output are allowed (no open proxy / SSRF).
+ */
+router.get("/tasks/:id/file", async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  const url = typeof req.query.u === "string" ? req.query.u : "";
+  if (isNaN(id) || !/^https?:\/\//i.test(url)) { res.status(400).json({ error: "Invalid request" }); return; }
+
+  const [row] = await db.select().from(osTasksTable)
+    .where(and(eq(osTasksTable.id, id), eq(osTasksTable.userId, req.appUser!.id)));
+  if (!row) { res.status(404).json({ error: "Task not found" }); return; }
+  // The URL must be one the provider returned for THIS task.
+  if (!JSON.stringify(row.output ?? {}).includes(JSON.stringify(url).slice(1, -1))) {
+    res.status(403).json({ error: "File does not belong to this task" });
+    return;
+  }
+
+  try {
+    const upstream = await fetch(url, { signal: AbortSignal.timeout(120_000) });
+    if (!upstream.ok || !upstream.body) {
+      res.status(502).json({ error: "The file could not be fetched from the provider. Please try again." });
+      return;
+    }
+    res.setHeader("Content-Type", upstream.headers.get("content-type") || "application/octet-stream");
+    const len = upstream.headers.get("content-length");
+    if (len) res.setHeader("Content-Length", len);
+    if (String(req.query.dl) === "1") {
+      const fallback = (() => { try { return decodeURIComponent(new URL(url).pathname.split("/").pop() || ""); } catch { return ""; } })();
+      const name = (typeof req.query.name === "string" && req.query.name ? req.query.name : fallback || "download")
+        .replace(/[/\\\r\n";]/g, "_").slice(0, 150);
+      res.attachment(name);
+    }
+    const { Readable } = await import("node:stream");
+    Readable.fromWeb(upstream.body as any).pipe(res);
+  } catch (e) {
+    logger.error({ err: e, taskId: id }, "task file proxy failed");
+    if (!res.headersSent) res.status(502).json({ error: "The file could not be fetched from the provider. Please try again." });
+    else res.destroy();
+  }
+});
+
 /** Download the muxed dubbed video (dubbing tasks whose original upload was a video). */
 router.get("/tasks/:id/video", async (req, res) => {
   const id = parseInt(String(req.params.id));
