@@ -15,3 +15,6 @@ description: User directive — all TTS/voice features must route through the Op
 - Backend direct routes still exist in api-server but are legacy/unused by the frontend — don't wire new UI to them.
 - Deep-link prefixes `mm:`/`fa:`/`edge:` are mapped to OS-prefixed ids (`minimax_x` etc.); OS ids use `os:`.
 - Known gap: legacy MiniMax voice clones (provider='minimax' in voice_clones) are no longer listed anywhere and can't be used via OS. Dev DB has zero; prod (Railway) unchecked — flagged to user.
+
+## White-label directive (user, Aug 2026)
+Customers must NEVER see upstream branding — no OpenSpeaker, ai33/cdn.ai33.pro, or Replit anywhere user-facing (errors, filenames, URLs, tab titles). sanitizeProviderText in the openspeaker lib scrubs provider error text (applied at parse, at task settle, and on the way out for old rows); result files stream via the task-file proxy with OpenRadio-branded filenames. Any new user-facing surface that carries provider text must go through the same scrub.
