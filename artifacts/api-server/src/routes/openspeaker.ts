@@ -1675,6 +1675,18 @@ router.get("/tasks", async (req, res) => {
  * so the browser must never be sent there directly. Only URLs that actually
  * appear in the task's stored output are allowed (no open proxy / SSRF).
  */
+/** Collect every http(s) URL stored as a string value anywhere in the task output. */
+function collectOutputUrls(value: unknown, acc = new Set<string>()): Set<string> {
+  if (typeof value === "string") {
+    if (/^https?:\/\//i.test(value)) acc.add(value);
+  } else if (Array.isArray(value)) {
+    for (const v of value) collectOutputUrls(v, acc);
+  } else if (value && typeof value === "object") {
+    for (const v of Object.values(value)) collectOutputUrls(v, acc);
+  }
+  return acc;
+}
+
 router.get("/tasks/:id/file", async (req, res) => {
   const id = parseInt(String(req.params.id));
   const url = typeof req.query.u === "string" ? req.query.u : "";
@@ -1683,21 +1695,36 @@ router.get("/tasks/:id/file", async (req, res) => {
   const [row] = await db.select().from(osTasksTable)
     .where(and(eq(osTasksTable.id, id), eq(osTasksTable.userId, req.appUser!.id)));
   if (!row) { res.status(404).json({ error: "Task not found" }); return; }
-  // The URL must be one the provider returned for THIS task.
-  if (!JSON.stringify(row.output ?? {}).includes(JSON.stringify(url).slice(1, -1))) {
+  // Exact-match provenance: the URL must be a stored value in THIS task's
+  // provider output (no substring/prefix tricks — this is an SSRF boundary).
+  if (!collectOutputUrls(row.output).has(url)) {
     res.status(403).json({ error: "File does not belong to this task" });
     return;
   }
 
+  // Abort the upstream fetch if the client goes away or headers stall.
+  const upstreamAbort = new AbortController();
+  const headerTimeout = setTimeout(() => upstreamAbort.abort(), 30_000);
+  res.on("close", () => upstreamAbort.abort());
+
   try {
-    const upstream = await fetch(url, { signal: AbortSignal.timeout(120_000) });
-    if (!upstream.ok || !upstream.body) {
+    // Forward a byte-range request so <audio> seeking/duration works.
+    const range = req.headers.range;
+    const upstream = await fetch(url, {
+      signal: upstreamAbort.signal,
+      headers: typeof range === "string" ? { Range: range } : undefined,
+    });
+    clearTimeout(headerTimeout);
+    if ((!upstream.ok && upstream.status !== 206) || !upstream.body) {
       res.status(502).json({ error: "The file could not be fetched from the provider. Please try again." });
       return;
     }
+    res.status(upstream.status === 206 ? 206 : 200);
     res.setHeader("Content-Type", upstream.headers.get("content-type") || "application/octet-stream");
-    const len = upstream.headers.get("content-length");
-    if (len) res.setHeader("Content-Length", len);
+    for (const h of ["content-length", "content-range", "accept-ranges"]) {
+      const v = upstream.headers.get(h);
+      if (v) res.setHeader(h, v);
+    }
     if (String(req.query.dl) === "1") {
       const fallback = (() => { try { return decodeURIComponent(new URL(url).pathname.split("/").pop() || ""); } catch { return ""; } })();
       const name = (typeof req.query.name === "string" && req.query.name ? req.query.name : fallback || "download")
@@ -1705,9 +1732,14 @@ router.get("/tasks/:id/file", async (req, res) => {
       res.attachment(name);
     }
     const { Readable } = await import("node:stream");
-    Readable.fromWeb(upstream.body as any).pipe(res);
-  } catch (e) {
-    logger.error({ err: e, taskId: id }, "task file proxy failed");
+    const { pipeline } = await import("node:stream/promises");
+    await pipeline(Readable.fromWeb(upstream.body as any), res);
+  } catch (e: any) {
+    clearTimeout(headerTimeout);
+    // Client disconnects/aborts are routine — only log real upstream failures.
+    if (!upstreamAbort.signal.aborted) {
+      logger.error({ err: e, taskId: id }, "task file proxy failed");
+    }
     if (!res.headersSent) res.status(502).json({ error: "The file could not be fetched from the provider. Please try again." });
     else res.destroy();
   }

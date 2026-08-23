@@ -193,7 +193,10 @@ export default function BatchTtsPage() {
     const zip = new JSZip();
     await Promise.all(done.map(async (l, i) => {
       try {
-        const blob = await fetch(l.audioUrl!).then(r => r.blob());
+        const blob = await fetch(l.audioUrl!).then(r => {
+          if (!r.ok) throw new Error(`fetch failed: ${r.status}`);
+          return r.blob();
+        });
         zip.file(`line_${String(l.id + 1).padStart(3, "0")}.mp3`, blob);
       } catch { /* skip failed */ }
     }));
