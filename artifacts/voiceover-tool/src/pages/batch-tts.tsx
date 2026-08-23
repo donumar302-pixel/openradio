@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import JSZip from "jszip";
 import {
   Upload, FileText, Trash2, Play, Download, Loader2,
@@ -7,6 +7,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { OsVoicePicker } from "@/components/os/voice-picker";
 import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-estimate";
 import { osCreateTaskJson, osGetTask, osJson, taskAudioUrl } from "@/lib/os-api";
@@ -14,6 +15,9 @@ import { estimateTtsCost } from "@/lib/os-cost";
 
 const MAX_LINES = 100;
 const MAX_CHARS = 5000;
+// Batch progress survives refresh/navigation: lines + voice are saved here on
+// every change and restored on mount, and in-flight tasks are re-polled.
+const STORAGE_KEY = "batch-tts-progress-v1";
 
 type LineState = "idle" | "generating" | "done" | "error";
 interface LineItem {
@@ -74,6 +78,88 @@ export default function BatchTtsPage() {
   const stopRef = useRef(false);
   const runIdRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const restoredRef = useRef(false);
+  const { user } = useAuth();
+  // Progress is scoped to the logged-in account so one browser never leaks a
+  // batch (text, voice, results) into another user's session.
+  const storageKey = user ? `${STORAGE_KEY}:${user.id}` : null;
+
+  // Restore saved progress once the owner is known, then reconcile any task
+  // that was still generating when the page was left: poll it server-side so
+  // finished audio shows up as Done instead of being lost.
+  useEffect(() => {
+    if (!storageKey || restoredRef.current) return;
+    restoredRef.current = true;
+    localStorage.removeItem(STORAGE_KEY); // drop the old account-unscoped key
+    let saved: { lines?: LineItem[]; voiceId?: string; voiceName?: string } | null = null;
+    try { saved = JSON.parse(localStorage.getItem(storageKey) || "null"); } catch { /* corrupt — ignore */ }
+    if (!saved || !Array.isArray(saved.lines) || saved.lines.length === 0) return;
+
+    const restored: LineItem[] = saved.lines.map(l => ({
+      id: l.id, text: l.text, taskId: l.taskId, audioUrl: l.audioUrl, error: l.error,
+      // A line mid-generation without a known task can't be recovered — retry it.
+      state: l.state === "generating" && !l.taskId ? "idle" : l.state,
+    }));
+    setLines(restored);
+    if (saved.voiceId) { setVoiceId(saved.voiceId); setVoiceName(saved.voiceName || ""); }
+
+    const inFlight = restored.filter(l => l.state === "generating" && l.taskId);
+    if (restored.some(l => l.state === "done") || inFlight.length > 0) {
+      toast({ title: "Progress restored", description: "Your previous batch was recovered." });
+    }
+    // Reconcile each in-flight task. A line only leaves the locked
+    // "generating" state once its task is confirmed terminal, confirmed
+    // deleted (404 — deletion refunds), or confirmed cancelled with refund;
+    // anything else stays locked so Generate All can never re-charge it.
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+    for (const l of inFlight) {
+      (async () => {
+        const patch = (p: Partial<LineItem>) =>
+          setLines(prev => prev.map(x => x.id === l.id ? { ...x, ...p } : x));
+        let failures = 0;
+        const deadline = Date.now() + 300_000;
+        while (true) {
+          let task;
+          try {
+            task = await osGetTask(l.taskId!);
+            failures = 0;
+          } catch (e: any) {
+            if (e?.status === 404) { patch({ state: "idle", taskId: undefined }); return; }
+            if (++failures >= 5) return; // network trouble — stay locked; next visit retries
+            await sleep(3000);
+            continue;
+          }
+          if (task.status === "error") {
+            patch({ state: "error", error: task.error || "Generation failed", taskId: undefined });
+            return;
+          }
+          if (task.status !== "processing") {
+            const audioUrl = taskAudioUrl(task);
+            if (audioUrl) patch({ state: "done", audioUrl });
+            else patch({ state: "error", error: "No audio returned", taskId: undefined });
+            return;
+          }
+          if (Date.now() > deadline) {
+            // Provider stuck for 5+ min: cancel server-side (refunds credits).
+            // Unlock for retry only if the cancellation was confirmed.
+            if (await cancelTask(task.id)) patch({ state: "idle", taskId: undefined });
+            return;
+          }
+          await sleep(2500);
+        }
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
+
+  // Persist progress on every change (cleared when the list is emptied).
+  useEffect(() => {
+    if (!restoredRef.current || !storageKey) return;
+    try {
+      if (lines.length === 0) localStorage.removeItem(storageKey);
+      else localStorage.setItem(storageKey, JSON.stringify({ lines, voiceId, voiceName }));
+    } catch { /* storage full/blocked — non-fatal */ }
+  }, [lines, voiceId, voiceName, storageKey]);
 
   // Total cost of the lines that still need generating (1 credit/char via OpenSpeaker).
   const remainingCost = lines
@@ -131,7 +217,9 @@ export default function BatchTtsPage() {
 
     for (let i = 0; i < lines.length; i++) {
       if (stopRef.current || runIdRef.current !== runId) break;
-      if (lines[i].state === "done") continue;
+      // Skip finished lines AND lines a post-refresh reconcile is still
+      // settling (re-submitting those would double-charge).
+      if (lines[i].state === "done" || lines[i].state === "generating") continue;
 
       setLines(prev => prev.map(l => l.id === i ? { ...l, state: "generating" } : l));
 
