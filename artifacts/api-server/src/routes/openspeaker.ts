@@ -415,12 +415,42 @@ async function finalizeDubbedVideo(row: OsTask): Promise<OsTask> {
   }
 }
 
+/**
+ * Per-tool ceiling on how long a task may stay "processing". If the provider
+ * still reports an unfinished task past this age, we treat it as stuck: cancel
+ * it provider-side (best effort) and settle it as an error, which refunds the
+ * customer's credits. Without this, a forgotten provider task spins forever
+ * and the credits stay trapped.
+ */
+const STUCK_TASK_MS: Record<string, number> = {
+  dubbing: 3 * 60 * 60_000, // long videos legitimately take a while
+  music: 60 * 60_000,
+};
+const STUCK_TASK_DEFAULT_MS = 30 * 60_000;
+
+function stuckLimitMs(tool: string): number {
+  return STUCK_TASK_MS[tool] ?? STUCK_TASK_DEFAULT_MS;
+}
+
 /** Refresh a non-final task from the provider; swallow transient provider errors. */
 export async function refreshTask(row: OsTask): Promise<OsTask> {
   if (isFinal(row.status) || !row.externalTaskId) return row;
   try {
     const state = await getTask(row.externalTaskId);
-    return await applyTaskState(row, state);
+    const fresh = await applyTaskState(row, state);
+    if (!isFinal(fresh.status) && Date.now() - fresh.createdAt.getTime() > stuckLimitMs(fresh.tool)) {
+      logger.warn({ taskId: row.externalTaskId, tool: fresh.tool, ageMs: Date.now() - fresh.createdAt.getTime() },
+        "OpenSpeaker task stuck past limit — cancelling and refunding");
+      try { await deleteTasks([row.externalTaskId]); } catch (err) {
+        logger.warn({ err, taskId: row.externalTaskId }, "stuck-task provider cancel failed (settling as error anyway)");
+      }
+      return await applyTaskState(fresh, {
+        id: row.externalTaskId,
+        status: "error",
+        error_message: "Generation took too long and was cancelled. Your credits have been refunded — please try again (long text works best split into smaller parts).",
+      });
+    }
+    return fresh;
   } catch (err) {
     logger.warn({ err, taskId: row.externalTaskId }, "OpenSpeaker task refresh failed");
     return row;
