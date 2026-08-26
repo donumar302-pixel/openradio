@@ -2015,24 +2015,18 @@ const HEALTH_MIN_STUCK = 2;                // this many stalled tasks flags the 
 const HEALTH_CACHE_MS = 45_000;
 
 type EngineHealthInfo = { slow: boolean; medianMs?: number };
+type EngineHealthRow = { status: string; input: unknown; createdAt: Date; updatedAt: Date };
 
 let healthCache: { at: number; engines: Record<HealthEngine, EngineHealthInfo> } | null = null;
 
-async function computeEngineHealth(): Promise<Record<HealthEngine, EngineHealthInfo>> {
-  const cutoff = new Date(Date.now() - HEALTH_WINDOW_MS);
-  // Single-voice TTS tasks only: dubbing/music/etc. legitimately take long, and
-  // longform parents aggregate many chunks — both would poison the signal.
-  const rows = await db.select({
-    status: osTasksTable.status,
-    input: osTasksTable.input,
-    createdAt: osTasksTable.createdAt,
-    updatedAt: osTasksTable.updatedAt,
-  }).from(osTasksTable)
-    .where(and(gte(osTasksTable.createdAt, cutoff), inArray(osTasksTable.tool, ["tts", "dialogue"])))
-    .orderBy(desc(osTasksTable.createdAt))
-    .limit(500);
+/* Test seams (used only by src/tests/engine-health.test.ts): scope the row
+   query to a single user so seeded fixtures can't collide with real traffic,
+   and reset the 45s cache to simulate its expiry deterministically. */
+export const __engineHealthTestHooks: { scopeUserId?: number } = {};
+export function __resetEngineHealthCacheForTests() { healthCache = null; }
 
-  const now = Date.now();
+/** Pure aggregation over already-windowed rows — exported for repeatable tests. */
+export function summarizeEngineHealth(rows: EngineHealthRow[], now: number): Record<HealthEngine, EngineHealthInfo> {
   const buckets = new Map<HealthEngine, { stuck: number; settledMs: number[] }>(
     HEALTH_ENGINES.map((e) => [e, { stuck: 0, settledMs: [] }]),
   );
@@ -2074,6 +2068,28 @@ async function computeEngineHealth(): Promise<Record<HealthEngine, EngineHealthI
     engines[e] = { slow: b.stuck >= HEALTH_MIN_STUCK || slowMedian, ...(medianMs !== undefined ? { medianMs } : {}) };
   }
   return engines;
+}
+
+async function computeEngineHealth(): Promise<Record<HealthEngine, EngineHealthInfo>> {
+  const cutoff = new Date(Date.now() - HEALTH_WINDOW_MS);
+  // Single-voice TTS tasks only: dubbing/music/etc. legitimately take long, and
+  // longform parents aggregate many chunks — both would poison the signal.
+  const scopeUserId = __engineHealthTestHooks.scopeUserId;
+  const rows = await db.select({
+    status: osTasksTable.status,
+    input: osTasksTable.input,
+    createdAt: osTasksTable.createdAt,
+    updatedAt: osTasksTable.updatedAt,
+  }).from(osTasksTable)
+    .where(and(
+      gte(osTasksTable.createdAt, cutoff),
+      inArray(osTasksTable.tool, ["tts", "dialogue"]),
+      ...(scopeUserId !== undefined ? [eq(osTasksTable.userId, scopeUserId)] : []),
+    ))
+    .orderBy(desc(osTasksTable.createdAt))
+    .limit(500);
+
+  return summarizeEngineHealth(rows, Date.now());
 }
 
 router.get("/engine-health", async (_req, res) => {
