@@ -7,7 +7,7 @@ import nodePath from "node:path";
 import nodeOs from "node:os";
 import { spawn } from "node:child_process";
 import { db, usersTable, osTasksTable, osDictionariesTable, voiceClonesTable, elVoiceIndexTable, osDubVideosTable, type OsTask } from "@workspace/db";
-import { eq, and, or, desc, count, sql, gte, lt, isNotNull, notInArray, inArray } from "drizzle-orm";
+import { eq, and, desc, count, sql, gte, lt, isNotNull, notInArray, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { requireActiveUser, isUserAdmin } from "../middleware/require-active-user";
 import { getSetting, setSetting } from "../lib/settings";
@@ -1101,6 +1101,285 @@ router.post("/tts", requireGlobalFeature("os-tts"), requirePlanFeature("tts"), a
   });
 });
 
+/* ═══════════════ Long-form Text to Speech (10-30 min voiceovers) ═══════════════
+   The provider's single-task TTS works best under ~5,000 characters — longer
+   submissions are the ones that get stuck in its queue. For long scripts we
+   split on paragraph/sentence boundaries, generate each chunk as its own
+   provider task (with per-chunk retry), stitch the parts into one MP3 with
+   ffmpeg, and store the result durably in Postgres (same blob table as dubbed
+   videos, kind "out" → the existing 7-day age-out applies). Credits are
+   reserved for the full script upfront; a failed run refunds the unfinished
+   portion (completed chunks were already billed by the provider). */
+
+const LONG_TTS_THRESHOLD = 5_000;    // scripts above this use the chunked pipeline
+const LONG_TTS_MAX_CHARS = 60_000;   // ~35-40 minutes of audio
+const LONG_TTS_CHUNK_MAX = 4_500;    // per-chunk character cap (safe provider size)
+const LONG_TTS_CHUNK_ATTEMPTS = 3;   // per-chunk create+poll attempts
+const LONG_TTS_CHUNK_POLL_MS = 3_000;
+const LONG_TTS_CHUNK_TIMEOUT_MS = 5 * 60_000; // per attempt; timed-out provider tasks are cancelled
+// Sweep safety net: a longform task whose row hasn't been touched for this
+// long has lost its in-process runner (crash/redeploy) — settle + refund.
+// The runner bumps updatedAt while polling, so a live run never goes stale.
+const LONG_TTS_ORPHAN_MS = 20 * 60_000;
+
+/** Split a long script into ≤max-char chunks on paragraph, then sentence boundaries. */
+export function splitScriptIntoChunks(text: string, max = LONG_TTS_CHUNK_MAX): string[] {
+  const pieces: string[] = [];
+  for (const para of text.split(/\n{2,}/)) {
+    const p = para.trim();
+    if (!p) continue;
+    if (p.length <= max) { pieces.push(`${p}\n\n`); continue; }
+    // Sentence boundaries (keeps terminators + closing quotes/brackets).
+    const sentences = p.match(/[^.!?…]+[.!?…]+["'”’)\]]*\s*|[^.!?…]+\s*$/g) ?? [p];
+    for (const s of sentences) {
+      if (s.length <= max) { pieces.push(s); continue; }
+      // Pathological run-on: hard-split at word boundaries where possible.
+      let rest = s;
+      while (rest.length > max) {
+        const cut = rest.lastIndexOf(" ", max);
+        const at = cut > max / 2 ? cut + 1 : max;
+        pieces.push(rest.slice(0, at));
+        rest = rest.slice(at);
+      }
+      if (rest) pieces.push(rest);
+    }
+  }
+  // Greedily pack pieces into chunks.
+  const chunks: string[] = [];
+  let buf = "";
+  for (const piece of pieces) {
+    if (buf && buf.length + piece.length > max) { chunks.push(buf.trim()); buf = ""; }
+    buf += piece;
+  }
+  if (buf.trim()) chunks.push(buf.trim());
+  return chunks.filter((c) => c.length > 0);
+}
+
+interface LongTtsOpts { voiceId: string; speed?: number; dictionaryId?: string }
+
+/** Generate one chunk via the provider: create task → poll → download audio. Throws on failure. */
+async function generateLongTtsChunk(
+  taskRowId: number, part: number, text: string, opts: LongTtsOpts,
+): Promise<{ buffer: Buffer; cost: number }> {
+  let lastErr: unknown = null;
+  for (let attempt = 1; attempt <= LONG_TTS_CHUNK_ATTEMPTS; attempt++) {
+    let extId: string | null = null;
+    try {
+      const form = new FormData();
+      form.append("text", text);
+      form.append("voice_id", opts.voiceId);
+      if (opts.speed) form.append("speed", String(Math.min(1.5, Math.max(0.5, Number(opts.speed) || 1))));
+      if (opts.dictionaryId) form.append("pronunciation_dictionary_id", opts.dictionaryId);
+      const created = await osPostForm<{ task_id?: string }>(`/v3/text-to-speech`, form, "Text to Speech");
+      extId = created.task_id ?? null;
+      if (!extId) throw new Error("provider returned no task id");
+
+      const deadline = Date.now() + LONG_TTS_CHUNK_TIMEOUT_MS;
+      let polls = 0;
+      while (true) {
+        await new Promise((r) => setTimeout(r, LONG_TTS_CHUNK_POLL_MS));
+        const state = await getTask(extId).catch(() => null); // transient lookup errors: keep polling
+        // Liveness marker so the orphan sweep never reaps an actively-running task.
+        if (++polls % 5 === 0) {
+          await db.update(osTasksTable).set({ updatedAt: new Date() })
+            .where(eq(osTasksTable.id, taskRowId)).catch(() => {});
+        }
+        if (state?.status === "error") {
+          throw new Error(sanitizeProviderText(state.error_message ?? "") || "Generation failed");
+        }
+        if (state?.status === "done") {
+          const m = (state.metadata ?? {}) as Record<string, any>;
+          const audioUrl = [m.audio_url, m.output_audio_url]
+            .find((u) => typeof u === "string" && /^https?:\/\//.test(u));
+          if (!audioUrl) throw new Error("provider returned no audio for a finished part");
+          const resp = await fetch(audioUrl);
+          if (!resp.ok) throw new Error(`part audio download failed with HTTP ${resp.status}`);
+          const buffer = Buffer.from(await resp.arrayBuffer());
+          if (buffer.length < 200) throw new Error("part audio is empty");
+          const cost = typeof state.credit_cost === "number" && state.credit_cost >= 0
+            ? customerCreditsForTool("tts", state.credit_cost)
+            : text.length;
+          return { buffer, cost };
+        }
+        if (Date.now() > deadline) {
+          // Stuck in the provider queue: cancel (refunds provider-side) and retry.
+          try { await deleteTasks([extId]); } catch { /* best effort */ }
+          extId = null;
+          throw new Error("part generation took too long");
+        }
+      }
+    } catch (err) {
+      lastErr = err;
+      logger.warn({ err, taskRowId, part, attempt }, "Longform TTS chunk attempt failed");
+      if (extId) { try { await deleteTasks([extId]); } catch { /* best effort */ } }
+      if (attempt < LONG_TTS_CHUNK_ATTEMPTS) await new Promise((r) => setTimeout(r, 2_000));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("part generation failed");
+}
+
+/**
+ * Settle a longform task atomically (row lock, final-once) and reconcile
+ * credits: refund the unspent part of the reservation, or collect the
+ * (rare) overage when the provider's real cost exceeded it. Admin runs
+ * reserve 0 and are never adjusted.
+ */
+async function settleLongTts(
+  taskRowId: number,
+  status: "done" | "error",
+  actualCost: number,
+  output: Record<string, unknown> | null,
+  errorMessage?: string,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(osTasksTable)
+      .where(eq(osTasksTable.id, taskRowId)).for("update");
+    if (!current || isFinal(current.status)) return; // deleted (cancelled) or already settled
+
+    let creditsCharged = current.creditsCharged;
+    let refunded = current.refunded;
+    if (creditsCharged > 0 && !refunded) {
+      const target = status === "error" ? Math.min(actualCost, creditsCharged) : actualCost;
+      const diff = target - creditsCharged;
+      if (diff < 0) {
+        await tx.update(usersTable).set({
+          credits: sql`${usersTable.credits} + ${-diff}`,
+          creditsUsed: sql`GREATEST(0, ${usersTable.creditsUsed} - ${-diff})`,
+        }).where(eq(usersTable.id, current.userId));
+        creditsCharged = target;
+        if (status === "error" && creditsCharged === 0) refunded = true;
+      } else if (diff > 0 && status === "done") {
+        const [user] = await tx.select({ credits: usersTable.credits }).from(usersTable)
+          .where(eq(usersTable.id, current.userId)).for("update");
+        const take = Math.min(diff, Math.max(0, user?.credits ?? 0));
+        if (take > 0) {
+          await tx.update(usersTable).set({
+            credits: sql`${usersTable.credits} - ${take}`,
+            creditsUsed: sql`${usersTable.creditsUsed} + ${take}`,
+          }).where(eq(usersTable.id, current.userId));
+        }
+        creditsCharged += take;
+      }
+    }
+    await tx.update(osTasksTable).set({
+      status,
+      output: output ?? current.output,
+      error: status === "error" ? (errorMessage || "Generation failed") : null,
+      creditsCharged,
+      refunded,
+      updatedAt: new Date(),
+    }).where(eq(osTasksTable.id, taskRowId));
+  });
+}
+
+/** Background runner: generate every chunk, stitch with ffmpeg, store + settle. */
+async function runLongformTts(row: OsTask, chunks: string[], opts: LongTtsOpts): Promise<void> {
+  const dir = await fsp.mkdtemp(nodePath.join(nodeOs.tmpdir(), "ttslong-"));
+  let creditsSpent = 0;
+  let done = 0;
+  try {
+    const files: string[] = [];
+    for (let i = 0; i < chunks.length; i++) {
+      // Abort if the task was cancelled/deleted meanwhile (delete refunds).
+      const [current] = await db.select({ status: osTasksTable.status }).from(osTasksTable)
+        .where(eq(osTasksTable.id, row.id));
+      if (!current || current.status !== "processing") return;
+
+      const { buffer, cost } = await generateLongTtsChunk(row.id, i + 1, chunks[i], opts);
+      creditsSpent += cost;
+      done = i + 1;
+      const p = nodePath.join(dir, `part-${String(i).padStart(3, "0")}.mp3`);
+      await fsp.writeFile(p, buffer);
+      files.push(p);
+      await db.update(osTasksTable).set({
+        output: { progress: { done, total: chunks.length, credits_spent: creditsSpent } },
+        updatedAt: new Date(),
+      }).where(and(eq(osTasksTable.id, row.id), eq(osTasksTable.status, "processing")));
+    }
+
+    // Stitch the parts into one MP3 (re-encode so stream params always match).
+    const listPath = nodePath.join(dir, "list.txt");
+    await fsp.writeFile(listPath, files.map((f) => `file '${f}'`).join("\n"));
+    const outPath = nodePath.join(dir, "voiceover.mp3");
+    await runFfmpeg(["-y", "-f", "concat", "-safe", "0", "-i", listPath,
+      "-c:a", "libmp3lame", "-b:a", "128k", outPath], 300_000);
+    const merged = await fsp.readFile(outPath);
+    if (merged.length < 200) throw new Error("stitched audio is empty");
+    await saveDubbedVideo(row.id, merged); // shared blob store (kind "out", 7-day retention)
+
+    await settleLongTts(row.id, "done", creditsSpent, {
+      audio_url: `/api/os/tasks/${row.id}/audio`,
+      progress: { done: chunks.length, total: chunks.length },
+    });
+  } catch (err) {
+    logger.error({ err, taskId: row.id, done, total: chunks.length }, "Longform TTS run failed");
+    const msg = err instanceof OpenSpeakerError || err instanceof Error
+      ? sanitizeProviderText(err.message) : "";
+    await settleLongTts(row.id, "error", creditsSpent, null,
+      `${msg || "Generation failed"} (${done} of ${chunks.length} parts finished — unfinished parts refunded)`,
+    ).catch((e) => logger.error({ err: e, taskId: row.id }, "Longform TTS error settle failed; sweep must reconcile"));
+  } finally {
+    await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+router.post("/tts-long", requireGlobalFeature("os-tts"), requirePlanFeature("tts"), async (req, res) => {
+  const { text, voiceId, speed, dictionaryId } = req.body ?? {};
+  if (typeof text !== "string" || !text.trim() || text.length > LONG_TTS_MAX_CHARS) {
+    res.status(400).json({ error: `Please enter text (up to ${LONG_TTS_MAX_CHARS.toLocaleString()} characters).` });
+    return;
+  }
+  if (!isValidOsVoiceId(voiceId)) {
+    res.status(400).json({ error: "Please choose a valid voice." });
+    return;
+  }
+  if (!(await assertCloneOwnership(req, voiceId))) {
+    res.status(403).json({ error: "You can only use your own cloned voices." });
+    return;
+  }
+  const dictId = typeof dictionaryId === "string" && dictionaryId ? dictionaryId : undefined;
+  if (dictId && !(await assertDictionaryOwnership(req, dictId))) {
+    res.status(403).json({ error: "You can only use your own pronunciation dictionaries." });
+    return;
+  }
+
+  const chunks = splitScriptIntoChunks(text);
+  if (chunks.length === 0) {
+    res.status(400).json({ error: "Please enter text." });
+    return;
+  }
+
+  const user = req.appUser!;
+  const admin = isUserAdmin(user);
+  const reserve = admin ? 0 : Math.max(1, text.length);
+  if (!admin && !(await reserveCredits(user.id, reserve))) {
+    res.status(402).json({ error: `Not enough credits. This needs about ${reserve} credits but you have ${user.credits}.` });
+    return;
+  }
+
+  let row: OsTask;
+  try {
+    [row] = await db.insert(osTasksTable).values({
+      userId: user.id,
+      tool: "tts",
+      externalTaskId: null, // chunk tasks are provider-side; the parent is settled by the runner
+      status: "processing",
+      title: text.slice(0, 120),
+      input: { voiceId, speed: speed ?? 1, characters: text.length, parts: chunks.length, _longform: true },
+      output: { progress: { done: 0, total: chunks.length } },
+      creditsCharged: reserve,
+    }).returning();
+  } catch (err) {
+    if (!admin) await refundCredits(user.id, reserve);
+    logger.error({ err }, "Longform TTS task row insert failed");
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  res.json({ task: taskJson(row) });
+  void runLongformTts(row, chunks, { voiceId, speed, dictionaryId: dictId });
+});
+
 /* ═══════════════ Text to Dialogue ═══════════════ */
 
 router.post("/dialogue", requireGlobalFeature("os-dialogue"), requirePlanFeature("dialogue"), async (req, res) => {
@@ -1799,6 +2078,45 @@ router.get("/tasks/:id/video", async (req, res) => {
   res.send(vid.data);
 });
 
+/** Download/stream the stitched longform TTS audio (stored server-side). */
+router.get("/tasks/:id/audio", async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [row] = await db.select().from(osTasksTable)
+    .where(and(eq(osTasksTable.id, id), eq(osTasksTable.userId, req.appUser!.id)));
+  if (!row || row.tool !== "tts" || row.status !== "done") {
+    res.status(404).json({ error: "Task not found" });
+    return;
+  }
+  const [blob] = await db.select({ data: osDubVideosTable.data })
+    .from(osDubVideosTable)
+    .where(and(eq(osDubVideosTable.taskId, row.id), eq(osDubVideosTable.kind, "out")));
+  if (!blob) {
+    res.status(410).json({ error: "This audio is no longer available. Please generate it again." });
+    return;
+  }
+  const buf = blob.data;
+  res.setHeader("Accept-Ranges", "bytes");
+  res.type("audio/mpeg");
+  if (String(req.query.dl) === "1") res.attachment(`voiceover-${row.id}.mp3`);
+  // Basic byte-range support so <audio> seeking works on 10-30 min files.
+  const m = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ""));
+  if (m && (m[1] || m[2])) {
+    const start = m[1] ? parseInt(m[1]) : Math.max(0, buf.length - parseInt(m[2]));
+    const end = m[1] && m[2] ? Math.min(parseInt(m[2]), buf.length - 1) : buf.length - 1;
+    if (start >= buf.length || start > end) {
+      res.status(416).setHeader("Content-Range", `bytes */${buf.length}`);
+      res.end();
+      return;
+    }
+    res.status(206);
+    res.setHeader("Content-Range", `bytes ${start}-${end}/${buf.length}`);
+    res.send(buf.subarray(start, end + 1));
+    return;
+  }
+  res.send(buf);
+});
+
 router.get("/tasks/:id", async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -1845,14 +2163,18 @@ router.delete("/tasks/:id", async (req, res) => {
     if (updated.length > 0) await refundCredits(row.userId, row.creditsCharged);
   }
   await db.delete(osTasksTable).where(eq(osTasksTable.id, row.id));
-  // Remove any retained source / muxed dubbed video for this task.
+  // Remove any stored result blob (stitched longform audio, muxed dubbed video).
+  await db.delete(osDubVideosTable)
+    .where(and(eq(osDubVideosTable.taskId, row.id), eq(osDubVideosTable.kind, "out")))
+    .catch(() => {});
+  // Remove any retained source video for this task.
   if (row.tool === "dubbing") {
     const srcId = (row.input as any)?._sourceVideoId;
-    await db.delete(osDubVideosTable).where(
-      typeof srcId === "number"
-        ? or(eq(osDubVideosTable.taskId, row.id), and(eq(osDubVideosTable.id, srcId), eq(osDubVideosTable.kind, "src")))
-        : eq(osDubVideosTable.taskId, row.id),
-    ).catch(() => {});
+    if (typeof srcId === "number") {
+      await db.delete(osDubVideosTable)
+        .where(and(eq(osDubVideosTable.id, srcId), eq(osDubVideosTable.kind, "src")))
+        .catch(() => {});
+    }
     // Legacy on-disk leftovers from before durable storage.
     const src = (row.input as any)?._sourceVideoPath;
     if (typeof src === "string") await fsp.rm(src, { force: true }).catch(() => {});
@@ -1905,6 +2227,33 @@ export async function sweepStaleOsTasks(): Promise<void> {
     }
     // Age out orphaned dubbing video blobs (crashes, deploys, phase-1 failures).
     await cleanupDubVideos();
+    // Longform TTS runs live in-process (no provider task id on the parent
+    // row). If the server crashed/redeployed mid-run the row stays
+    // "processing" forever with credits reserved — settle it as an error and
+    // refund the unfinished portion (credits_spent tracks finished parts).
+    try {
+      const cutoffLong = new Date(Date.now() - LONG_TTS_ORPHAN_MS);
+      const orphans = await db.select().from(osTasksTable)
+        .where(and(
+          eq(osTasksTable.status, "processing"),
+          sql`${osTasksTable.externalTaskId} IS NULL`,
+          sql`(${osTasksTable.input}::jsonb) ? '_longform'`,
+          lt(osTasksTable.updatedAt, cutoffLong),
+        ))
+        .limit(10);
+      for (const row of orphans) {
+        const prog = ((row.output as any)?.progress ?? {}) as Record<string, unknown>;
+        const spent = typeof prog.credits_spent === "number" ? prog.credits_spent : 0;
+        const done = typeof prog.done === "number" ? prog.done : 0;
+        const total = typeof prog.total === "number" ? prog.total : 0;
+        logger.warn({ taskId: row.id, done, total }, "Longform TTS task orphaned by a restart — settling with refund");
+        await settleLongTts(row.id, "error", spent, null,
+          `Generation was interrupted by a server restart (${done} of ${total} parts finished — unfinished parts refunded). Please try again.`,
+        ).catch((err) => logger.warn({ err, taskId: row.id }, "Longform orphan settle failed"));
+      }
+    } catch (err) {
+      logger.warn({ err }, "Longform TTS orphan sweep failed");
+    }
     const cutoff = new Date(Date.now() - SWEEP_STALE_AFTER_MS);
     const stale = await db.select().from(osTasksTable)
       .where(and(

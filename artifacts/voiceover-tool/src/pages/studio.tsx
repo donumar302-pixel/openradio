@@ -61,6 +61,12 @@ const EMOTIONS = [
   { id: "excited",   emoji: "🤩", label: "Excited" },
 ];
 
+// Scripts up to this length generate as a single provider task; longer ones
+// go through the server's chunked longform pipeline (split → generate each
+// part → stitch into one MP3). Keep in sync with the api-server limits.
+const TTS_SINGLE_MAX = 5_000;
+const TTS_LONG_MAX = 60_000;
+
 const PAUSES = [
   { label: "Short",   value: "500ms" },
   { label: "Medium",  value: "1000ms" },
@@ -268,10 +274,18 @@ export default function StudioPage() {
   const handleGenerate = async () => {
     if (!text.trim()) { toast({ title: "Text required", description: "Please enter some text.", variant: "destructive" }); return; }
     if (!voiceId) { toast({ title: "Voice required", description: "Please select a voice.", variant: "destructive" }); return; }
-    // Every platform generates through the OpenSpeaker library (prefixed voice id)
+    // Every platform generates through the OpenSpeaker library (prefixed voice id).
+    // Long scripts (>5,000 chars) use the chunked longform pipeline: the server
+    // splits them, generates each part, and stitches one MP3.
     setLatestAudio(null);
-    osRun(() => osCreateTaskJson("/tts", { text, voiceId, speed, dictionaryId: dictionaryId || undefined }));
+    const endpoint = text.length > TTS_SINGLE_MAX ? "/tts-long" : "/tts";
+    osRun(() => osCreateTaskJson(endpoint, { text, voiceId, speed, dictionaryId: dictionaryId || undefined }));
   };
+
+  // Per-part progress for longform runs (reported by the server while it works).
+  const longProgress = osTask?.status === "processing" && osTask.output?.progress
+    ? (osTask.output.progress as { done?: number; total?: number })
+    : null;
 
   const isGenerating = osWorking;
   // Mirrors the server's charge: 1 credit/char via OpenSpeaker.
@@ -575,10 +589,32 @@ export default function StudioPage() {
               className="w-full h-full resize-none text-[15px] leading-relaxed px-4 sm:px-7 py-4 sm:py-6 outline-none bg-white placeholder:text-[#9ca3af]"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              maxLength={5000}
+              maxLength={TTS_LONG_MAX}
               data-testid="input-script"
             />
           </div>
+
+          {/* Longform progress — per-part instead of one endless spinner */}
+          {isGenerating && longProgress && typeof longProgress.total === "number" && longProgress.total > 1 && (
+            <div className="px-4 sm:px-7 pb-3" data-testid="longform-progress">
+              <div className="bg-blue-50 border border-blue-200/60 rounded-xl px-3 sm:px-4 py-2.5 space-y-1.5">
+                <div className="flex items-center justify-between text-[12px] font-semibold text-blue-700">
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 size={12} className="animate-spin" />
+                    Generating part {Math.min((longProgress.done ?? 0) + 1, longProgress.total)} of {longProgress.total}
+                  </span>
+                  <span>{Math.round(((longProgress.done ?? 0) / longProgress.total) * 100)}%</span>
+                </div>
+                <div className="h-1.5 bg-blue-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                    style={{ width: `${((longProgress.done ?? 0) / longProgress.total) * 100}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-blue-600/80">Long scripts are generated in parts and stitched into a single MP3 — keep this tab open.</p>
+              </div>
+            </div>
+          )}
 
           {/* Generated audio */}
           {latestAudio && (
@@ -676,7 +712,12 @@ export default function StudioPage() {
               </span>
             )}
             <div className="flex-1 min-w-2" />
-            <span className="text-xs text-[#9ca3af] shrink-0">{text.length} / 5,000</span>
+            {text.length > TTS_SINGLE_MAX && (
+              <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full shrink-0" data-testid="badge-long-script">
+                Long script · stitched into one MP3
+              </span>
+            )}
+            <span className="text-xs text-[#9ca3af] shrink-0">{text.length.toLocaleString()} / {TTS_LONG_MAX.toLocaleString()}</span>
           </div>
 
           {/* Cost estimate — every engine charges credits (per character; Edge per 500 chars) */}
