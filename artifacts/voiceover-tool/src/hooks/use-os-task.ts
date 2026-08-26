@@ -3,6 +3,36 @@ import { useQueryClient } from "@tanstack/react-query";
 import { osGetTask, type OsTask } from "@/lib/os-api";
 import { useToast } from "@/hooks/use-toast";
 
+/** How long a task can sit in "processing" before we call it slow (~2 min). */
+const SLOW_AFTER_MS = 2 * 60 * 1000;
+
+/**
+ * True once something that started at `since` (ISO string or epoch ms) has
+ * been running for longer than SLOW_AFTER_MS while `active` is true.
+ * Used to surface a "high demand" note instead of an endless spinner.
+ */
+export function useIsSlowSince(since: string | number | null | undefined, active: boolean): boolean {
+  const [slow, setSlow] = useState(false);
+
+  useEffect(() => {
+    if (!active) { setSlow(false); return; }
+    const parsed = typeof since === "number" ? since : since ? Date.parse(since) : NaN;
+    const started = Number.isFinite(parsed) ? Math.min(parsed, Date.now()) : Date.now();
+    const remaining = SLOW_AFTER_MS - (Date.now() - started);
+    if (remaining <= 0) { setSlow(true); return; }
+    setSlow(false);
+    const t = setTimeout(() => setSlow(true), remaining);
+    return () => clearTimeout(t);
+  }, [since, active]);
+
+  return slow;
+}
+
+/** True once a task has been processing for longer than SLOW_AFTER_MS. */
+export function useTaskIsSlow(task: OsTask | null): boolean {
+  return useIsSlowSince(task?.createdAt ?? null, task?.status === "processing");
+}
+
 /**
  * Tracks one active OpenSpeaker task: polls /api/os/tasks/:id every few
  * seconds until it reaches "done" or "error", then stops and refreshes the
@@ -14,6 +44,7 @@ export function useOsTask(tool: string) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
+  const slow = useTaskIsSlow(task);
 
   const stop = useCallback(() => {
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
@@ -63,5 +94,5 @@ export function useOsTask(tool: string) {
     }
   }, [qc, tool, toast]);
 
-  return { task, setTask, submitting, run, working: submitting || task?.status === "processing" };
+  return { task, setTask, submitting, run, slow, working: submitting || task?.status === "processing" };
 }

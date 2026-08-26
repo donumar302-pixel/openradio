@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { OsVoicePicker } from "@/components/os/voice-picker";
 import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-estimate";
 import { useOsTask } from "@/hooks/use-os-task";
+import { SlowGenerationNote } from "@/components/os/task-panel";
 import { osCreateTaskJson, osJson, taskAudioUrl, type OsVoice, type OsTask } from "@/lib/os-api";
 import { estimateTtsCost } from "@/lib/os-cost";
 
@@ -247,7 +248,7 @@ export default function StudioPage() {
     { query: { queryKey: getListGenerationsQueryKey({ limit: 20 }) } }
   );
 
-  const { task: osTask, submitting: osSubmitting, run: osRun, working: osWorking } = useOsTask("tts");
+  const { task: osTask, submitting: osSubmitting, run: osRun, working: osWorking, slow: osSlow } = useOsTask("tts");
   const { data: dictData } = useQuery<{ dictionaries: { id: string; name: string }[] }>({
     queryKey: ["os-dictionaries"],
     queryFn: () => osJson("/dictionaries"),
@@ -533,7 +534,10 @@ export default function StudioPage() {
                   <p className="text-xs font-semibold text-foreground mb-1 line-clamp-2">{row.text}</p>
                   <p className="text-[10px] text-[#9ca3af] mb-2">{row.sub}</p>
                   {row.processing ? (
-                    <p className="text-[10px] text-primary font-semibold flex items-center gap-1.5"><Loader2 size={10} className="animate-spin" /> Generating…</p>
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] text-primary font-semibold flex items-center gap-1.5"><Loader2 size={10} className="animate-spin" /> Generating…</p>
+                      <SlowGenerationNote since={row.at} compact />
+                    </div>
                   ) : row.error ? (
                     <p className="text-[10px] text-red-500 font-semibold" data-testid={`error-history-${row.id}`}>{row.error}</p>
                   ) : row.url ? (
@@ -613,6 +617,13 @@ export default function StudioPage() {
                 </div>
                 <p className="text-[10px] text-blue-600/80">Long scripts are generated in parts and stitched into a single MP3 — keep this tab open.</p>
               </div>
+            </div>
+          )}
+
+          {/* Slow-generation note — high demand upstream, credits protected */}
+          {isGenerating && osSlow && (
+            <div className="px-4 sm:px-7 pb-3">
+              <SlowGenerationNote since={osTask?.createdAt ?? null} />
             </div>
           )}
 

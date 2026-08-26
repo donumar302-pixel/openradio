@@ -3,19 +3,52 @@ import { Loader2, Download, Trash2, CheckCircle2, XCircle, History } from "lucid
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { osJson, taskAudioUrl, taskDownloads, taskImageUrls, taskSongs, type OsTask } from "@/lib/os-api";
+import { useIsSlowSince, useTaskIsSlow } from "@/hooks/use-os-task";
+
+/* ── Slow-generation note ───────────────────────────────────────────── */
+
+/**
+ * Amber "high demand" note shown once a processing task has been running
+ * for ~2 minutes. `since` is the task's start time (ISO string or epoch ms).
+ */
+export function SlowGenerationNote({ since, active = true, compact = false }: {
+  since: string | number | null | undefined;
+  active?: boolean;
+  compact?: boolean;
+}) {
+  const slow = useIsSlowSince(since, active);
+  if (!slow) return null;
+  if (compact) {
+    return (
+      <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200/70 rounded-lg px-2 py-1.5" data-testid="slow-generation-note">
+        <span className="font-semibold">High demand — taking longer than usual.</span> Your credits are safe: if it can't finish, it's cancelled and refunded automatically.
+      </p>
+    );
+  }
+  return (
+    <div className="bg-amber-50 border border-amber-200/70 rounded-xl px-3 py-2.5" data-testid="slow-generation-note">
+      <p className="text-xs font-semibold text-amber-800">High demand — this is taking longer than usual. Your credits are safe.</p>
+      <p className="text-[11px] text-amber-700/90 mt-0.5">We'll keep trying. If it can't finish, it will be cancelled automatically and your credits refunded in full.</p>
+    </div>
+  );
+}
 
 /* ── Active task banner ─────────────────────────────────────────────── */
 
 export function OsTaskResult({ task }: { task: OsTask | null }) {
+  const slow = useTaskIsSlow(task);
   if (!task) return null;
   if (task.status === "processing") {
     return (
-      <div className="bg-white rounded-2xl border border-border p-5 shadow-sm flex items-center gap-3">
-        <Loader2 className="animate-spin text-primary shrink-0" size={18} />
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm">Generating…</p>
-          <p className="text-xs text-muted-foreground truncate">This runs in the background — you can keep working, the result also appears in History below.</p>
+      <div className={cn("bg-white rounded-2xl border p-5 shadow-sm space-y-3", slow ? "border-amber-300" : "border-border")}>
+        <div className="flex items-center gap-3">
+          <Loader2 className="animate-spin text-primary shrink-0" size={18} />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm">Generating…</p>
+            <p className="text-xs text-muted-foreground truncate">This runs in the background — you can keep working, the result also appears in History below.</p>
+          </div>
         </div>
+        <SlowGenerationNote since={task.createdAt} />
       </div>
     );
   }
@@ -130,6 +163,7 @@ export function OsTaskHistory({ tool, emptyLabel = "Nothing generated yet." }: {
                   <Trash2 size={13} />
                 </button>
               </div>
+              {t.status === "processing" && <SlowGenerationNote since={t.createdAt} compact />}
               {t.status === "done" && <HistoryOutputs task={t} />}
               {t.status === "error" && <p className="text-[11px] text-red-500">{t.error || "Failed — credits refunded."}</p>}
             </div>
