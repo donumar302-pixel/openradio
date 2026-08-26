@@ -29,13 +29,18 @@ export class OpenSpeakerError extends Error {
  * strip all of that before a message can reach an end user.
  */
 export function sanitizeProviderText(s: string): string {
-  return s
+  const out = s
     .replace(/https?:\/\/\S+/gi, "") // no upstream URLs in user-facing text
     .replace(/open[\s_-]*speaker/gi, "OpenRadio")
     .replace(/(cdn\.)?ai33(\.pro)?/gi, "OpenRadio")
     .replace(/\breplit\b/gi, "OpenRadio")
     .replace(/\s{2,}/g, " ")
     .trim();
+  // Customers must only ever see English. Upstream engines (e.g. Chinese TTS
+  // providers) can return errors in other scripts — drop those entirely so the
+  // caller falls back to its neutral English message.
+  if (/[\u0600-\u06ff\u0750-\u077f\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\u0400-\u04ff]/.test(out)) return "";
+  return out;
 }
 
 function apiKey(): string {
