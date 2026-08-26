@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { osJson, osProviderLogo, OS_PROVIDERS, type OsVoice } from "@/lib/os-api";
-import { EngineSlowNotice, isEngineSlow, useEngineHealth } from "@/components/os/engine-health";
+import { EngineSlowNotice, engineMedianMs, isEngineSlow, useEngineHealth } from "@/components/os/engine-health";
 
 interface Props {
   value: string;              // prefixed voice_id or ""
@@ -123,7 +123,7 @@ export function OsVoicePicker({ value, valueName, onChange, placeholder = "Choos
                 </button>
               ))}
             </div>
-            <EngineSlowNotice show={isEngineSlow(engineHealth, provider)} />
+            <EngineSlowNotice show={isEngineSlow(engineHealth, provider)} medianMs={engineMedianMs(engineHealth, provider)} />
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input

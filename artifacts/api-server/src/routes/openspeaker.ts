@@ -2014,9 +2014,11 @@ const HEALTH_MIN_SETTLED = 3;              // need this many settled samples to 
 const HEALTH_MIN_STUCK = 2;                // this many stalled tasks flags the engine on its own
 const HEALTH_CACHE_MS = 45_000;
 
-let healthCache: { at: number; engines: Record<HealthEngine, { slow: boolean }> } | null = null;
+type EngineHealthInfo = { slow: boolean; medianMs?: number };
 
-async function computeEngineHealth(): Promise<Record<HealthEngine, { slow: boolean }>> {
+let healthCache: { at: number; engines: Record<HealthEngine, EngineHealthInfo> } | null = null;
+
+async function computeEngineHealth(): Promise<Record<HealthEngine, EngineHealthInfo>> {
   const cutoff = new Date(Date.now() - HEALTH_WINDOW_MS);
   // Single-voice TTS tasks only: dubbing/music/etc. legitimately take long, and
   // longform parents aggregate many chunks — both would poison the signal.
@@ -2059,16 +2061,17 @@ async function computeEngineHealth(): Promise<Record<HealthEngine, { slow: boole
     }
   }
 
-  const engines = {} as Record<HealthEngine, { slow: boolean }>;
+  const engines = {} as Record<HealthEngine, EngineHealthInfo>;
   for (const e of HEALTH_ENGINES) {
     const b = buckets.get(e)!;
     let slowMedian = false;
+    let medianMs: number | undefined;
     if (b.settledMs.length >= HEALTH_MIN_SETTLED) {
       const sorted = [...b.settledMs].sort((a, z) => a - z);
-      const median = sorted[Math.floor(sorted.length / 2)];
-      slowMedian = median > HEALTH_MEDIAN_SLOW_MS;
+      medianMs = sorted[Math.floor(sorted.length / 2)];
+      slowMedian = medianMs > HEALTH_MEDIAN_SLOW_MS;
     }
-    engines[e] = { slow: b.stuck >= HEALTH_MIN_STUCK || slowMedian };
+    engines[e] = { slow: b.stuck >= HEALTH_MIN_STUCK || slowMedian, ...(medianMs !== undefined ? { medianMs } : {}) };
   }
   return engines;
 }

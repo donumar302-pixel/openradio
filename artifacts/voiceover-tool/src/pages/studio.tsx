@@ -15,7 +15,7 @@ import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-e
 import { useOsTask } from "@/hooks/use-os-task";
 import { SlowGenerationNote } from "@/components/os/task-panel";
 import { osCreateTaskJson, osJson, taskAudioUrl, type OsVoice, type OsTask } from "@/lib/os-api";
-import { EngineSlowNotice, isEngineSlow, useEngineHealth, engineOfVoiceId as healthEngineOfVoiceId } from "@/components/os/engine-health";
+import { EngineSlowNotice, engineMedianMs, isEngineSlow, useEngineHealth, engineOfVoiceId as healthEngineOfVoiceId } from "@/components/os/engine-health";
 import { estimateTtsCost } from "@/lib/os-cost";
 
 const asset = (p: string) => `${import.meta.env.BASE_URL}${p}`.replace(/([^:]\/)\/+/g, "$1");
@@ -295,6 +295,7 @@ export default function StudioPage() {
   const engineHealth = useEngineHealth();
   const selectedEngine = voiceProvider === "os" ? healthEngineOfVoiceId(voiceId) : OS_PROVIDER_OF[voiceProvider];
   const selectedEngineSlow = isEngineSlow(engineHealth, selectedEngine);
+  const selectedEngineMedianMs = engineMedianMs(engineHealth, selectedEngine);
   // Mirrors the server's charge: 1 credit/char via OpenSpeaker.
   const costEstimate = text.trim() ? estimateTtsCost(text) : null;
   const insufficientCredits = useOsInsufficientCredits(costEstimate);
@@ -394,7 +395,7 @@ export default function StudioPage() {
                 <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600">6000+</span>
               </button>
             </div>
-            <EngineSlowNotice show={selectedEngineSlow} className="mt-3" />
+            <EngineSlowNotice show={selectedEngineSlow} medianMs={selectedEngineMedianMs} className="mt-3" />
           </div>
           {/* Voice */}
           <div className="p-4 border-b border-[#f3f4f6]">
@@ -751,7 +752,7 @@ export default function StudioPage() {
           {/* Advisory engine-health warning — visible even when the settings panel is hidden */}
           {selectedEngineSlow && (
             <div className="px-4 sm:px-7 pb-2 shrink-0">
-              <EngineSlowNotice show compact />
+              <EngineSlowNotice show compact medianMs={selectedEngineMedianMs} />
             </div>
           )}
 

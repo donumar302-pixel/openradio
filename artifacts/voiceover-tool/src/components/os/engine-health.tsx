@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { osJson } from "@/lib/os-api";
 
 /** Advisory per-engine slowness signal from the server's rolling task window. */
-export type OsEngineHealth = Record<string, { slow: boolean }>;
+export type OsEngineHealth = Record<string, { slow: boolean; medianMs?: number }>;
 
 const ENGINE_IDS = ["elevenlabs", "minimax", "fishaudio", "edge"] as const;
 
@@ -35,18 +35,33 @@ export function isEngineSlow(health: OsEngineHealth | null, engine: string | nul
   return !!(engine && health?.[engine]?.slow);
 }
 
+/** Recent median completion time (ms) for an engine, when the server has enough samples. */
+export function engineMedianMs(health: OsEngineHealth | null, engine: string | null | undefined): number | undefined {
+  return engine ? health?.[engine]?.medianMs : undefined;
+}
+
+/** "~8 min" / "~1 min" — human estimate from a median settle time in ms. */
+function formatEstimate(medianMs: number): string {
+  return `~${Math.max(1, Math.round(medianMs / 60_000))} min`;
+}
+
 /** Small amber advisory shown next to an engine that is currently running slow. */
-export function EngineSlowNotice({ show, compact = false, className }: {
+export function EngineSlowNotice({ show, compact = false, medianMs, className }: {
   show: boolean;
   compact?: boolean;
+  /** Recent median completion time in ms; when set, the notice shows a concrete estimate. */
+  medianMs?: number;
   className?: string;
 }) {
   if (!show) return null;
+  const estimate = typeof medianMs === "number" ? formatEstimate(medianMs) : null;
   if (compact) {
     return (
       <p className={cn("flex items-center gap-1.5 text-[11px] font-semibold text-amber-700", className)} data-testid="engine-slow-notice">
         <AlertTriangle size={11} className="shrink-0" />
-        This engine is experiencing high demand — generations may be slow.
+        {estimate
+          ? <>This engine is experiencing high demand — recent generations are taking {estimate}.</>
+          : <>This engine is experiencing high demand — generations may be slow.</>}
       </p>
     );
   }
@@ -57,8 +72,14 @@ export function EngineSlowNotice({ show, compact = false, className }: {
     >
       <AlertTriangle size={13} className="text-amber-600 shrink-0 mt-0.5" />
       <p className="text-xs text-amber-800">
-        <span className="font-semibold">This engine is experiencing high demand</span> — generations may be slower
-        than usual. You can still generate; if it takes too long you can cancel for a full refund.
+        <span className="font-semibold">This engine is experiencing high demand</span>{" "}
+        {estimate ? (
+          <>— recent generations are taking {estimate}. You can still generate; if it takes too long you can
+          cancel for a full refund.</>
+        ) : (
+          <>— generations may be slower than usual. You can still generate; if it takes too long you can cancel
+          for a full refund.</>
+        )}
       </p>
     </div>
   );
