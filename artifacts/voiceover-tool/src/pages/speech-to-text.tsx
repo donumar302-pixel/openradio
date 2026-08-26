@@ -12,7 +12,7 @@ import { estimateSttCost } from "@/lib/os-cost";
 export default function SpeechToTextPage() {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
-  const { task, submitting, run, working } = useOsTask("speech-to-text");
+  const { task, submitting, run, working, cancel, cancelling } = useOsTask("speech-to-text");
   const estimate = file ? estimateSttCost(file.size) : null;
   const insufficient = useOsInsufficientCredits(estimate);
 
@@ -53,7 +53,7 @@ export default function SpeechToTextPage() {
         </Button>
       </div>
 
-      <OsTaskResult task={task} />
+      <OsTaskResult task={task} onCancel={cancel} cancelling={cancelling} />
       <OsTaskHistory tool="speech-to-text" />
     </div>
   );

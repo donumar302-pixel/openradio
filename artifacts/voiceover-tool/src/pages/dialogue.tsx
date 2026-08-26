@@ -22,7 +22,7 @@ export default function DialoguePage() {
     { voiceId: "", name: "" },
     { voiceId: "", name: "" },
   ]);
-  const { task, submitting, run, working } = useOsTask("dialogue");
+  const { task, submitting, run, working, cancel, cancelling } = useOsTask("dialogue");
   const estimate = text.trim() ? estimateDialogueCost(text) : null;
   const insufficient = useOsInsufficientCredits(estimate);
 
@@ -101,7 +101,7 @@ export default function DialoguePage() {
         </Button>
       </div>
 
-      <OsTaskResult task={task} />
+      <OsTaskResult task={task} onCancel={cancel} cancelling={cancelling} />
       <OsTaskHistory tool="dialogue" />
     </div>
   );

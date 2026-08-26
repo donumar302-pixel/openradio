@@ -23,7 +23,7 @@ export default function AiMusicPage() {
   const [lyrics, setLyrics] = useState("");
   const [tags, setTags] = useState("");
   const [vocalGender, setVocalGender] = useState<string>("any");
-  const { task, submitting, run, working } = useOsTask("music");
+  const { task, submitting, run, working, cancel, cancelling } = useOsTask("music");
   const insufficient = useOsInsufficientCredits(MUSIC_COST_ESTIMATE);
 
   const handleSubmit = () => {
@@ -138,7 +138,7 @@ export default function AiMusicPage() {
         <p className="text-xs text-muted-foreground text-center">Songs take a few minutes to generate — track progress in History below.</p>
       </div>
 
-      <OsTaskResult task={task} />
+      <OsTaskResult task={task} onCancel={cancel} cancelling={cancelling} />
       <OsTaskHistory tool="music" />
     </div>
   );

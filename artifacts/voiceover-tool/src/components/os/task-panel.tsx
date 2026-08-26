@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Download, Trash2, CheckCircle2, XCircle, History } from "lucide-react";
+import { Loader2, Download, Trash2, CheckCircle2, XCircle, History, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { osJson, taskAudioUrl, taskDownloads, taskImageUrls, taskSongs, type OsTask } from "@/lib/os-api";
@@ -11,31 +11,56 @@ import { useIsSlowSince, useTaskIsSlow } from "@/hooks/use-os-task";
  * Amber "high demand" note shown once a processing task has been running
  * for ~2 minutes. `since` is the task's start time (ISO string or epoch ms).
  */
-export function SlowGenerationNote({ since, active = true, compact = false }: {
+export function SlowGenerationNote({ since, active = true, compact = false, onCancel, cancelling = false }: {
   since: string | number | null | undefined;
   active?: boolean;
   compact?: boolean;
+  /** When provided, the note offers a "Cancel & refund" button. */
+  onCancel?: () => void;
+  cancelling?: boolean;
 }) {
   const slow = useIsSlowSince(since, active);
   if (!slow) return null;
+  const cancelButton = onCancel && (
+    <Button
+      variant="outline" size="sm" onClick={onCancel} disabled={cancelling}
+      className="h-7 gap-1.5 text-xs border-amber-300 text-amber-800 hover:bg-amber-100 hover:text-amber-900 shrink-0"
+      data-testid="button-cancel-generation"
+    >
+      {cancelling ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />}
+      Cancel & refund
+    </Button>
+  );
   if (compact) {
     return (
-      <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200/70 rounded-lg px-2 py-1.5" data-testid="slow-generation-note">
-        <span className="font-semibold">High demand — taking longer than usual.</span> Your credits are safe: if it can't finish, it's cancelled and refunded automatically.
-      </p>
+      <div className="flex items-center gap-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200/70 rounded-lg px-2 py-1.5" data-testid="slow-generation-note">
+        <p className="flex-1 min-w-0">
+          <span className="font-semibold">High demand — taking longer than usual.</span> Your credits are safe: if it can't finish, it's cancelled and refunded automatically.
+        </p>
+        {cancelButton}
+      </div>
     );
   }
   return (
-    <div className="bg-amber-50 border border-amber-200/70 rounded-xl px-3 py-2.5" data-testid="slow-generation-note">
+    <div className="bg-amber-50 border border-amber-200/70 rounded-xl px-3 py-2.5 space-y-2" data-testid="slow-generation-note">
       <p className="text-xs font-semibold text-amber-800">High demand — this is taking longer than usual. Your credits are safe.</p>
-      <p className="text-[11px] text-amber-700/90 mt-0.5">We'll keep trying. If it can't finish, it will be cancelled automatically and your credits refunded in full.</p>
+      <p className="text-[11px] text-amber-700/90 mt-0.5">
+        We'll keep trying. If it can't finish, it will be cancelled automatically and your credits refunded in full.
+        {onCancel ? " Don't want to wait? Cancel now and get your credits back right away." : ""}
+      </p>
+      {cancelButton}
     </div>
   );
 }
 
 /* ── Active task banner ─────────────────────────────────────────────── */
 
-export function OsTaskResult({ task }: { task: OsTask | null }) {
+export function OsTaskResult({ task, onCancel, cancelling }: {
+  task: OsTask | null;
+  /** When provided, the slow notice offers a "Cancel & refund" button. */
+  onCancel?: () => void;
+  cancelling?: boolean;
+}) {
   const slow = useTaskIsSlow(task);
   if (!task) return null;
   if (task.status === "processing") {
@@ -48,7 +73,18 @@ export function OsTaskResult({ task }: { task: OsTask | null }) {
             <p className="text-xs text-muted-foreground truncate">This runs in the background — you can keep working, the result also appears in History below.</p>
           </div>
         </div>
-        <SlowGenerationNote since={task.createdAt} />
+        <SlowGenerationNote since={task.createdAt} onCancel={onCancel} cancelling={cancelling} />
+      </div>
+    );
+  }
+  if (task.status === "cancelled") {
+    return (
+      <div className="bg-white rounded-2xl border border-border p-5 shadow-sm flex items-center gap-3" data-testid="task-cancelled-note">
+        <Ban className="text-muted-foreground shrink-0" size={18} />
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm">Cancelled</p>
+          <p className="text-xs text-muted-foreground">Your credits have been refunded.</p>
+        </div>
       </div>
     );
   }
@@ -151,6 +187,7 @@ export function OsTaskHistory({ tool, emptyLabel = "Nothing generated yet." }: {
                 {t.status === "processing" && <Loader2 size={14} className="animate-spin text-primary shrink-0" />}
                 {t.status === "done" && <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />}
                 {t.status === "error" && <XCircle size={14} className="text-red-500 shrink-0" />}
+                {t.status === "cancelled" && <Ban size={14} className="text-muted-foreground shrink-0" />}
                 <p className="text-[13px] font-semibold truncate flex-1">{t.title || `Task ${t.id}`}</p>
                 <p className="text-[11px] text-muted-foreground shrink-0">
                   {new Date(t.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
@@ -166,6 +203,7 @@ export function OsTaskHistory({ tool, emptyLabel = "Nothing generated yet." }: {
               {t.status === "processing" && <SlowGenerationNote since={t.createdAt} compact />}
               {t.status === "done" && <HistoryOutputs task={t} />}
               {t.status === "error" && <p className="text-[11px] text-red-500">{t.error || "Failed — credits refunded."}</p>}
+              {t.status === "cancelled" && <p className="text-[11px] text-muted-foreground">Cancelled — credits refunded.</p>}
             </div>
           ))}
         </div>

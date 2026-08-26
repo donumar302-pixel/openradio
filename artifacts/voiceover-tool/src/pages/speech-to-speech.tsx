@@ -20,7 +20,7 @@ export default function VoiceChangerPage() {
   const [stability, setStability] = useState(0.5);
   const [similarity, setSimilarity] = useState(0.75);
   const [removeNoise, setRemoveNoise] = useState(false);
-  const { task, submitting, run, working } = useOsTask("voice-changer");
+  const { task, submitting, run, working, cancel, cancelling } = useOsTask("voice-changer");
   const estimate = file ? estimateVoiceChangerCost(file.size) : null;
   const insufficient = useOsInsufficientCredits(estimate);
 
@@ -94,7 +94,7 @@ export default function VoiceChangerPage() {
         </Button>
       </div>
 
-      <OsTaskResult task={task} />
+      <OsTaskResult task={task} onCancel={cancel} cancelling={cancelling} />
       <OsTaskHistory tool="voice-changer" />
     </div>
   );

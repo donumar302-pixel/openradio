@@ -10,7 +10,7 @@ export class OsApiError extends Error {
 export interface OsTask {
   id: number;
   tool: string;
-  status: "processing" | "done" | "error";
+  status: "processing" | "done" | "error" | "cancelled";
   title: string;
   input: Record<string, any> | null;
   output: Record<string, any> | null;
@@ -73,6 +73,12 @@ export async function osCreateTaskForm(path: string, form: FormData): Promise<Os
 
 export async function osGetTask(id: number): Promise<OsTask> {
   const data = await osJson<{ task: OsTask }>(`/tasks/${id}`);
+  return data.task;
+}
+
+/** Cancel a still-processing task and refund its credits (idempotent server-side). */
+export async function osCancelTask(id: number): Promise<OsTask> {
+  const data = await osJson<{ task: OsTask }>(`/tasks/${id}/cancel`, { method: "POST" });
   return data.task;
 }
 

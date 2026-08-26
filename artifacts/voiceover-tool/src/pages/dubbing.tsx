@@ -38,7 +38,7 @@ export default function DubbingPage() {
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("es");
   const [numSpeakers, setNumSpeakers] = useState("0");
-  const { task, submitting, run, working } = useOsTask("dubbing");
+  const { task, submitting, run, working, cancel, cancelling } = useOsTask("dubbing");
   const estimate = file ? estimateDubbingCost(file.size) : null;
   const insufficient = useOsInsufficientCredits(estimate);
 
@@ -119,7 +119,7 @@ export default function DubbingPage() {
         <p className="text-xs text-muted-foreground text-center">Dubbing can take several minutes — track progress in History below.</p>
       </div>
 
-      <OsTaskResult task={task} />
+      <OsTaskResult task={task} onCancel={cancel} cancelling={cancelling} />
       <OsTaskHistory tool="dubbing" />
     </div>
   );

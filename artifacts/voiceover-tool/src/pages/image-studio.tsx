@@ -82,7 +82,7 @@ export default function ImageStudioPage() {
   const [failedQuoteAt, setFailedQuoteAt] = useState<Record<string, number>>({});
   const [availabilityMessage, setAvailabilityMessage] = useState("");
   const fallbackActive = useRef(false);
-  const { task, submitting, run, working } = useOsTask("image");
+  const { task, submitting, run, working, cancel, cancelling } = useOsTask("image");
 
   const { data: modelsData } = useQuery({
     queryKey: ["os-image-models"],
@@ -358,7 +358,7 @@ export default function ImageStudioPage() {
         </Button>
       </div>
 
-      <OsTaskResult task={task} />
+      <OsTaskResult task={task} onCancel={cancel} cancelling={cancelling} />
       <OsTaskHistory tool="image" />
     </div>
   );

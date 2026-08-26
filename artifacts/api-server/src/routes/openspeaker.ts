@@ -254,7 +254,7 @@ function requirePlanFeature(feature: FeatureKey) {
 /* ── Task state sync ─────────────────────────────────────────────────── */
 
 function isFinal(status: string): boolean {
-  return status === "done" || status === "error";
+  return status === "done" || status === "error" || status === "cancelled";
 }
 
 /** Convert the provider's cost into the credits charged to an OpenRadio user. */
@@ -1157,6 +1157,20 @@ export function splitScriptIntoChunks(text: string, max = LONG_TTS_CHUNK_MAX): s
 
 interface LongTtsOpts { voiceId: string; speed?: number; dictionaryId?: string }
 
+/**
+ * Provider task id of the chunk each longform run is currently generating
+ * (parent task row id → external chunk id). Lets a user cancel stop the
+ * in-flight provider work immediately instead of only between chunks. Held
+ * in-process only: a restart loses the map, but it also kills the runner, and
+ * the startup/orphan reconciliation settles those tasks anyway.
+ */
+const activeLongTtsChunks = new Map<number, string>();
+
+/** Thrown inside a longform run when the parent task was cancelled/deleted. */
+class LongTtsCancelled extends Error {
+  constructor() { super("Longform run cancelled"); this.name = "LongTtsCancelled"; }
+}
+
 /** Generate one chunk via the provider: create task → poll → download audio. Throws on failure. */
 async function generateLongTtsChunk(
   taskRowId: number, part: number, text: string, opts: LongTtsOpts,
@@ -1173,11 +1187,23 @@ async function generateLongTtsChunk(
       const created = await osPostForm<{ task_id?: string }>(`/v3/text-to-speech`, form, "Text to Speech");
       extId = created.task_id ?? null;
       if (!extId) throw new Error("provider returned no task id");
+      activeLongTtsChunks.set(taskRowId, extId);
 
       const deadline = Date.now() + LONG_TTS_CHUNK_TIMEOUT_MS;
       let polls = 0;
       while (true) {
         await new Promise((r) => setTimeout(r, LONG_TTS_CHUNK_POLL_MS));
+        // Cancellation-aware polling: if the parent task left "processing"
+        // (user cancel or delete), stop the in-flight provider chunk right
+        // away instead of letting it run to completion.
+        const [parent] = await db.select({ status: osTasksTable.status }).from(osTasksTable)
+          .where(eq(osTasksTable.id, taskRowId)).catch(() => [] as { status: string }[]);
+        if (!parent || parent.status !== "processing") {
+          try { await deleteTasks([extId]); } catch (err) {
+            logger.warn({ err, taskRowId, chunkTaskId: extId }, "Longform cancel: provider chunk delete failed (best effort)");
+          }
+          throw new LongTtsCancelled();
+        }
         const state = await getTask(extId).catch(() => null); // transient lookup errors: keep polling
         // Liveness marker so the orphan sweep never reaps an actively-running task.
         if (++polls % 5 === 0) {
@@ -1209,10 +1235,13 @@ async function generateLongTtsChunk(
         }
       }
     } catch (err) {
+      if (err instanceof LongTtsCancelled) throw err; // provider chunk already deleted — stop, don't retry
       lastErr = err;
       logger.warn({ err, taskRowId, part, attempt }, "Longform TTS chunk attempt failed");
       if (extId) { try { await deleteTasks([extId]); } catch { /* best effort */ } }
       if (attempt < LONG_TTS_CHUNK_ATTEMPTS) await new Promise((r) => setTimeout(r, 2_000));
+    } finally {
+      activeLongTtsChunks.delete(taskRowId);
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error("part generation failed");
@@ -1312,6 +1341,12 @@ async function runLongformTts(row: OsTask, chunks: string[], opts: LongTtsOpts):
       progress: { done: chunks.length, total: chunks.length },
     });
   } catch (err) {
+    if (err instanceof LongTtsCancelled) {
+      // User cancelled (or deleted) the task: it is already settled/refunded
+      // by the cancel path, and the in-flight provider chunk was deleted.
+      logger.info({ taskId: row.id, done, total: chunks.length }, "Longform TTS run stopped: task was cancelled");
+      return;
+    }
     logger.error({ err, taskId: row.id, done, total: chunks.length }, "Longform TTS run failed");
     const msg = err instanceof OpenSpeakerError || err instanceof Error
       ? sanitizeProviderText(err.message) : "";
@@ -2125,6 +2160,78 @@ router.get("/tasks/:id", async (req, res) => {
   if (!row) { res.status(404).json({ error: "Task not found" }); return; }
   row = await refreshTask(row);
   res.json({ task: taskJson(row) });
+});
+
+/**
+ * User-initiated cancel of a slow generation: cancels provider-side and
+ * refunds via the same final-once/refund-once settle used everywhere else.
+ * Idempotent — if the provider actually finished meanwhile, the refresh below
+ * settles the task normally and we return it untouched, and once a task is
+ * final (including cancelled) applyTaskState/webhooks can never re-charge or
+ * double-refund it.
+ */
+router.post("/tasks/:id/cancel", async (req, res) => {
+  const id = parseInt(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  let [row] = await db.select().from(osTasksTable)
+    .where(and(eq(osTasksTable.id, id), eq(osTasksTable.userId, req.appUser!.id)));
+  if (!row) { res.status(404).json({ error: "Task not found" }); return; }
+
+  // Sync provider state first so a task that actually finished is settled
+  // (charged/refunded) correctly instead of being cancelled after the fact.
+  row = await refreshTask(row);
+  if (isFinal(row.status)) { res.json({ task: taskJson(row) }); return; }
+
+  // Still running upstream: only refund if the provider-side cancel succeeds.
+  // If it fails, keep the task running so credits stay reserved for billed work.
+  if (row.externalTaskId) {
+    try {
+      await deleteTasks([row.externalTaskId]);
+    } catch (err) {
+      logger.warn({ err, taskId: row.externalTaskId }, "User cancel: provider cancel failed — keeping task running");
+      res.status(502).json({ error: "Couldn't cancel this generation with the provider. Please try again in a moment." });
+      return;
+    }
+  }
+  // Tasks without an externalTaskId (e.g. the longform TTS parent) are run by
+  // our own background loop. Stop its in-flight provider chunk now (best
+  // effort — the runner's cancellation-aware polling also deletes it once it
+  // sees the status flip below, which is what guarantees no further chunks).
+  if (!row.externalTaskId) {
+    const chunkExtId = activeLongTtsChunks.get(row.id);
+    if (chunkExtId) {
+      try {
+        await deleteTasks([chunkExtId]);
+        logger.info({ taskId: row.id, chunkTaskId: chunkExtId }, "User cancel: active longform provider chunk cancelled");
+      } catch (err) {
+        logger.warn({ err, taskId: row.id, chunkTaskId: chunkExtId },
+          "User cancel: active longform chunk delete failed — runner will retry on its next poll");
+      }
+    }
+  }
+
+  // Settle as cancelled + refund atomically (row lock, final-once, refund-once).
+  const saved = await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(osTasksTable)
+      .where(eq(osTasksTable.id, row.id)).for("update");
+    if (!current || isFinal(current.status)) return current ?? row;
+    let refunded = current.refunded;
+    if (current.creditsCharged > 0 && !refunded) {
+      await tx.update(usersTable).set({
+        credits: sql`${usersTable.credits} + ${current.creditsCharged}`,
+        creditsUsed: sql`GREATEST(0, ${usersTable.creditsUsed} - ${current.creditsCharged})`,
+      }).where(eq(usersTable.id, current.userId));
+      refunded = true;
+    }
+    const [updated] = await tx.update(osTasksTable).set({
+      status: "cancelled",
+      error: null,
+      refunded,
+      updatedAt: new Date(),
+    }).where(eq(osTasksTable.id, current.id)).returning();
+    return updated ?? current;
+  });
+  res.json({ task: taskJson(saved) });
 });
 
 router.delete("/tasks/:id", async (req, res) => {

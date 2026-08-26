@@ -248,7 +248,7 @@ export default function StudioPage() {
     { query: { queryKey: getListGenerationsQueryKey({ limit: 20 }) } }
   );
 
-  const { task: osTask, submitting: osSubmitting, run: osRun, working: osWorking, slow: osSlow } = useOsTask("tts");
+  const { task: osTask, submitting: osSubmitting, run: osRun, working: osWorking, slow: osSlow, cancel: osCancel, cancelling: osCancelling } = useOsTask("tts");
   const { data: dictData } = useQuery<{ dictionaries: { id: string; name: string }[] }>({
     queryKey: ["os-dictionaries"],
     queryFn: () => osJson("/dictionaries"),
@@ -259,7 +259,7 @@ export default function StudioPage() {
       const url = taskAudioUrl(osTask);
       if (url) { setLatestAudio(url); toast({ title: "Generated!", description: "Your audio is ready." }); }
     }
-    if (osTask?.status === "done" || osTask?.status === "error") {
+    if (osTask?.status === "done" || osTask?.status === "error" || osTask?.status === "cancelled") {
       queryClient.invalidateQueries({ queryKey: ["studio-tts-history"] });
     }
   }, [osTask?.status]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -296,7 +296,7 @@ export default function StudioPage() {
 
   // Merged history: OpenSpeaker TTS tasks (persistent, all platforms) + legacy generations
   const mergedHistory = useMemo(() => {
-    type Row = { id: string; at: number; text: string; sub: string; url: string | null; processing?: boolean; error?: string };
+    type Row = { id: string; at: number; text: string; sub: string; url: string | null; processing?: boolean; error?: string; cancelled?: boolean };
     const rows: Row[] = [];
     for (const t of osTaskHistory?.items ?? []) {
       const engine = engineOfVoiceId(String(t.input?.voiceId ?? ""));
@@ -307,6 +307,7 @@ export default function StudioPage() {
         url: t.status === "done" ? taskAudioUrl(t) : null,
         processing: t.status === "processing",
         error: t.status === "error" ? (t.error || "Generation failed — credits refunded.") : undefined,
+        cancelled: t.status === "cancelled",
       });
     }
     for (const g of (history?.items ?? []) as any[]) {
@@ -540,6 +541,8 @@ export default function StudioPage() {
                     </div>
                   ) : row.error ? (
                     <p className="text-[10px] text-red-500 font-semibold" data-testid={`error-history-${row.id}`}>{row.error}</p>
+                  ) : row.cancelled ? (
+                    <p className="text-[10px] text-[#9ca3af] font-semibold" data-testid={`cancelled-history-${row.id}`}>Cancelled — credits refunded.</p>
                   ) : row.url ? (
                     <audio controls src={row.url} className="w-full h-7" data-testid={`audio-history-${row.id}`} />
                   ) : null}
@@ -623,7 +626,7 @@ export default function StudioPage() {
           {/* Slow-generation note — high demand upstream, credits protected */}
           {isGenerating && osSlow && (
             <div className="px-4 sm:px-7 pb-3">
-              <SlowGenerationNote since={osTask?.createdAt ?? null} />
+              <SlowGenerationNote since={osTask?.createdAt ?? null} onCancel={osCancel} cancelling={osCancelling} />
             </div>
           )}
 

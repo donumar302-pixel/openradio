@@ -19,7 +19,7 @@ export default function SoundEffectsPage() {
   const [duration, setDuration] = useState(5);
   const [influence, setInfluence] = useState(0.3);
   const [loop, setLoop] = useState(false);
-  const { task, submitting, run, working } = useOsTask("sound-effects");
+  const { task, submitting, run, working, cancel, cancelling } = useOsTask("sound-effects");
 
   const cost = estimateSoundEffectCost(autoDuration, duration);
   const insufficient = useOsInsufficientCredits(cost);
@@ -105,7 +105,7 @@ export default function SoundEffectsPage() {
         </Button>
       </div>
 
-      <OsTaskResult task={task} />
+      <OsTaskResult task={task} onCancel={cancel} cancelling={cancelling} />
       <OsTaskHistory tool="sound-effects" />
     </div>
   );

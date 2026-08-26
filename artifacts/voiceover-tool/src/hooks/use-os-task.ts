@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { osGetTask, type OsTask } from "@/lib/os-api";
+import { osGetTask, osCancelTask, type OsTask } from "@/lib/os-api";
 import { useToast } from "@/hooks/use-toast";
 
 /** How long a task can sit in "processing" before we call it slow (~2 min). */
@@ -41,6 +41,7 @@ export function useTaskIsSlow(task: OsTask | null): boolean {
 export function useOsTask(tool: string) {
   const [task, setTask] = useState<OsTask | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -94,5 +95,29 @@ export function useOsTask(tool: string) {
     }
   }, [qc, tool, toast]);
 
-  return { task, setTask, submitting, run, slow, working: submitting || task?.status === "processing" };
+  /**
+   * User-initiated cancel of the active task: server cancels provider-side and
+   * refunds; polling stops on its own once the status leaves "processing".
+   */
+  const cancel = useCallback(async () => {
+    if (!task || task.status !== "processing" || cancelling) return;
+    setCancelling(true);
+    try {
+      const fresh = await osCancelTask(task.id);
+      setTask(fresh);
+      qc.invalidateQueries({ queryKey: ["os-tasks", tool] });
+      qc.invalidateQueries({ queryKey: ["auth", "me"] });
+      if (fresh.status === "cancelled") {
+        toast({ title: "Cancelled", description: "Your credits have been refunded." });
+      } else if (fresh.status === "done") {
+        toast({ title: "Already finished", description: "Your result was ready before the cancel went through." });
+      }
+    } catch (e: any) {
+      toast({ title: "Couldn't cancel", description: e.message, variant: "destructive" });
+    } finally {
+      setCancelling(false);
+    }
+  }, [task, cancelling, qc, tool, toast]);
+
+  return { task, setTask, submitting, run, slow, cancel, cancelling, working: submitting || task?.status === "processing" };
 }

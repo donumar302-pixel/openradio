@@ -12,7 +12,7 @@ import { estimateIsolationCost } from "@/lib/os-cost";
 export default function AudioIsolationPage() {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
-  const { task, submitting, run, working } = useOsTask("voice-isolation");
+  const { task, submitting, run, working, cancel, cancelling } = useOsTask("voice-isolation");
   const estimate = file ? estimateIsolationCost(file.size) : null;
   const insufficient = useOsInsufficientCredits(estimate);
 
@@ -53,7 +53,7 @@ export default function AudioIsolationPage() {
         </Button>
       </div>
 
-      <OsTaskResult task={task} />
+      <OsTaskResult task={task} onCancel={cancel} cancelling={cancelling} />
       <OsTaskHistory tool="voice-isolation" />
     </div>
   );
