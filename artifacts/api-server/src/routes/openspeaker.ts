@@ -1447,10 +1447,15 @@ router.post("/dialogue", requireGlobalFeature("os-dialogue"), requirePlanFeature
     res.status(403).json({ error: "You can only use your own pronunciation dictionaries." });
     return;
   }
+  // Engines involved (from voice-id prefixes) — internal field consumed by the
+  // engine-health aggregation; underscore keeps it out of client task JSON.
+  const dialogueEngines = [...new Set(
+    cleanSpeakers.map((s) => healthEngineOfVoiceId(s.voice_id)).filter((e): e is HealthEngine => !!e),
+  )];
   await runCreateTask({
     req, res, tool: "dialogue",
     title: text.slice(0, 80),
-    input: { speakers: cleanSpeakers.length, characters: text.length },
+    input: { speakers: cleanSpeakers.length, characters: text.length, _engines: dialogueEngines },
     estimate: text.length,
     create: async (webhookUrl) => {
       const form = new FormData();
@@ -1985,6 +1990,100 @@ router.post("/image/generate", requireGlobalFeature("os-image"), requirePlanFeat
       return osPostForm(`/v1i/task/generate-image`, form, "Image generation");
     },
   });
+});
+
+/* ═══════════════ Engine health (advisory slowness signal) ═══════════════
+   Aggregates recent os_tasks rows per engine (from the input.voiceId prefix)
+   so the UI can warn users up front when an engine's queue is jammed. The
+   signal is advisory only — generation stays enabled, and credits remain
+   protected by the stuck-task auto-refund and the user cancel button. */
+
+const HEALTH_ENGINES = ["elevenlabs", "minimax", "fishaudio", "edge"] as const;
+type HealthEngine = (typeof HEALTH_ENGINES)[number];
+
+function healthEngineOfVoiceId(voiceId: unknown): HealthEngine | null {
+  if (typeof voiceId !== "string") return null;
+  for (const e of HEALTH_ENGINES) if (voiceId.startsWith(`${e}_`)) return e;
+  return null;
+}
+
+const HEALTH_WINDOW_MS = 30 * 60_000;      // rolling window: tasks created in the last 30 min
+const HEALTH_STUCK_MS = 4 * 60_000;        // a processing task older than this counts as stalled
+const HEALTH_MEDIAN_SLOW_MS = 3 * 60_000;  // median settle time above this = slow
+const HEALTH_MIN_SETTLED = 3;              // need this many settled samples to trust the median
+const HEALTH_MIN_STUCK = 2;                // this many stalled tasks flags the engine on its own
+const HEALTH_CACHE_MS = 45_000;
+
+let healthCache: { at: number; engines: Record<HealthEngine, { slow: boolean }> } | null = null;
+
+async function computeEngineHealth(): Promise<Record<HealthEngine, { slow: boolean }>> {
+  const cutoff = new Date(Date.now() - HEALTH_WINDOW_MS);
+  // Single-voice TTS tasks only: dubbing/music/etc. legitimately take long, and
+  // longform parents aggregate many chunks — both would poison the signal.
+  const rows = await db.select({
+    status: osTasksTable.status,
+    input: osTasksTable.input,
+    createdAt: osTasksTable.createdAt,
+    updatedAt: osTasksTable.updatedAt,
+  }).from(osTasksTable)
+    .where(and(gte(osTasksTable.createdAt, cutoff), inArray(osTasksTable.tool, ["tts", "dialogue"])))
+    .orderBy(desc(osTasksTable.createdAt))
+    .limit(500);
+
+  const now = Date.now();
+  const buckets = new Map<HealthEngine, { stuck: number; settledMs: number[] }>(
+    HEALTH_ENGINES.map((e) => [e, { stuck: 0, settledMs: [] }]),
+  );
+  for (const r of rows) {
+    const input = (r.input ?? {}) as Record<string, unknown>;
+    if (input._longform) continue;
+    // TTS rows carry input.voiceId; dialogue rows persist the engines involved
+    // under input._engines (written at creation). A slow mixed-engine dialogue
+    // counts against every engine it used.
+    const engines = new Set<HealthEngine>();
+    const single = healthEngineOfVoiceId(input.voiceId);
+    if (single) engines.add(single);
+    if (Array.isArray(input._engines)) {
+      for (const e of input._engines) {
+        if ((HEALTH_ENGINES as readonly string[]).includes(e as string)) engines.add(e as HealthEngine);
+      }
+    }
+    if (engines.size === 0) continue; // clones / unknown prefixes carry no engine signal
+    for (const engine of engines) {
+      const b = buckets.get(engine)!;
+      if (r.status === "processing") {
+        if (now - r.createdAt.getTime() > HEALTH_STUCK_MS) b.stuck += 1;
+      } else if (r.status === "done") {
+        b.settledMs.push(Math.max(0, r.updatedAt.getTime() - r.createdAt.getTime()));
+      }
+    }
+  }
+
+  const engines = {} as Record<HealthEngine, { slow: boolean }>;
+  for (const e of HEALTH_ENGINES) {
+    const b = buckets.get(e)!;
+    let slowMedian = false;
+    if (b.settledMs.length >= HEALTH_MIN_SETTLED) {
+      const sorted = [...b.settledMs].sort((a, z) => a - z);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      slowMedian = median > HEALTH_MEDIAN_SLOW_MS;
+    }
+    engines[e] = { slow: b.stuck >= HEALTH_MIN_STUCK || slowMedian };
+  }
+  return engines;
+}
+
+router.get("/engine-health", async (_req, res) => {
+  try {
+    if (!healthCache || Date.now() - healthCache.at > HEALTH_CACHE_MS) {
+      healthCache = { at: Date.now(), engines: await computeEngineHealth() };
+    }
+    res.json({ engines: healthCache.engines });
+  } catch (err) {
+    logger.warn({ err }, "Engine health check failed — reporting all engines healthy");
+    // Advisory-only signal: never block the UI on it.
+    res.json({ engines: Object.fromEntries(HEALTH_ENGINES.map((e) => [e, { slow: false }])) });
+  }
 });
 
 /* ═══════════════ Task history (user-owned, IDOR-safe) ═══════════════ */

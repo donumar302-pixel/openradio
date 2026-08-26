@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { osJson, osProviderLogo, OS_PROVIDERS, type OsVoice } from "@/lib/os-api";
+import { EngineSlowNotice, isEngineSlow, useEngineHealth } from "@/components/os/engine-health";
 
 interface Props {
   value: string;              // prefixed voice_id or ""
@@ -42,6 +43,8 @@ export function OsVoicePicker({ value, valueName, onChange, placeholder = "Choos
     () => OS_PROVIDERS.filter((p) => !(excludeClones && p.id === "clone")),
     [excludeClones],
   );
+
+  const engineHealth = useEngineHealth(open);
 
   const { data, isLoading } = useQuery({
     queryKey: ["os-voices", provider, debouncedSearch, page],
@@ -110,9 +113,17 @@ export function OsVoicePicker({ value, valueName, onChange, placeholder = "Choos
                     <img src={p.logo} alt="" className={cn("w-3.5 h-3.5 rounded-[3px] object-contain", provider === p.id && "bg-white/90 p-px")} />
                   )}
                   {p.label}
+                  {isEngineSlow(engineHealth, p.id) && (
+                    <span
+                      className={cn("w-1.5 h-1.5 rounded-full shrink-0", provider === p.id ? "bg-amber-300" : "bg-amber-500")}
+                      title="Experiencing high demand — generations may be slow"
+                      data-testid={`engine-slow-dot-${p.id}`}
+                    />
+                  )}
                 </button>
               ))}
             </div>
+            <EngineSlowNotice show={isEngineSlow(engineHealth, provider)} />
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input

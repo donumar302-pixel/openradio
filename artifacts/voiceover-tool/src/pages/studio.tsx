@@ -15,6 +15,7 @@ import { OsCostEstimate, useOsInsufficientCredits } from "@/components/os/cost-e
 import { useOsTask } from "@/hooks/use-os-task";
 import { SlowGenerationNote } from "@/components/os/task-panel";
 import { osCreateTaskJson, osJson, taskAudioUrl, type OsVoice, type OsTask } from "@/lib/os-api";
+import { EngineSlowNotice, isEngineSlow, useEngineHealth, engineOfVoiceId as healthEngineOfVoiceId } from "@/components/os/engine-health";
 import { estimateTtsCost } from "@/lib/os-cost";
 
 const asset = (p: string) => `${import.meta.env.BASE_URL}${p}`.replace(/([^:]\/)\/+/g, "$1");
@@ -289,6 +290,11 @@ export default function StudioPage() {
     : null;
 
   const isGenerating = osWorking;
+  // Advisory engine-health signal: warn before Generate when the selected
+  // engine's recent tasks are stalling. Never blocks generation.
+  const engineHealth = useEngineHealth();
+  const selectedEngine = voiceProvider === "os" ? healthEngineOfVoiceId(voiceId) : OS_PROVIDER_OF[voiceProvider];
+  const selectedEngineSlow = isEngineSlow(engineHealth, selectedEngine);
   // Mirrors the server's charge: 1 credit/char via OpenSpeaker.
   const costEstimate = text.trim() ? estimateTtsCost(text) : null;
   const insufficientCredits = useOsInsufficientCredits(costEstimate);
@@ -367,6 +373,13 @@ export default function StudioPage() {
                 >
                   <img src={PROVIDER_LOGOS[p.id]} alt="" className="w-4 h-4 rounded-sm object-contain shrink-0" />
                   {p.label}
+                  {isEngineSlow(engineHealth, OS_PROVIDER_OF[p.id]) && (
+                    <span
+                      className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"
+                      title="Experiencing high demand — generations may be slow"
+                      data-testid={`engine-slow-dot-${p.id}`}
+                    />
+                  )}
                 </button>
               ))}
               <button
@@ -381,6 +394,7 @@ export default function StudioPage() {
                 <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600">6000+</span>
               </button>
             </div>
+            <EngineSlowNotice show={selectedEngineSlow} className="mt-3" />
           </div>
           {/* Voice */}
           <div className="p-4 border-b border-[#f3f4f6]">
@@ -733,6 +747,13 @@ export default function StudioPage() {
             )}
             <span className="text-xs text-[#9ca3af] shrink-0">{text.length.toLocaleString()} / {TTS_LONG_MAX.toLocaleString()}</span>
           </div>
+
+          {/* Advisory engine-health warning — visible even when the settings panel is hidden */}
+          {selectedEngineSlow && (
+            <div className="px-4 sm:px-7 pb-2 shrink-0">
+              <EngineSlowNotice show compact />
+            </div>
+          )}
 
           {/* Cost estimate — every engine charges credits (per character; Edge per 500 chars) */}
           <div className="px-4 sm:px-7 pb-3 shrink-0">
