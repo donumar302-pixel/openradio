@@ -418,20 +418,20 @@ export default function ResellerPanel() {
         </div>
 
         {/* Header + actions */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-[20px] font-black text-white">My Users</h1>
             <p className="text-[13px] text-white/40 mt-0.5">{users.length} users</p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:flex-none min-w-[140px]">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search users..."
                 data-testid="input-user-search"
-                className="w-[160px] sm:w-[220px] pl-8 pr-3 py-2 rounded-xl bg-white/5 border border-white/5 text-[12px] font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-primary/40 transition-all"
+                className="w-full sm:w-[220px] pl-8 pr-3 py-2 rounded-xl bg-white/5 border border-white/5 text-[12px] font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-primary/40 transition-all"
               />
             </div>
             <button onClick={() => refetch()}
