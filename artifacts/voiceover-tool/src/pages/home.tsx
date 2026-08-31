@@ -11,112 +11,25 @@ import {
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-/* ── Tool cards ─────────────────────────────────────────────── */
-const TOOLS: {
+/* ── Secondary tools (compact pills) ─────────────────────────── */
+const MORE_TOOLS: {
   href: string;
-  icon: React.ComponentType<{ size?: number }>;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
   name: string;
-  desc: string;
-  iconBg: string;
   iconColor: string;
   badge?: string;
 }[] = [
-  {
-    href: "/studio",
-    icon: Mic2,
-    name: "Text to Speech",
-    desc: "Convert any text to natural-sounding speech in seconds",
-    iconBg: "bg-orange-100", iconColor: "text-orange-500",
-  },
-  {
-    href: "/voice-cloning",
-    icon: Copy,
-    name: "Voice Cloning",
-    desc: "Create a digital copy of any voice for free",
-    iconBg: "bg-emerald-100", iconColor: "text-emerald-500",
-  },
-  {
-    href: "/speech-to-speech",
-    icon: AudioWaveform,
-    name: "Speech to Speech",
-    desc: "Transform any voice into a completely different one",
-    iconBg: "bg-blue-100", iconColor: "text-blue-500",
-  },
-  {
-    href: "/audio-isolation",
-    icon: Radio,
-    name: "Audio Isolation",
-    desc: "Remove background noise and keep crystal clear voice",
-    iconBg: "bg-violet-100", iconColor: "text-violet-500",
-  },
-  {
-    href: "/dubbing",
-    icon: Languages,
-    name: "Dubbing",
-    desc: "Dub any video into 29+ languages automatically",
-    iconBg: "bg-rose-100", iconColor: "text-rose-500",
-  },
-  {
-    href: "/speech-to-text",
-    icon: MessageSquareText,
-    name: "Speech to Text",
-    desc: "Transcribe audio and video files in any language",
-    iconBg: "bg-sky-100", iconColor: "text-sky-500",
-  },
-  {
-    href: "/dialogue",
-    icon: MessagesSquare,
-    name: "Text to Dialogue",
-    desc: "Create multi-speaker conversations with different voices",
-    iconBg: "bg-indigo-100", iconColor: "text-indigo-500",
-    badge: "New",
-  },
-  {
-    href: "/batch",
-    icon: Layers,
-    name: "Bulk TTS",
-    desc: "Convert many texts to speech in one go",
-    iconBg: "bg-cyan-100", iconColor: "text-cyan-600",
-    badge: "New",
-  },
-  {
-    href: "/sound-effects",
-    icon: Drum,
-    name: "Sound Effects",
-    desc: "Generate any sound effect from a text description",
-    iconBg: "bg-amber-100", iconColor: "text-amber-600",
-    badge: "New",
-  },
-  {
-    href: "/music",
-    icon: Music4,
-    name: "AI Music",
-    desc: "Create full songs and background music with AI",
-    iconBg: "bg-pink-100", iconColor: "text-pink-500",
-    badge: "New",
-  },
-  {
-    href: "/images",
-    icon: ImageIcon,
-    name: "AI Images",
-    desc: "Generate stunning images from text prompts",
-    iconBg: "bg-teal-100", iconColor: "text-teal-600",
-    badge: "New",
-  },
-  {
-    href: "/voices",
-    icon: BookAudio,
-    name: "Voice Library",
-    desc: "Browse thousands of voices from all providers",
-    iconBg: "bg-lime-100", iconColor: "text-lime-600",
-  },
-  {
-    href: "/dictionary",
-    icon: BookOpenText,
-    name: "Dictionary",
-    desc: "Fix pronunciations so every word sounds right",
-    iconBg: "bg-slate-100", iconColor: "text-slate-500",
-  },
+  { href: "/voice-cloning", icon: Copy, name: "Voice Cloning", iconColor: "text-emerald-500" },
+  { href: "/speech-to-speech", icon: AudioWaveform, name: "Speech to Speech", iconColor: "text-blue-500" },
+  { href: "/audio-isolation", icon: Radio, name: "Audio Isolation", iconColor: "text-violet-500" },
+  { href: "/dubbing", icon: Languages, name: "Dubbing", iconColor: "text-rose-500" },
+  { href: "/speech-to-text", icon: MessageSquareText, name: "Speech to Text", iconColor: "text-sky-500" },
+  { href: "/dialogue", icon: MessagesSquare, name: "Text to Dialogue", iconColor: "text-indigo-500", badge: "New" },
+  { href: "/batch", icon: Layers, name: "Bulk TTS", iconColor: "text-cyan-600", badge: "New" },
+  { href: "/sound-effects", icon: Drum, name: "Sound Effects", iconColor: "text-amber-600", badge: "New" },
+  { href: "/music", icon: Music4, name: "AI Music", iconColor: "text-pink-500", badge: "New" },
+  { href: "/voices", icon: BookAudio, name: "Voice Library", iconColor: "text-lime-600" },
+  { href: "/dictionary", icon: BookOpenText, name: "Dictionary", iconColor: "text-slate-500" },
 ];
 
 /* ── Types ───────────────────────────────────────────────────── */
@@ -139,13 +52,13 @@ function timeAgo(iso: string) {
 }
 
 /* ── Animated waveform bars ──────────────────────────────────── */
-function WaveBars() {
+function WaveBars({ light = false }: { light?: boolean }) {
   return (
     <div className="flex items-end gap-[3px] h-5">
       {[3, 6, 4, 7, 5, 3, 6].map((h, i) => (
         <motion.span
           key={i}
-          className="w-[3px] rounded-full bg-orange-400/70"
+          className={cn("w-[3px] rounded-full", light ? "bg-white/80" : "bg-orange-400/70")}
           animate={{ height: [`${h * 3}px`, `${(h + 4) * 3}px`, `${h * 3}px`] }}
           transition={{ duration: 0.8 + i * 0.1, repeat: Infinity, ease: "easeInOut", delay: i * 0.1 }}
         />
@@ -189,61 +102,109 @@ export default function Home() {
           <p className="text-base text-black/40 font-semibold mt-0.5">what would you like to create today?</p>
         </motion.div>
 
-        {/* ── Tool Cards Grid ───────────────────────────────────── */}
+        {/* ── Hero Banner: Voiceover ────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.13 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
         >
-          {TOOLS.map((tool, i) => (
-            <motion.div
-              key={tool.href + tool.name}
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + i * 0.05 }}
-            >
-              <Link href={tool.href}>
-                <div className="group relative bg-white border border-black/8 rounded-2xl p-5 flex items-start gap-3.5 cursor-pointer hover:shadow-md hover:border-black/15 transition-all">
-                  {/* Icon */}
-                  <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5", tool.iconBg, tool.iconColor)}>
-                    <tool.icon size={20} />
+          <Link href="/studio">
+            <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500 via-orange-500 to-rose-500 p-6 sm:p-9 cursor-pointer shadow-lg shadow-orange-500/20 hover:shadow-xl hover:shadow-orange-500/30 transition-all">
+              {/* Decorative circles */}
+              <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-white/10 pointer-events-none" />
+              <div className="absolute -bottom-24 right-24 w-48 h-48 rounded-full bg-white/[0.07] pointer-events-none" />
+              <div className="relative flex flex-col sm:flex-row sm:items-center gap-5">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <WaveBars light />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-white/70">AI Voiceover Studio</span>
                   </div>
-
-                  {/* Text */}
-                  <div className="flex-1 min-w-0 pr-6">
-                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                      <span className="text-[14px] font-black text-black leading-snug">{tool.name}</span>
-                      {tool.badge && (
-                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600 uppercase tracking-wide">
-                          {tool.badge}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[12px] text-black/45 font-medium leading-snug">{tool.desc}</p>
-                  </div>
-
-                  {/* Arrow */}
-                  <div className="absolute top-4 right-4 w-7 h-7 rounded-full bg-black/[0.04] group-hover:bg-black flex items-center justify-center transition-all">
-                    <ArrowUpRight size={13} className="text-black/30 group-hover:text-white transition-colors" />
-                  </div>
+                  <h2 className="text-xl sm:text-[26px] font-black text-white leading-tight">
+                    Studio-quality voiceovers in seconds
+                  </h2>
+                  <p className="text-[13px] sm:text-[14px] text-white/75 font-semibold mt-1.5 max-w-md">
+                    Type your script, pick from thousands of natural voices, and download your audio instantly.
+                  </p>
                 </div>
-              </Link>
-            </motion.div>
-          ))}
-
-          {/* New Project card */}
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
-            <Link href="/studio">
-              <div className="group bg-white border-2 border-dashed border-black/12 rounded-2xl p-5 cursor-pointer hover:border-orange-300 hover:bg-orange-50/40 transition-all flex flex-col items-center justify-center min-h-[88px] text-center">
-                <div className="w-9 h-9 rounded-xl bg-black/[0.04] group-hover:bg-orange-100 flex items-center justify-center mb-2 transition-colors">
-                  <Plus size={18} className="text-black/25 group-hover:text-orange-500 transition-colors" />
+                <div className="shrink-0">
+                  <span className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-white text-orange-600 text-[14px] font-black shadow group-hover:scale-[1.03] transition-transform">
+                    <Mic2 size={16} /> Start Creating
+                  </span>
                 </div>
-                <p className="text-[13px] font-black text-black/35 group-hover:text-black transition-colors">New Project</p>
-                <p className="text-[11px] text-black/25 mt-0.5">Start generating audio</p>
               </div>
-            </Link>
-          </motion.div>
+            </div>
+          </Link>
+        </motion.div>
+
+        {/* ── Featured Tools: TTS + AI Images ───────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.18 }}
+          className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+        >
+          <Link href="/studio">
+            <div className="group relative h-full bg-white border border-black/8 rounded-3xl p-6 sm:p-7 cursor-pointer hover:shadow-lg hover:border-orange-200 transition-all overflow-hidden">
+              <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-orange-50 group-hover:bg-orange-100/80 transition-colors pointer-events-none" />
+              <div className="relative">
+                <div className="w-14 h-14 rounded-2xl bg-orange-100 text-orange-500 flex items-center justify-center mb-4">
+                  <Mic2 size={26} />
+                </div>
+                <h3 className="text-[18px] font-black text-black mb-1">Text to Speech</h3>
+                <p className="text-[13px] text-black/45 font-medium leading-snug mb-4">
+                  Convert any text to natural-sounding speech in seconds
+                </p>
+                <span className="inline-flex items-center gap-1.5 text-[13px] font-black text-orange-500">
+                  Open Studio <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                </span>
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/images">
+            <div className="group relative h-full bg-white border border-black/8 rounded-3xl p-6 sm:p-7 cursor-pointer hover:shadow-lg hover:border-teal-200 transition-all overflow-hidden">
+              <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-teal-50 group-hover:bg-teal-100/80 transition-colors pointer-events-none" />
+              <div className="relative">
+                <div className="flex items-start justify-between">
+                  <div className="w-14 h-14 rounded-2xl bg-teal-100 text-teal-600 flex items-center justify-center mb-4">
+                    <ImageIcon size={26} />
+                  </div>
+                  <span className="text-[9px] font-black px-2 py-1 rounded-full bg-emerald-100 text-emerald-600 uppercase tracking-wide">New</span>
+                </div>
+                <h3 className="text-[18px] font-black text-black mb-1">AI Images</h3>
+                <p className="text-[13px] text-black/45 font-medium leading-snug mb-4">
+                  Generate stunning images from text prompts
+                </p>
+                <span className="inline-flex items-center gap-1.5 text-[13px] font-black text-teal-600">
+                  Create Images <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                </span>
+              </div>
+            </div>
+          </Link>
+        </motion.div>
+
+        {/* ── More Tools (compact pills) ────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.22 }}
+        >
+          <h2 className="text-[13px] font-black uppercase tracking-widest text-black/25 mb-3">More Tools</h2>
+          <div className="flex flex-wrap gap-2">
+            {MORE_TOOLS.map(tool => (
+              <Link key={tool.href} href={tool.href}>
+                <span className="inline-flex items-center gap-2 pl-3 pr-3.5 py-2 rounded-full bg-white border border-black/8 text-[12.5px] font-bold text-black/60 hover:text-black hover:border-black/20 hover:shadow-sm cursor-pointer transition-all">
+                  <tool.icon size={14} className={cn(tool.iconColor)} />
+                  {tool.name}
+                  {tool.badge && (
+                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600 uppercase tracking-wide">
+                      {tool.badge}
+                    </span>
+                  )}
+                </span>
+              </Link>
+            ))}
+          </div>
         </motion.div>
 
         {/* ── Generation History ────────────────────────────────── */}
