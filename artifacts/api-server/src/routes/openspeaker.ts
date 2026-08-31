@@ -1066,8 +1066,18 @@ router.get("/voices/all", async (req, res) => {
 
 /* ═══════════════ Text to Speech ═══════════════ */
 
+/** Selectable ElevenLabs TTS models (provider default applies when omitted). */
+const EL_TTS_MODELS = new Set(["eleven_turbo_v2_5", "eleven_v3"]);
+
+/** Returns a validated ElevenLabs model id, or undefined when not applicable. */
+function elModelFor(voiceId: string, model: unknown): string | undefined {
+  if (typeof model !== "string" || !model) return undefined;
+  if (!voiceId.startsWith("elevenlabs_")) return undefined; // model choice only applies to ElevenLabs voices
+  return EL_TTS_MODELS.has(model) ? model : undefined;
+}
+
 router.post("/tts", requireGlobalFeature("os-tts"), requirePlanFeature("tts"), async (req, res) => {
-  const { text, voiceId, speed, dictionaryId } = req.body ?? {};
+  const { text, voiceId, speed, dictionaryId, model } = req.body ?? {};
   if (typeof text !== "string" || !text.trim() || text.length > 1_000_000) {
     res.status(400).json({ error: "Please enter text (up to 1,000,000 characters)." });
     return;
@@ -1084,15 +1094,17 @@ router.post("/tts", requireGlobalFeature("os-tts"), requirePlanFeature("tts"), a
     res.status(403).json({ error: "You can only use your own pronunciation dictionaries." });
     return;
   }
+  const elModel = elModelFor(voiceId, model);
   await runCreateTask({
     req, res, tool: "tts",
     title: text.slice(0, 80),
-    input: { voiceId, speed: speed ?? 1, characters: text.length },
+    input: { voiceId, speed: speed ?? 1, characters: text.length, ...(elModel ? { model: elModel } : {}) },
     estimate: text.length,
     create: async (webhookUrl) => {
       const form = new FormData();
       form.append("text", text);
       form.append("voice_id", voiceId);
+      if (elModel) form.append("model_id", elModel);
       if (speed) form.append("speed", String(Math.min(1.5, Math.max(0.5, Number(speed) || 1))));
       if (typeof dictionaryId === "string" && dictionaryId) form.append("pronunciation_dictionary_id", dictionaryId);
       if (webhookUrl) form.append("receive_url", webhookUrl);
@@ -1155,7 +1167,7 @@ export function splitScriptIntoChunks(text: string, max = LONG_TTS_CHUNK_MAX): s
   return chunks.filter((c) => c.length > 0);
 }
 
-interface LongTtsOpts { voiceId: string; speed?: number; dictionaryId?: string }
+interface LongTtsOpts { voiceId: string; speed?: number; dictionaryId?: string; model?: string }
 
 /**
  * Provider task id of the chunk each longform run is currently generating
@@ -1182,6 +1194,7 @@ async function generateLongTtsChunk(
       const form = new FormData();
       form.append("text", text);
       form.append("voice_id", opts.voiceId);
+      if (opts.model) form.append("model_id", opts.model);
       if (opts.speed) form.append("speed", String(Math.min(1.5, Math.max(0.5, Number(opts.speed) || 1))));
       if (opts.dictionaryId) form.append("pronunciation_dictionary_id", opts.dictionaryId);
       const created = await osPostForm<{ task_id?: string }>(`/v3/text-to-speech`, form, "Text to Speech");
@@ -1359,7 +1372,7 @@ async function runLongformTts(row: OsTask, chunks: string[], opts: LongTtsOpts):
 }
 
 router.post("/tts-long", requireGlobalFeature("os-tts"), requirePlanFeature("tts"), async (req, res) => {
-  const { text, voiceId, speed, dictionaryId } = req.body ?? {};
+  const { text, voiceId, speed, dictionaryId, model } = req.body ?? {};
   if (typeof text !== "string" || !text.trim() || text.length > LONG_TTS_MAX_CHARS) {
     res.status(400).json({ error: `Please enter text (up to ${LONG_TTS_MAX_CHARS.toLocaleString()} characters).` });
     return;
@@ -1386,6 +1399,7 @@ router.post("/tts-long", requireGlobalFeature("os-tts"), requirePlanFeature("tts
 
   const user = req.appUser!;
   const admin = isUserAdmin(user);
+  const elModel = elModelFor(voiceId, model);
   const reserve = admin ? 0 : Math.max(1, text.length);
   if (!admin && !(await reserveCredits(user.id, reserve))) {
     res.status(402).json({ error: `Not enough credits. This needs about ${reserve} credits but you have ${user.credits}.` });
@@ -1400,7 +1414,7 @@ router.post("/tts-long", requireGlobalFeature("os-tts"), requirePlanFeature("tts
       externalTaskId: null, // chunk tasks are provider-side; the parent is settled by the runner
       status: "processing",
       title: text.slice(0, 120),
-      input: { voiceId, speed: speed ?? 1, characters: text.length, parts: chunks.length, _longform: true },
+      input: { voiceId, speed: speed ?? 1, characters: text.length, parts: chunks.length, _longform: true, ...(elModel ? { model: elModel } : {}) },
       output: { progress: { done: 0, total: chunks.length } },
       creditsCharged: reserve,
     }).returning();
@@ -1412,7 +1426,7 @@ router.post("/tts-long", requireGlobalFeature("os-tts"), requirePlanFeature("tts
   }
 
   res.json({ task: taskJson(row) });
-  void runLongformTts(row, chunks, { voiceId, speed, dictionaryId: dictId });
+  void runLongformTts(row, chunks, { voiceId, speed, dictionaryId: dictId, model: elModel });
 });
 
 /* ═══════════════ Text to Dialogue ═══════════════ */

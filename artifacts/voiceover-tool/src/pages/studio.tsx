@@ -141,6 +141,7 @@ export default function StudioPage() {
   const [elVoiceName, setElVoiceName] = useState("");
   const [elSearch, setElSearch] = useState("");
   const [dictionaryId, setDictionaryId] = useState("");
+  const [elModel, setElModel] = useState<"eleven_turbo_v2_5" | "eleven_v3">("eleven_turbo_v2_5");
   const [speed, setSpeed] = useState(1);
   const [latestAudio, setLatestAudio] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<"settings" | "history">("settings");
@@ -281,7 +282,8 @@ export default function StudioPage() {
     // splits them, generates each part, and stitches one MP3.
     setLatestAudio(null);
     const endpoint = text.length > TTS_SINGLE_MAX ? "/tts-long" : "/tts";
-    osRun(() => osCreateTaskJson(endpoint, { text, voiceId, speed, dictionaryId: dictionaryId || undefined }));
+    const isElVoice = voiceId.startsWith("elevenlabs_");
+    osRun(() => osCreateTaskJson(endpoint, { text, voiceId, speed, dictionaryId: dictionaryId || undefined, model: isElVoice ? elModel : undefined }));
   };
 
   // Per-part progress for longform runs (reported by the server while it works).
@@ -397,6 +399,31 @@ export default function StudioPage() {
             </div>
             <EngineSlowNotice show={selectedEngineSlow} medianMs={selectedEngineMedianMs} className="mt-3" />
           </div>
+          {/* ElevenLabs model — shown when the ElevenLabs platform or an ElevenLabs library voice is selected */}
+          {(voiceProvider === "el" || (voiceProvider === "os" && voiceId.startsWith("elevenlabs_"))) && (
+            <div className="p-4 border-b border-[#f3f4f6]">
+              <span className="text-sm font-semibold text-foreground block mb-3">Model</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                {([
+                  { id: "eleven_turbo_v2_5" as const, label: "ElevenLabs V2.5", hint: "Fast · great quality" },
+                  { id: "eleven_v3" as const,         label: "ElevenLabs V3",   hint: "Most expressive" },
+                ] as const).map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setElModel(m.id)}
+                    data-testid={`el-model-${m.id}`}
+                    className={cn(
+                      "px-2 py-2 rounded-lg text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5",
+                      elModel === m.id ? "text-orange-600 bg-orange-50 border-orange-300" : "border-[#e5e7eb] text-[#6b7280] hover:border-primary/40 hover:text-foreground"
+                    )}
+                  >
+                    {m.label}
+                    <span className="text-[9px] font-medium opacity-70">{m.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {/* Voice */}
           <div className="p-4 border-b border-[#f3f4f6]">
             <div className="flex items-center justify-between mb-3">
