@@ -5,9 +5,13 @@
  * reserves the estimate and may reconcile to the provider's real cost.
  */
 
-/** TTS: 1 credit per character (all platforms route through OpenSpeaker /tts). */
-export function estimateTtsCost(text: string): number {
-  return text.length;
+/** ElevenLabs voices cost ~1.2× the character count (provider-side rate);
+ *  mirror of the server's EL_TTS_COST_MULTIPLIER. */
+export const EL_TTS_COST_MULTIPLIER = 1.2;
+
+/** TTS: 1 credit per character — except ElevenLabs voices, which cost ~1.2×. */
+export function estimateTtsCost(text: string, isElevenLabs = false): number {
+  return isElevenLabs ? Math.ceil(text.length * EL_TTS_COST_MULTIPLIER) : text.length;
 }
 
 /** Dialogue: 1 credit per character of the full script. */

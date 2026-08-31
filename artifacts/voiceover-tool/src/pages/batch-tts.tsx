@@ -161,10 +161,11 @@ export default function BatchTtsPage() {
     } catch { /* storage full/blocked — non-fatal */ }
   }, [lines, voiceId, voiceName, storageKey]);
 
-  // Total cost of the lines that still need generating (1 credit/char via OpenSpeaker).
+  // Total cost of the lines that still need generating (1 credit/char via OpenSpeaker; ElevenLabs ~1.2×).
+  const isElVoice = voiceId.startsWith("elevenlabs_");
   const remainingCost = lines
     .filter(l => l.state !== "done")
-    .reduce((sum, l) => sum + estimateTtsCost(l.text), 0);
+    .reduce((sum, l) => sum + estimateTtsCost(l.text, isElVoice), 0);
   const insufficientCredits = useOsInsufficientCredits(lines.length > 0 ? remainingCost : null);
 
   const loadFile = useCallback((file: File) => {

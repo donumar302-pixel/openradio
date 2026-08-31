@@ -1069,6 +1069,17 @@ router.get("/voices/all", async (req, res) => {
 /** Selectable ElevenLabs TTS models (provider default applies when omitted). */
 const EL_TTS_MODELS = new Set(["eleven_turbo_v2_5", "eleven_v3"]);
 
+/** ElevenLabs voices cost the provider ~1.2× the character count; reserve
+ *  (and show) that upfront so the balance never surprises the user. Other
+ *  engines stay at 1 credit per character. Keep in sync with the client
+ *  mirror in voiceover-tool/src/lib/os-cost.ts. */
+const EL_TTS_COST_MULTIPLIER = 1.2;
+function ttsEstimateFor(voiceId: string, characters: number): number {
+  return voiceId.startsWith("elevenlabs_")
+    ? Math.ceil(characters * EL_TTS_COST_MULTIPLIER)
+    : characters;
+}
+
 /** Returns a validated ElevenLabs model id, or undefined when not applicable. */
 function elModelFor(voiceId: string, model: unknown): string | undefined {
   if (typeof model !== "string" || !model) return undefined;
@@ -1099,7 +1110,7 @@ router.post("/tts", requireGlobalFeature("os-tts"), requirePlanFeature("tts"), a
     req, res, tool: "tts",
     title: text.slice(0, 80),
     input: { voiceId, speed: speed ?? 1, characters: text.length, ...(elModel ? { model: elModel } : {}) },
-    estimate: text.length,
+    estimate: ttsEstimateFor(voiceId, text.length),
     create: async (webhookUrl) => {
       const form = new FormData();
       form.append("text", text);
@@ -1400,7 +1411,7 @@ router.post("/tts-long", requireGlobalFeature("os-tts"), requirePlanFeature("tts
   const user = req.appUser!;
   const admin = isUserAdmin(user);
   const elModel = elModelFor(voiceId, model);
-  const reserve = admin ? 0 : Math.max(1, text.length);
+  const reserve = admin ? 0 : Math.max(1, ttsEstimateFor(voiceId, text.length));
   if (!admin && !(await reserveCredits(user.id, reserve))) {
     res.status(402).json({ error: `Not enough credits. This needs about ${reserve} credits but you have ${user.credits}.` });
     return;

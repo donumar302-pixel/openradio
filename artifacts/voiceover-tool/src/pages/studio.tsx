@@ -298,8 +298,9 @@ export default function StudioPage() {
   const selectedEngine = voiceProvider === "os" ? healthEngineOfVoiceId(voiceId) : OS_PROVIDER_OF[voiceProvider];
   const selectedEngineSlow = isEngineSlow(engineHealth, selectedEngine);
   const selectedEngineMedianMs = engineMedianMs(engineHealth, selectedEngine);
-  // Mirrors the server's charge: 1 credit/char via OpenSpeaker.
-  const costEstimate = text.trim() ? estimateTtsCost(text) : null;
+  // Mirrors the server's charge: 1 credit/char via OpenSpeaker; ElevenLabs voices ~1.2×.
+  const isElVoiceSelected = voiceProvider === "el" || voiceId.startsWith("elevenlabs_");
+  const costEstimate = text.trim() ? estimateTtsCost(text, isElVoiceSelected) : null;
   const insufficientCredits = useOsInsufficientCredits(costEstimate);
   const expressionEnabled = voiceProvider === "minimax";
 
@@ -782,7 +783,9 @@ export default function StudioPage() {
           <div className="px-4 sm:px-7 pb-3 shrink-0">
             <OsCostEstimate
               estimate={costEstimate}
-              footnote={voiceProvider === "os" ? undefined : "Charged when generation starts — refunded automatically if it fails."}
+              footnote={isElVoiceSelected
+                ? "ElevenLabs voices cost 1.2× the character count. Charged when generation starts — refunded automatically if it fails."
+                : voiceProvider === "os" ? undefined : "Charged when generation starts — refunded automatically if it fails."}
             />
           </div>
 
