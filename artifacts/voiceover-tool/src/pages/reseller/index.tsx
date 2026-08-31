@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   RefreshCw, Plus, Coins, Users, CalendarClock, Gift,
-  Ban, ShieldCheck, Trash2, X, Check, LogOut,
+  Ban, ShieldCheck, Trash2, X, Check, LogOut, Search,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -270,6 +270,7 @@ function ChangeExpiryModal({ user, onClose, onSubmit, error, pending }: {
 export default function ResellerPanel() {
   const qc = useQueryClient();
   const [creatingOpen, setCreatingOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [creditsFor, setCreditsFor] = useState<ResellerUser | null>(null);
   const [expiryFor, setExpiryFor] = useState<ResellerUser | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -295,6 +296,12 @@ export default function ResellerPanel() {
     },
     enabled: !meError,
   });
+
+  // Client-side search: the reseller's full user list is already loaded.
+  const q = search.trim().toLowerCase();
+  const filteredUsers = q
+    ? users.filter(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+    : users;
 
   const refreshAll = () => {
     qc.invalidateQueries({ queryKey: ["reseller-me"] });
@@ -417,6 +424,16 @@ export default function ResellerPanel() {
             <p className="text-[13px] text-white/40 mt-0.5">{users.length} users</p>
           </div>
           <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search users..."
+                data-testid="input-user-search"
+                className="w-[160px] sm:w-[220px] pl-8 pr-3 py-2 rounded-xl bg-white/5 border border-white/5 text-[12px] font-semibold text-white placeholder:text-white/25 focus:outline-none focus:border-primary/40 transition-all"
+              />
+            </div>
             <button onClick={() => refetch()}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white text-[12px] font-bold transition-all border border-white/5">
               <RefreshCw size={13} className={isFetching ? "animate-spin" : ""} /> <span className="hidden sm:inline">Refresh</span>
@@ -447,8 +464,10 @@ export default function ResellerPanel() {
                 <div className="py-12 text-center text-white/20 text-[13px]">Loading...</div>
               ) : users.length === 0 ? (
                 <div className="py-12 text-center text-white/20 text-[13px]">No users yet</div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="py-12 text-center text-white/20 text-[13px]">No users match "{search}"</div>
               ) : (
-                users.map(u => {
+                filteredUsers.map(u => {
                   const blocked = u.status === "blocked";
                   const isDeleting = deletingId === u.id;
                   const userExpired = isPast(u.expiresAt);
