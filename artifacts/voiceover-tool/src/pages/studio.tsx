@@ -402,26 +402,21 @@ export default function StudioPage() {
           {/* ElevenLabs model — shown when the ElevenLabs platform or an ElevenLabs library voice is selected */}
           {(voiceProvider === "el" || (voiceProvider === "os" && voiceId.startsWith("elevenlabs_"))) && (
             <div className="p-4 border-b border-[#f3f4f6]">
-              <span className="text-sm font-semibold text-foreground block mb-3">Model</span>
-              <div className="grid grid-cols-2 gap-1.5">
-                {([
-                  { id: "eleven_turbo_v2_5" as const, label: "ElevenLabs V2.5", hint: "Fast · great quality" },
-                  { id: "eleven_v3" as const,         label: "ElevenLabs V3",   hint: "Most expressive" },
-                ] as const).map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => setElModel(m.id)}
-                    data-testid={`el-model-${m.id}`}
-                    className={cn(
-                      "px-2 py-2 rounded-lg text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5",
-                      elModel === m.id ? "text-orange-600 bg-orange-50 border-orange-300" : "border-[#e5e7eb] text-[#6b7280] hover:border-primary/40 hover:text-foreground"
-                    )}
-                  >
-                    {m.label}
-                    <span className="text-[9px] font-medium opacity-70">{m.hint}</span>
-                  </button>
-                ))}
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-foreground">Model</span>
+                <button onClick={() => setElModel("eleven_turbo_v2_5")} className="flex items-center gap-1 text-xs text-[#9ca3af] hover:text-foreground transition-colors">
+                  <RotateCcw size={10} /> Reset Value
+                </button>
               </div>
+              <select
+                value={elModel}
+                onChange={(e) => setElModel(e.target.value as "eleven_turbo_v2_5" | "eleven_v3")}
+                data-testid="select-el-model"
+                className="w-full h-10 px-3 border border-[#e5e7eb] rounded-lg text-sm bg-white text-foreground font-medium hover:border-primary/40 focus:outline-none focus:border-orange-400 cursor-pointer"
+              >
+                <option value="eleven_turbo_v2_5">ElevenLabs V2.5 — fast, great quality</option>
+                <option value="eleven_v3">ElevenLabs V3 — most expressive</option>
+              </select>
             </div>
           )}
           {/* Voice */}
