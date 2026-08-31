@@ -51,3 +51,8 @@ The legacy /api/tts, /api/minimax, /api/fishaudio, /api/edge and /api/voices rou
 
 ## Voice clone creation is intentionally FREE (user-confirmed Aug 2026)
 Both clone creation endpoints charge 0 credits by explicit product decision — billing happens only when the clone is used for generation (per character). Do not "fix" this as a missing charge.
+
+## ElevenLabs TTS cost multiplier (Aug 31, 2026)
+- ElevenLabs voices cost the provider ~1.2x the character count; other engines are 1:1 per char.
+- **Rule:** estimate AND reserve at 1.2x for `elevenlabs_`-prefixed voices (server `ttsEstimateFor` + client `estimateTtsCost(text, isElevenLabs)`), keep both mirrors in sync.
+- **Why:** UI previously showed 1:1 estimate while the provider reconciled higher — users saw credits "disappear" (5,000 -> 806 after one 3,506-char EL generation). Over-reserve is auto-refunded by the existing reconcile step, so 1.2x upfront is safe.
