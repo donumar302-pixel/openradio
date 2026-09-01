@@ -1627,6 +1627,23 @@ router.post("/dictionaries/preview", ...dictGate, async (req, res) => {
 
 /* ═══════════════ Voice Clone ═══════════════ */
 
+/** Formats the clone provider accepts as-is (MP3, WAV, M4A). Anything else
+ *  audio-ish (AAC phone recordings, OGG, WebM mic captures…) is transcoded
+ *  to MP3 with ffmpeg first — otherwise the provider rejects it and the user
+ *  just sees "Cloning failed". */
+const CLONE_NATIVE_MIMES = new Set([
+  "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/wave", "audio/mp4", "audio/x-m4a",
+]);
+function cloneNeedsTranscode(file: Express.Multer.File): boolean {
+  if (CLONE_NATIVE_MIMES.has(String(file.mimetype || "").toLowerCase())) {
+    // Some browsers label .aac files audio/mp4 alikes correctly; trust the
+    // extension when it clearly contradicts a native mime.
+    const ext = nodePath.extname(file.originalname || "").toLowerCase();
+    return ext === ".aac" || ext === ".ogg" || ext === ".opus" || ext === ".webm" || ext === ".amr" || ext === ".3gp";
+  }
+  return true;
+}
+
 router.post("/voice-clone", requireGlobalFeature("os-voice-clone"), requirePlanFeature("voice-cloning"), upload.single("audio"), async (req, res) => {
   const name = String(req.body?.name ?? "").trim();
   if (!req.file || !name) {
@@ -1640,6 +1657,15 @@ router.post("/voice-clone", requireGlobalFeature("os-voice-clone"), requirePlanF
   {
     const bad = badUpload(req.file, "audio", 10);
     if (bad) { res.status(400).json({ error: bad }); return; }
+  }
+  if (cloneNeedsTranscode(req.file)) {
+    try {
+      req.file = await extractAudioTrack(req.file);
+    } catch (err) {
+      logger.warn({ err, mime: req.file.mimetype, name: req.file.originalname }, "Voice clone sample transcode failed");
+      res.status(400).json({ error: "We couldn't read that audio file. Please upload an MP3, WAV, or M4A sample." });
+      return;
+    }
   }
   try {
     const form = new FormData();

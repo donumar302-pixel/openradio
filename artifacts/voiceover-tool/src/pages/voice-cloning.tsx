@@ -201,7 +201,7 @@ export default function VoiceCloningPage() {
             )}>
               <Upload size={22} className={file ? "text-violet-500 mb-2" : "text-[#9ca3af] mb-2"} />
               <p className="text-sm font-medium text-foreground">{file ? file.name : "Click to upload audio"}</p>
-              <p className="text-xs text-[#9ca3af] mt-1">MP3, WAV, M4A • 3–30 seconds</p>
+              <p className="text-xs text-[#9ca3af] mt-1">MP3, WAV, M4A, AAC • 3–30 seconds</p>
               <input type="file" accept="audio/*" onChange={handleFile} className="hidden" />
             </label>
           </div>
