@@ -118,7 +118,7 @@ function AppRoutes() {
         <Route path="/contact" component={ContactPage} />
         <Route path="/blog" component={BlogIndexPage} />
         <Route path="/blog/:slug" component={BlogArticlePage} />
-        <Route><Redirect to="/" /></Route>
+        <Route component={NotFound} />
       </Switch>
     );
   }
@@ -144,6 +144,7 @@ function AppRoutes() {
       <Switch>
         <Route path="/blog" component={BlogIndexPage} />
         <Route path="/blog/:slug" component={BlogArticlePage} />
+        <Route component={NotFound} />
       </Switch>
     );
   }

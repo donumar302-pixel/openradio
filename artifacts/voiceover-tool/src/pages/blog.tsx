@@ -92,9 +92,10 @@ export function BlogArticlePage() {
   const params = useParams<{ slug: string }>();
   const article = getArticle(params.slug ?? "");
   useSeo({
-    title: article?.title ?? "Blog — OpenRadio",
-    description: article?.metaDescription ?? "AI voice guides and comparisons from OpenRadio.",
+    title: article?.title ?? "Page Not Found — OpenRadio",
+    description: article?.metaDescription ?? "The page you're looking for doesn't exist.",
     path: article ? `/blog/${article.slug}` : "/blog",
+    noindex: !article,
   });
   if (!article) return <NotFound />;
 
