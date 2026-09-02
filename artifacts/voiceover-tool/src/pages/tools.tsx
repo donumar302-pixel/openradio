@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
 import { ArrowUpRight, Mic2, Copy, Zap, Flame, Waves, MessagesSquare, AudioWaveform, MessageSquareText, Radio, Languages, Drum, Music4, ImageIcon } from "lucide-react";
 import { motion } from "framer-motion";
+import { useSeo } from "@/lib/seo";
 
 /* ── Providers (real logos) ──────────────────────────────────────────── */
 const PROVIDERS = {
@@ -206,6 +207,12 @@ function ToolCard({ tool, index }: { tool: Tool; index: number }) {
 
 /* ── Page ───────────────────────────────────────────────────────────── */
 export default function ToolsPage() {
+  useSeo({
+    title: "AI Audio Tools — Text to Speech, Voice Cloning, Dubbing & More | OpenRadio",
+    description:
+      "Explore OpenRadio's AI audio toolkit: realistic text to speech, instant voice cloning, video dubbing, sound effects, speech to text, multi-speaker dialogue and more.",
+    path: "/tools",
+  });
   return (
     <div className="min-h-screen flex flex-col font-sans bg-[#fafaf8]">
       <MarketingNav />

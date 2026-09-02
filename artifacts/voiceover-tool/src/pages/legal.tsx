@@ -1,5 +1,6 @@
 import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
 import { Mail, MessageCircle } from "lucide-react";
+import { useSeo } from "@/lib/seo";
 
 /* ── Shared layout for policy pages ─────────────────────────────────── */
 function LegalLayout({ title, updated, children }: { title: string; updated: string; children: React.ReactNode }) {
@@ -26,6 +27,11 @@ const CONTACT_EMAIL = "hellojian@openradio.io";
 
 /* ── Privacy Policy ─────────────────────────────────────────────────── */
 export function PrivacyPage() {
+  useSeo({
+    title: "Privacy Policy — OpenRadio",
+    description: "How OpenRadio collects, uses and protects your data.",
+    path: "/privacy",
+  });
   return (
     <LegalLayout title="Privacy Policy" updated={UPDATED}>
       <section>
@@ -71,6 +77,11 @@ export function PrivacyPage() {
 
 /* ── Terms of Service ───────────────────────────────────────────────── */
 export function TermsPage() {
+  useSeo({
+    title: "Terms of Service — OpenRadio",
+    description: "The terms that govern your use of OpenRadio's AI voice tools.",
+    path: "/terms",
+  });
   return (
     <LegalLayout title="Terms of Service" updated={UPDATED}>
       <section>
@@ -116,6 +127,11 @@ export function TermsPage() {
 
 /* ── Refund Policy ──────────────────────────────────────────────────── */
 export function RefundPage() {
+  useSeo({
+    title: "Refund Policy — OpenRadio",
+    description: "OpenRadio's refund policy for credit plans and subscriptions.",
+    path: "/refund-policy",
+  });
   return (
     <LegalLayout title="Refund Policy" updated={UPDATED}>
       <section>
@@ -145,6 +161,11 @@ export function RefundPage() {
 
 /* ── Cookie Policy ──────────────────────────────────────────────────── */
 export function CookiesPage() {
+  useSeo({
+    title: "Cookie Policy — OpenRadio",
+    description: "How OpenRadio uses cookies to keep you signed in and improve the product.",
+    path: "/cookies",
+  });
   return (
     <LegalLayout title="Cookie Policy" updated={UPDATED}>
       <section>
@@ -172,6 +193,11 @@ export function CookiesPage() {
 
 /* ── Contact ────────────────────────────────────────────────────────── */
 export function ContactPage() {
+  useSeo({
+    title: "Contact Us — OpenRadio",
+    description: "Get in touch with the OpenRadio team for support, billing or partnership questions.",
+    path: "/contact",
+  });
   return (
     <div className="min-h-screen flex flex-col font-sans bg-[#fafaf8]">
       <MarketingNav />

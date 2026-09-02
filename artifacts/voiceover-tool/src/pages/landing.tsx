@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
+import { useSeo } from "@/lib/seo";
 import { 
   Play, Pause, ArrowRight, Mic, Globe, 
   Wand2, AudioLines, Sparkles, Zap, Fingerprint,
@@ -370,7 +371,42 @@ function AnimatedWaveform({ isPlaying }: { isPlaying: boolean }) {
   );
 }
 
+const FAQ_ITEMS = [
+  {
+    q: "What is OpenRadio?",
+    a: "OpenRadio is an all-in-one AI voice generator. It turns text into natural, human-sounding speech, clones your voice from a short sample, dubs videos into other languages, generates sound effects, and more — all from your browser.",
+  },
+  {
+    q: "Is there a free AI voice generator plan?",
+    a: "Yes. You can sign up free — no credit card required — and get free credits to try realistic text to speech right away. Upgrade any time for more credits and premium tools like voice cloning and dubbing.",
+  },
+  {
+    q: "How does AI voice cloning work?",
+    a: "Upload a clear 10–30 second recording of a voice you have permission to use. OpenRadio builds a custom AI voice from it in seconds, and you can then generate unlimited speech in that voice.",
+  },
+  {
+    q: "Which languages and accents are supported?",
+    a: "OpenRadio supports dozens of languages and accents — including English, Urdu, Hindi, Arabic, Spanish, and many more — with hundreds of lifelike male and female voices to choose from.",
+  },
+  {
+    q: "Can I use the voiceovers commercially?",
+    a: "Yes. Audio you generate on a paid plan can be used in YouTube videos, podcasts, ads, e-learning courses, audiobooks, and other commercial projects.",
+  },
+  {
+    q: "How is OpenRadio different from other voiceover tools?",
+    a: "OpenRadio combines multiple premium AI speech engines in one studio, with simple credit pricing, batch generation, multi-speaker dialogue, video dubbing, and speech-to-text — so you don't need separate subscriptions for each tool.",
+  },
+];
+
 export default function LandingPage() {
+  useSeo({
+    title: "OpenRadio — Free AI Voice Generator, Text to Speech & Voice Cloning",
+    description:
+      "Turn text into realistic AI voiceovers in seconds. OpenRadio offers lifelike text to speech, instant voice cloning, video dubbing and 100+ natural voices in dozens of languages. Start free.",
+    path: "/",
+  });
+  // JSON-LD (SoftwareApplication + FAQPage) is injected server-side into the
+  // initial HTML — see api-server lib/seo-meta.ts.
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [errorId, setErrorId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -935,6 +971,24 @@ export default function LandingPage() {
               <h4 className="text-xl font-black text-black mb-2">{uc.title}</h4>
               <p className="text-[15px] text-black/60 font-medium">{uc.desc}</p>
             </div>
+          ))}
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="px-4 sm:px-6 max-w-4xl mx-auto pb-28">
+        <h2 className="text-3xl sm:text-[40px] font-black tracking-tight text-black mb-10 text-center">
+          Frequently Asked Questions
+        </h2>
+        <div className="space-y-4">
+          {FAQ_ITEMS.map((f) => (
+            <details key={f.q} className="group bg-white rounded-3xl border border-black/5 shadow-sm px-6 sm:px-8 py-5 open:pb-6">
+              <summary className="cursor-pointer list-none flex items-center justify-between gap-4 text-base sm:text-lg font-bold text-black">
+                {f.q}
+                <span className="shrink-0 text-orange-500 text-2xl leading-none transition-transform group-open:rotate-45">+</span>
+              </summary>
+              <p className="mt-3 text-sm sm:text-base text-black/60 font-medium leading-relaxed">{f.a}</p>
+            </details>
           ))}
         </div>
       </section>

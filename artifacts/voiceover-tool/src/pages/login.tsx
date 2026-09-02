@@ -4,8 +4,15 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { GoogleAuthButton } from "@/components/google-auth-button";
+import { useSeo } from "@/lib/seo";
 
 export default function LoginPage() {
+  useSeo({
+    title: "Log In — OpenRadio",
+    description: "Log in to your OpenRadio account to create AI voiceovers, clone voices and dub videos.",
+    path: "/login",
+    noindex: true,
+  });
   const [, setLocation] = useLocation();
   const { login, loginPending } = useAuth();
   const [email, setEmail] = useState("");

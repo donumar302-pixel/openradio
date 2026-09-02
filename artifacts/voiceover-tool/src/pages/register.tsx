@@ -4,8 +4,15 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Loader2, MailCheck } from "lucide-react";
+import { useSeo } from "@/lib/seo";
 
 export default function RegisterPage() {
+  useSeo({
+    title: "Sign Up Free — OpenRadio AI Voice Generator",
+    description: "Create a free OpenRadio account and start generating realistic AI voiceovers in seconds. No credit card required.",
+    path: "/register",
+    noindex: true,
+  });
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const [username, setUsername] = useState("");

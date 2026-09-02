@@ -71,6 +71,8 @@ app.use(
   }),
 );
 
+import { renderIndexHtml } from "./lib/seo-meta";
+
 const workspaceRoot = process.cwd().endsWith(path.join("artifacts", "api-server"))
   ? path.resolve(process.cwd(), "../..")
   : process.cwd();
@@ -84,11 +86,13 @@ app.use("/api", router);
 // (works on Railway even if NODE_ENV is not explicitly set)
 const frontendDir = path.resolve(workspaceRoot, "artifacts/voiceover-tool/dist/public");
 if (fs.existsSync(path.join(frontendDir, "index.html"))) {
-  app.use(express.static(frontendDir));
-  // SPA fallback — all non-API GET routes serve index.html
+  app.use(express.static(frontendDir, { index: false }));
+  // SPA fallback — all non-API GET routes serve index.html with per-route
+  // SEO metadata injected server-side (crawlers must not need JS for meta).
+  const rawIndexHtml = fs.readFileSync(path.join(frontendDir, "index.html"), "utf8");
   app.use((req, res, next) => {
     if (req.method !== "GET" || req.path.startsWith("/api")) return next();
-    res.sendFile(path.join(frontendDir, "index.html"));
+    res.type("html").send(renderIndexHtml(rawIndexHtml, req.path));
   });
 }
 

@@ -1,2 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /adminarea
+Disallow: /settings
+Disallow: /studio
+Disallow: /api/
+
+Sitemap: https://openradio.io/sitemap.xml

@@ -6,6 +6,7 @@ import { ArrowRight, Loader2, Zap, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
 import { CheckoutDialog } from "@/components/checkout-dialog";
+import { useSeo } from "@/lib/seo";
 
 interface Currency { code: string; symbol: string; }
 interface Plan {
@@ -95,6 +96,12 @@ function FeatureGroup({ features, title }: { features: string[], title?: string 
 }
 
 export default function PricingPage() {
+  useSeo({
+    title: "Pricing & Credit Plans — OpenRadio AI Voice Generator",
+    description:
+      "Simple credit-based pricing for AI text to speech, voice cloning and dubbing. Start free, upgrade when you need more — no hidden fees.",
+    path: "/pricing",
+  });
   const { data, isLoading, isError } = useQuery({ queryKey: ["plans"], queryFn: fetchPlans });
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
