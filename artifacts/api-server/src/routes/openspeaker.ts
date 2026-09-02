@@ -320,7 +320,9 @@ async function applyTaskState(row: OsTask, state: OsTaskState): Promise<OsTask> 
     const [saved] = await tx.update(osTasksTable).set({
       status,
       output: state.metadata ?? current.output,
-      error: status === "error" ? sanitizeProviderText(state.error_message ?? "") || "Generation failed" : null,
+      error: status === "error"
+        ? friendlyTaskError(state.error_message ?? "") || sanitizeProviderText(state.error_message ?? "") || "Generation failed"
+        : null,
       creditsCharged,
       refunded,
       updatedAt: new Date(),
@@ -1235,7 +1237,7 @@ async function generateLongTtsChunk(
             .where(eq(osTasksTable.id, taskRowId)).catch(() => {});
         }
         if (state?.status === "error") {
-          throw new Error(sanitizeProviderText(state.error_message ?? "") || "Generation failed");
+          throw new Error(friendlyTaskError(state.error_message ?? "") || sanitizeProviderText(state.error_message ?? "") || "Generation failed");
         }
         if (state?.status === "done") {
           const m = (state.metadata ?? {}) as Record<string, any>;
@@ -1627,6 +1629,63 @@ router.post("/dictionaries/preview", ...dictGate, async (req, res) => {
 
 /* ═══════════════ Voice Clone ═══════════════ */
 
+/** Map raw provider error codes to plain-English messages users can act on.
+ *  Falls back to the sanitized provider text handled by callers. */
+export function friendlyTaskError(raw: string): string | null {
+  if (/voice_clone_empty_sound/i.test(raw)) {
+    return "This cloned voice's sample was too quiet or unclear, so audio could not be generated. Please re-create the clone with a clear 10–30 second voice recording.";
+  }
+  if (/voice_clone.*not.*found|clone.*not.*exist/i.test(raw)) {
+    return "This cloned voice no longer exists. Please create it again.";
+  }
+  return null;
+}
+
+/** Probe an audio buffer: duration in seconds and mean volume in dB (ffprobe/ffmpeg). */
+async function probeCloneSample(buffer: Buffer): Promise<{ seconds: number; meanDb: number | null }> {
+  const dir = await fsp.mkdtemp(nodePath.join(nodeOs.tmpdir(), "clone-probe-"));
+  const inPath = nodePath.join(dir, "sample");
+  try {
+    await fsp.writeFile(inPath, buffer);
+    const run = (cmd: string, args: string[]) => new Promise<string>((resolve, reject) => {
+      const proc = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+      let out = "", errOut = "";
+      const timer = setTimeout(() => { proc.kill("SIGKILL"); reject(new Error(`${cmd} timed out`)); }, 30_000);
+      proc.stdout.on("data", d => { out += d.toString(); });
+      proc.stderr.on("data", d => { errOut = (errOut + d.toString()).slice(-4000); });
+      proc.on("error", err => { clearTimeout(timer); reject(err); });
+      proc.on("close", code => { clearTimeout(timer); code === 0 ? resolve(out + errOut) : reject(new Error(`${cmd} exited ${code}`)); });
+    });
+    const probe = await run("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", inPath]);
+    const seconds = parseFloat(probe.trim()) || 0;
+    let meanDb: number | null = null;
+    try {
+      const vol = await run("ffmpeg", ["-i", inPath, "-af", "volumedetect", "-f", "null", "-"]);
+      const m = vol.match(/mean_volume:\s*(-?[\d.]+)\s*dB/);
+      if (m) meanDb = parseFloat(m[1]);
+    } catch { /* volume probe is best-effort */ }
+    return { seconds, meanDb };
+  } finally {
+    await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/** Trim an audio buffer to the first `seconds` as MP3. */
+async function trimCloneSample(file: Express.Multer.File, seconds: number): Promise<Express.Multer.File> {
+  const dir = await fsp.mkdtemp(nodePath.join(nodeOs.tmpdir(), "clone-trim-"));
+  const inPath = nodePath.join(dir, "input");
+  const outPath = nodePath.join(dir, "trimmed.mp3");
+  try {
+    await fsp.writeFile(inPath, file.buffer);
+    await runFfmpeg(["-y", "-i", inPath, "-t", String(seconds), "-vn", "-acodec", "libmp3lame", "-b:a", "192k", outPath]);
+    const buffer = await fsp.readFile(outPath);
+    const base = (file.originalname || "sample").replace(/\.[^.]+$/, "");
+    return { ...file, buffer, size: buffer.length, mimetype: "audio/mpeg", originalname: `${base}.mp3` };
+  } finally {
+    await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 /** Formats the clone provider accepts as-is (MP3, WAV, M4A). Anything else
  *  audio-ish (AAC phone recordings, OGG, WebM mic captures…) is transcoded
  *  to MP3 with ffmpeg first — otherwise the provider rejects it and the user
@@ -1666,6 +1725,22 @@ router.post("/voice-clone", requireGlobalFeature("os-voice-clone"), requirePlanF
       res.status(400).json({ error: "We couldn't read that audio file. Please upload an MP3, WAV, or M4A sample." });
       return;
     }
+  }
+  // Validate the sample upfront — the provider accepts almost anything at
+  // creation and only fails later, at first generation ("voice_clone_empty_sound").
+  try {
+    const { seconds, meanDb } = await probeCloneSample(req.file.buffer);
+    if (seconds < 3) {
+      res.status(400).json({ error: "Your voice sample is too short. Please record at least 3 seconds (10–30 seconds works best)." });
+      return;
+    }
+    if (meanDb !== null && meanDb < -45) {
+      res.status(400).json({ error: "Your voice sample sounds silent or too quiet. Please record again, speaking clearly close to the microphone." });
+      return;
+    }
+    if (seconds > 30) req.file = await trimCloneSample(req.file, 30);
+  } catch (err) {
+    logger.warn({ err }, "Voice clone sample probe failed (continuing without validation)");
   }
   try {
     const form = new FormData();
