@@ -29,6 +29,7 @@ import LandingPage from "@/pages/landing";
 import PricingPage from "@/pages/pricing";
 import ToolsPage from "@/pages/tools";
 import { PrivacyPage, TermsPage, RefundPage, CookiesPage, ContactPage } from "@/pages/legal";
+import { BlogIndexPage, BlogArticlePage } from "@/pages/blog";
 import SpeechToSpeechPage from "@/pages/speech-to-speech";
 import SpeechToTextPage from "@/pages/speech-to-text";
 import AudioIsolationPage from "@/pages/audio-isolation";
@@ -115,6 +116,8 @@ function AppRoutes() {
         <Route path="/refund-policy" component={RefundPage} />
         <Route path="/cookies" component={CookiesPage} />
         <Route path="/contact" component={ContactPage} />
+        <Route path="/blog" component={BlogIndexPage} />
+        <Route path="/blog/:slug" component={BlogArticlePage} />
         <Route><Redirect to="/" /></Route>
       </Switch>
     );
@@ -136,6 +139,14 @@ function AppRoutes() {
   if (location === "/refund-policy") return <RefundPage />;
   if (location === "/cookies") return <CookiesPage />;
   if (location === "/contact") return <ContactPage />;
+  if (location === "/blog" || location.startsWith("/blog/")) {
+    return (
+      <Switch>
+        <Route path="/blog" component={BlogIndexPage} />
+        <Route path="/blog/:slug" component={BlogArticlePage} />
+      </Switch>
+    );
+  }
 
   return (
     <SidebarLayout>

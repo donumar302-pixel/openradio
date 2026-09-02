@@ -48,6 +48,47 @@ const PAGE_META: Record<string, PageMeta> = {
     title: "Cookie Policy — OpenRadio",
     description: "How OpenRadio uses cookies to keep you signed in and improve the product.",
   },
+  // Blog — keep in sync with artifacts/voiceover-tool/src/lib/blog-content.ts
+  "/blog": {
+    title: "Blog — AI Voice Guides & Comparisons | OpenRadio",
+    description:
+      "Guides and comparisons on AI voiceovers: ElevenLabs & Murf alternatives, how voice cloning works, AI dubbing explained, and more from the OpenRadio team.",
+  },
+  "/blog/elevenlabs-alternative": {
+    title: "Best Free ElevenLabs Alternative in 2026 — OpenRadio",
+    description:
+      "Looking for a free ElevenLabs alternative? OpenRadio gives you ElevenLabs-quality AI voices, voice cloning and dubbing with simple pay-as-you-go credits — no monthly subscription required.",
+  },
+  "/blog/murf-ai-alternative": {
+    title: "Murf AI Alternative: More Voices, Simpler Pricing — OpenRadio",
+    description:
+      "Searching for a Murf AI alternative? OpenRadio offers hundreds of realistic AI voices, instant voice cloning and video dubbing with pay-as-you-go credits instead of subscriptions. Start free.",
+  },
+  "/blog/play-ht-alternative": {
+    title: "Play.ht Alternative with Voice Cloning & Dubbing — OpenRadio",
+    description:
+      "Need a Play.ht alternative? OpenRadio combines realistic text to speech, instant voice cloning, video dubbing and sound effects in one credit-based studio. No subscription — start free.",
+  },
+  "/blog/fish-audio-alternative": {
+    title: "Fish Audio Alternative — Same Engine, Full Studio | OpenRadio",
+    description:
+      "Want Fish Audio voices plus cloning, dubbing and more? OpenRadio includes the Fish Audio engine alongside other premium AI voices in one credit-based studio. Start free.",
+  },
+  "/blog/what-is-ai-dubbing": {
+    title: "What Is AI Dubbing? How AI Video Dubbing Works in 2026",
+    description:
+      "AI dubbing translates your video's speech into another language while keeping natural-sounding voices. Learn how AI video dubbing works, what it costs, and how to dub a video in minutes.",
+  },
+  "/blog/what-is-voice-cloning": {
+    title: "What Is AI Voice Cloning & How Does It Work? (2026 Guide)",
+    description:
+      "AI voice cloning creates a digital copy of a voice from a short recording. Learn how voice cloning works, what it's used for, how to do it safely — and how to clone a voice in seconds.",
+  },
+  "/blog/what-is-ai-voice-cover": {
+    title: "What Is an AI Voice Cover? Voice Changers Explained (2026)",
+    description:
+      "An AI voice cover re-voices existing audio in a different voice while keeping the original delivery. Learn how AI voice covers and speech-to-speech voice changers work.",
+  },
   "/login": {
     title: "Log In — OpenRadio",
     description: "Log in to your OpenRadio account to create AI voiceovers, clone voices and dub videos.",

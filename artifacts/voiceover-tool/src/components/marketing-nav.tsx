@@ -224,6 +224,7 @@ export function MarketingFooter() {
               <li><Link href="/tools" className="hover:text-gray-900">Voice Cloning</Link></li>
               <li><Link href="/tools" className="hover:text-gray-900">All Tools</Link></li>
               <li><Link href="/pricing" className="hover:text-gray-900">Pricing</Link></li>
+              <li><Link href="/blog" className="hover:text-gray-900">Blog</Link></li>
             </ul>
           </div>
 
