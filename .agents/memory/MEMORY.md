@@ -13,4 +13,5 @@
 - [OpenSpeaker tool suite](openspeaker-suite.md) — /v1s and /v1i path prefixes are correct; dictionary id under `dictionary.id`; two-phase refund + ownership/upload guardrails on /api/os.
 - [Manual plan payments](manual-plan-payments.md) — renewal checkout permits expired users but blocks suspended accounts; commercial terms are server-derived and approval is pending-only/idempotent.
 - [Email, Developer API & Script Writer](platform-notifications-devapi.md) — Resend fail-soft + idempotent expiry reminders; /api/v1 hashed keys reuse the os_tasks credit pipeline; OpenAI script writer refunds on failure.
+- [SEO setup (SPA meta injection)](seo-setup.md) — crawlers get per-route meta from server-rewritten index.html (seo-meta.ts); keep PAGE_META/FAQ in sync with client useSeo/landing.
 - [Longform TTS pipeline](longform-tts.md) — >5k-char scripts chunk+stitch via /api/os/tts-long; parent row has no externalTaskId (needs its own orphan sweep); result blobs reuse os_dub_videos.
