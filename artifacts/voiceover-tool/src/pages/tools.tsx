@@ -3,6 +3,7 @@ import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
 import { ArrowUpRight, Mic2, Copy, Zap, Flame, Waves, MessagesSquare, AudioWaveform, MessageSquareText, Radio, Languages, Drum, Music4, ImageIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { useSeo } from "@/lib/seo";
+import { trackEvent } from "@/lib/analytics";
 
 /* ── Providers (real logos) ──────────────────────────────────────────── */
 const PROVIDERS = {
@@ -170,7 +171,16 @@ function ToolCard({ tool, index }: { tool: Tool; index: number }) {
       transition={{ delay: index * 0.05, duration: 0.45 }}
       className={tool.big ? "md:col-span-3" : "md:col-span-2"}
     >
-      <Link href={tool.href}>
+      <Link
+        href={tool.href}
+        onClick={() =>
+          trackEvent("tool_selected", {
+            tool: tool.name,
+            destination: tool.href,
+            location: "tools_page",
+          })
+        }
+      >
         <div className="group relative h-full bg-white rounded-3xl border border-black/6 p-7 sm:p-8 cursor-pointer overflow-hidden transition-all hover:shadow-xl hover:shadow-black/5 hover:-translate-y-1">
           {/* accent glow */}
           <div

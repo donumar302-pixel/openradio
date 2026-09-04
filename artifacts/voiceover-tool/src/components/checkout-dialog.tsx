@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { Zap, ShieldCheck, CreditCard, Copy, Check, Upload, Loader2, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { trackEvent } from "@/lib/analytics";
 
 interface CheckoutDialogProps {
   planId: string | null;
@@ -91,7 +92,14 @@ export function CheckoutDialog({ planId, currency, onClose }: CheckoutDialogProp
         throw new Error(data.error || "Submission failed");
       }
       return res.json();
-    }
+    },
+    onSuccess: () => {
+      trackEvent("order_submitted", {
+        plan: planId || "unknown",
+        currency,
+        payment_method: methodId || "unknown",
+      });
+    },
   });
 
   if (!planId) return null;

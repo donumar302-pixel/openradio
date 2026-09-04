@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { trackEvent } from "@/lib/analytics";
 
 const LANGUAGES = ["English", "Urdu", "Hindi", "Arabic", "Spanish", "French", "German", "Turkish", "Indonesian", "Portuguese"];
 const TONES = [
@@ -49,6 +50,12 @@ export default function ScriptWriterPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Script generation failed");
+      trackEvent("script_generated", {
+        language,
+        tone,
+        length,
+        credits_charged: Number(data.creditsCharged || 0),
+      });
       setScript(data.script);
       queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
       toast({ title: "Script ready!", description: data.creditsCharged > 0 ? `${data.creditsCharged} credits used.` : undefined });

@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLogin, useRegister, useLogout } from "@workspace/api-client-react";
+import { trackEvent } from "@/lib/analytics";
 
 const AUTH_KEY = ["auth", "me"] as const;
 
@@ -50,6 +51,7 @@ export function useAuth() {
       { data },
       {
         onSuccess: (userData) => {
+          trackEvent("login_completed", { method: "email" });
           queryClient.setQueryData(AUTH_KEY, userData);
           queryClient.invalidateQueries({ queryKey: AUTH_KEY });
           callbacks?.onSuccess?.();
@@ -67,6 +69,7 @@ export function useAuth() {
       { data },
       {
         onSuccess: (userData) => {
+          trackEvent("registration_completed", { method: "email" });
           queryClient.setQueryData(AUTH_KEY, userData);
           queryClient.invalidateQueries({ queryKey: AUTH_KEY });
           callbacks?.onSuccess?.();

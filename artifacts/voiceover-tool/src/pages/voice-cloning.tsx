@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { OsCostEstimate } from "@/components/os/cost-estimate";
 import { VOICE_CLONE_CREATE_COST } from "@/lib/os-cost";
+import { trackEvent } from "@/lib/analytics";
 
 interface VoiceClone {
   id: number;
@@ -68,6 +69,9 @@ export default function VoiceCloningPage() {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as any).error || "Cloning failed");
       }
+      trackEvent("voice_clone_created", {
+        sample_size_kb: Math.round(file.size / 1024),
+      });
       toast({
         title: "Voice cloned!",
         description: `"${name}" is ready — find it under My Clones in the Voice Library.`,

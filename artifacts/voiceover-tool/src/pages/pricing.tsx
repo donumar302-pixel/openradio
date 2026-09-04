@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
 import { CheckoutDialog } from "@/components/checkout-dialog";
 import { useSeo } from "@/lib/seo";
+import { trackEvent } from "@/lib/analytics";
 
 interface Currency { code: string; symbol: string; }
 interface Plan {
@@ -131,6 +132,11 @@ export default function PricingPage() {
   const handlePlanClick = (e: React.MouseEvent, plan: Plan) => {
     e.preventDefault();
     const price = plan.prices[currency] ?? 0;
+    trackEvent("plan_selected", {
+      plan: plan.id,
+      currency,
+      authenticated: isAuthenticated,
+    });
 
     if (price === 0) {
       if (isAuthenticated) {
