@@ -4,8 +4,9 @@ import { requireActiveUser, isUserAdmin } from "../middleware/require-active-use
 import { reserveCredits, refundCredits } from "./openspeaker";
 
 /**
- * AI Script Writer — generates voiceover scripts with OpenAI (works on any
- * host, including Railway, via OPENAI_API_KEY). Flat credit cost per script,
+ * AI Script Writer — generates voiceover scripts with OpenAI. It prefers the
+ * Replit AI Integrations proxy and falls back to a direct OPENAI_API_KEY.
+ * Flat credit cost per script,
  * charged with the same atomic reserve → provider → refund-on-failure flow
  * used by the voice tools.
  */
@@ -22,7 +23,13 @@ const LENGTHS: Record<string, { label: string; maxTokens: number }> = {
 };
 
 router.post("/generate", async (req, res) => {
-  if (!process.env.OPENAI_API_KEY) {
+  const integrationKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  const directKey = process.env.OPENAI_API_KEY;
+  const apiKey = integrationKey || directKey;
+  const baseUrl = integrationKey
+    ? (process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || "").replace(/\/+$/, "")
+    : "https://api.openai.com/v1";
+  if (!apiKey || !baseUrl) {
     res.status(503).json({ error: "Script Writer is not configured yet. Please contact support." });
     return;
   }
@@ -43,14 +50,14 @@ router.post("/generate", async (req, res) => {
   }
 
   try {
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: integrationKey ? "gpt-5-mini" : "gpt-4o-mini",
         max_tokens: length.maxTokens,
         temperature: 0.8,
         messages: [
