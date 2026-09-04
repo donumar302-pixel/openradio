@@ -109,7 +109,7 @@ const FAQ_ITEMS: Array<{ q: string; a: string }> = [
   },
   {
     q: "Is there a free AI voice generator plan?",
-    a: "Yes. You can sign up free — no credit card required — and get free credits to try realistic text to speech right away. Upgrade any time for more credits and premium tools like voice cloning and dubbing.",
+    a: "Yes. You can sign up free — no credit card required — and use your free credits for realistic text to speech. Voice cloning is also available on the free plan. Upgrade any time for more credits and premium tools like dubbing.",
   },
   {
     q: "How does AI voice cloning work?",

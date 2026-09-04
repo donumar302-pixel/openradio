@@ -87,7 +87,7 @@ export type FeatureKey =
   | "image";
 
 // Features available on the free plan. Everything else requires a paid plan.
-const FREE_FEATURES: Set<FeatureKey> = new Set(["tts", "fire-tts", "dictionary"]);
+const FREE_FEATURES: Set<FeatureKey> = new Set(["tts", "fire-tts", "voice-cloning", "dictionary"]);
 
 export function planAllowsFeature(plan: string, feature: FeatureKey): boolean {
   if (plan !== "free") return true;
@@ -157,6 +157,7 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
       "Text to Speech — all models",
       "ElevenLabs v3 & v2.5 models",
       "Bulk TTS — all models",
+      "Voice Cloning",
       "MP3 downloads",
       "Community support",
     ],
@@ -180,7 +181,6 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
       "Text to Speech — all models",
       "Bulk TTS — all models",
       "ElevenLabs v3 & v2.5 models",
-      "Voice Cloning",
       "Speech to Speech",
       "Speech to Text",
       "Sound Effects",
