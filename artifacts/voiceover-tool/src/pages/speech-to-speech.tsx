@@ -1,5 +1,5 @@
 import { AudioWaveform, Mic, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -23,6 +23,16 @@ export default function VoiceChangerPage() {
   const { task, submitting, run, working, cancel, cancelling } = useOsTask("voice-changer");
   const estimate = file ? estimateVoiceChangerCost(file.size) : null;
   const insufficient = useOsInsufficientCredits(estimate);
+
+  useEffect(() => {
+    if (
+      task?.status === "error" &&
+      task.error?.includes("selected voice is no longer available")
+    ) {
+      setVoiceId("");
+      setVoiceName("");
+    }
+  }, [task?.status, task?.error]);
 
   const handleSubmit = () => {
     if (!file || !voiceId) {

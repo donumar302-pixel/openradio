@@ -329,6 +329,19 @@ async function applyTaskState(row: OsTask, state: OsTaskState): Promise<OsTask> 
     }).where(eq(osTasksTable.id, current.id)).returning();
     return saved ?? current;
   });
+  // The upstream catalog can briefly keep voices that ElevenLabs has already
+  // removed. Once generation confirms that a voice is gone, retire it locally
+  // so users cannot immediately select the same broken voice again.
+  if (/elevenlabs_voice_not_found|elevenlabs.*voice.*not.*found/i.test(state.error_message ?? "")) {
+    const selectedVoiceId = String((saved?.input as any)?.voiceId ?? "");
+    if (selectedVoiceId) {
+      const ids = [selectedVoiceId, rawElevenVoiceId(selectedVoiceId)];
+      for (const id of ids) EL_INDEX.delete(id);
+      await db.delete(elVoiceIndexTable).where(inArray(elVoiceIndexTable.voiceId, ids)).catch((err) => {
+        logger.warn({ err, selectedVoiceId }, "Failed to retire unavailable ElevenLabs voice");
+      });
+    }
+  }
   // Dubbing tasks whose original upload was a video: mux the dubbed audio back
   // into the retained source video once the task is final (outside the tx —
   // ffmpeg + the audio download can take seconds).
@@ -474,7 +487,9 @@ export function taskJson(t: OsTask) {
     input: publicJsonRecord(t.input),
     output: t.output ?? null,
     // Old rows may hold pre-scrub provider messages — sanitize on the way out too.
-    error: t.error ? sanitizeProviderText(t.error) || "Generation failed" : t.error,
+    error: t.error
+      ? friendlyTaskError(t.error) || sanitizeProviderText(t.error) || "Generation failed"
+      : t.error,
     creditsCharged: t.creditsCharged,
     refunded: t.refunded,
     createdAt: t.createdAt.toISOString(),
@@ -803,6 +818,22 @@ async function elLoadSnapshot(): Promise<boolean> {
     if (v?.voice_id && !EL_INDEX.has(v.voice_id) && EL_INDEX.size < EL_INDEX_MAX) {
       EL_INDEX.set(v.voice_id, v);
     }
+  }
+  // Also purge voices that previously failed generation as unavailable. This
+  // repairs stale persisted snapshots after a restart, including failures
+  // recorded before automatic retirement was added.
+  const unavailableTasks = await db.select({ input: osTasksTable.input })
+    .from(osTasksTable)
+    .where(sql`${osTasksTable.error} ILIKE ${"%elevenlabs_voice_not_found%"}`)
+    .limit(1000);
+  const unavailableIds = [...new Set(unavailableTasks.flatMap(({ input }) => {
+    const id = String((input as any)?.voiceId ?? "");
+    return id ? [id, rawElevenVoiceId(id)] : [];
+  }))];
+  if (unavailableIds.length > 0) {
+    for (const id of unavailableIds) EL_INDEX.delete(id);
+    await db.delete(elVoiceIndexTable).where(inArray(elVoiceIndexTable.voiceId, unavailableIds));
+    logger.info({ retired: unavailableIds.length }, "Retired unavailable ElevenLabs voices from snapshot");
   }
   const meta = await getSetting<{ refreshedAt?: string } | undefined>(EL_SNAPSHOT_META_KEY);
   const refreshedAt = meta?.refreshedAt ? Date.parse(meta.refreshedAt) : NaN;
@@ -1632,6 +1663,9 @@ router.post("/dictionaries/preview", ...dictGate, async (req, res) => {
 /** Map raw provider error codes to plain-English messages users can act on.
  *  Falls back to the sanitized provider text handled by callers. */
 export function friendlyTaskError(raw: string): string | null {
+  if (/elevenlabs_voice_not_found|elevenlabs.*voice.*not.*found/i.test(raw)) {
+    return "The selected voice is no longer available. Please choose another voice and try again.";
+  }
   if (/voice_clone_empty_sound/i.test(raw)) {
     return "This cloned voice's sample was too quiet or unclear, so audio could not be generated. Please re-create the clone with a clear 10–30 second voice recording.";
   }
