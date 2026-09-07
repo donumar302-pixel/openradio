@@ -1670,22 +1670,6 @@ async function probeCloneSample(buffer: Buffer): Promise<{ seconds: number; mean
   }
 }
 
-/** Trim an audio buffer to the first `seconds` as MP3. */
-async function trimCloneSample(file: Express.Multer.File, seconds: number): Promise<Express.Multer.File> {
-  const dir = await fsp.mkdtemp(nodePath.join(nodeOs.tmpdir(), "clone-trim-"));
-  const inPath = nodePath.join(dir, "input");
-  const outPath = nodePath.join(dir, "trimmed.mp3");
-  try {
-    await fsp.writeFile(inPath, file.buffer);
-    await runFfmpeg(["-y", "-i", inPath, "-t", String(seconds), "-vn", "-acodec", "libmp3lame", "-b:a", "192k", outPath]);
-    const buffer = await fsp.readFile(outPath);
-    const base = (file.originalname || "sample").replace(/\.[^.]+$/, "");
-    return { ...file, buffer, size: buffer.length, mimetype: "audio/mpeg", originalname: `${base}.mp3` };
-  } finally {
-    await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
-  }
-}
-
 /** Formats the clone provider accepts as-is (MP3, WAV, M4A). Anything else
  *  audio-ish (AAC phone recordings, OGG, WebM mic captures…) is transcoded
  *  to MP3 with ffmpeg first — otherwise the provider rejects it and the user
@@ -1706,7 +1690,7 @@ function cloneNeedsTranscode(file: Express.Multer.File): boolean {
 router.post("/voice-clone", requireGlobalFeature("os-voice-clone"), requirePlanFeature("voice-cloning"), upload.single("audio"), async (req, res) => {
   const name = String(req.body?.name ?? "").trim();
   if (!req.file || !name) {
-    res.status(400).json({ error: "A voice name and a 3–30 second audio sample are required." });
+    res.status(400).json({ error: "A voice name and a 10–30 second audio sample are required." });
     return;
   }
   if (String(req.body?.consent ?? "") !== "true") {
@@ -1730,17 +1714,22 @@ router.post("/voice-clone", requireGlobalFeature("os-voice-clone"), requirePlanF
   // creation and only fails later, at first generation ("voice_clone_empty_sound").
   try {
     const { seconds, meanDb } = await probeCloneSample(req.file.buffer);
-    if (seconds < 3) {
-      res.status(400).json({ error: "Your voice sample is too short. Please record at least 3 seconds (10–30 seconds works best)." });
+    if (seconds < 10) {
+      res.status(400).json({ error: `Your voice sample is too short (${seconds.toFixed(1)} seconds). Please upload a sample between 10 and 30 seconds.` });
+      return;
+    }
+    if (seconds > 30) {
+      res.status(400).json({ error: `Your voice sample is too long (${seconds.toFixed(1)} seconds). Please shorten it to 30 seconds or less.` });
       return;
     }
     if (meanDb !== null && meanDb < -45) {
       res.status(400).json({ error: "Your voice sample sounds silent or too quiet. Please record again, speaking clearly close to the microphone." });
       return;
     }
-    if (seconds > 30) req.file = await trimCloneSample(req.file, 30);
   } catch (err) {
-    logger.warn({ err }, "Voice clone sample probe failed (continuing without validation)");
+    logger.warn({ err }, "Voice clone sample probe failed");
+    res.status(400).json({ error: "We couldn't verify the audio duration. Please upload a valid MP3, WAV, or M4A sample between 10 and 30 seconds." });
+    return;
   }
   try {
     const form = new FormData();
@@ -1760,7 +1749,10 @@ router.post("/voice-clone", requireGlobalFeature("os-voice-clone"), requirePlanF
     }).returning();
     res.json({ id: row.id, voiceId, name: row.name });
   } catch (err: any) {
-    if (err instanceof OpenSpeakerError) { res.status(err.status).json({ error: err.message }); return; }
+    if (err instanceof OpenSpeakerError) {
+      res.status(err.status).json({ error: "Voice cloning failed. Please use a clear 10–30 second recording with one speaker and minimal background noise." });
+      return;
+    }
     logger.error({ err }, "OpenSpeaker voice clone error");
     res.status(500).json({ error: "Internal server error" });
   }

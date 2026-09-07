@@ -182,7 +182,7 @@ export default function VoiceCloningPage() {
           <h2 className="font-bold text-base text-foreground">Create New Clone</h2>
 
           <p className="text-xs text-[#9ca3af]">
-            Works in the Studio Voice Library, Voice Changer and Dubbing. Sample must be 3–30 seconds, under 10 MB.
+            Works in the Studio Voice Library, Voice Changer and Dubbing. Sample must be 10–30 seconds, under 10 MB.
           </p>
 
           {/* Name */}
@@ -205,7 +205,7 @@ export default function VoiceCloningPage() {
             )}>
               <Upload size={22} className={file ? "text-violet-500 mb-2" : "text-[#9ca3af] mb-2"} />
               <p className="text-sm font-medium text-foreground">{file ? file.name : "Click to upload audio"}</p>
-              <p className="text-xs text-[#9ca3af] mt-1">MP3, WAV, M4A, AAC • 3–30 seconds</p>
+              <p className="text-xs text-[#9ca3af] mt-1">MP3, WAV, M4A, AAC • 10–30 seconds</p>
               <input type="file" accept="audio/*" onChange={handleFile} className="hidden" />
             </label>
           </div>

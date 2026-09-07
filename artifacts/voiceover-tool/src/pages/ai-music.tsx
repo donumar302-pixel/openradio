@@ -1,5 +1,5 @@
 import { Music4, Loader2, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,15 @@ export default function AiMusicPage() {
   const [vocalGender, setVocalGender] = useState<string>("any");
   const { task, submitting, run, working, cancel, cancelling } = useOsTask("music");
   const insufficient = useOsInsufficientCredits(MUSIC_COST_ESTIMATE);
+
+  useEffect(() => {
+    if (task?.status === "done") {
+      toast({
+        title: "Music ready!",
+        description: "Your generated songs are ready to play and download below.",
+      });
+    }
+  }, [task?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = () => {
     if (mode === "simple" && !description.trim()) {
