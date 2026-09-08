@@ -12,6 +12,11 @@ import {
   PanelLeftClose, PanelLeftOpen, PenLine, KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { trackEvent } from "@/lib/analytics";
 
 function planLabel(plan?: string | null): string {
   if (!plan) return "Free";
@@ -285,12 +290,27 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [showWhatsAppWelcome, setShowWhatsAppWelcome] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem("sidebar-collapsed") === "1"; } catch { return false; }
   });
   useEffect(() => {
     try { localStorage.setItem("sidebar-collapsed", collapsed ? "1" : "0"); } catch { /* ignore */ }
   }, [collapsed]);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    let shouldShow = params.get("welcome") === "whatsapp";
+    try {
+      shouldShow = shouldShow || localStorage.getItem("show-whatsapp-welcome") === "1";
+      localStorage.removeItem("show-whatsapp-welcome");
+    } catch { /* ignore unavailable storage */ }
+    if (params.get("welcome") === "whatsapp") {
+      params.delete("welcome");
+      const query = params.toString();
+      window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+    }
+    setShowWhatsAppWelcome(shouldShow);
+  }, []);
 
   return (
     <div className="h-screen flex bg-white text-foreground overflow-hidden">
@@ -353,6 +373,40 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
 
       {/* Sliding account panel */}
       {panelOpen && <AccountPanel user={user} logout={logout} onClose={() => setPanelOpen(false)} />}
+
+      <Dialog open={showWhatsAppWelcome} onOpenChange={setShowWhatsAppWelcome}>
+        <DialogContent className="max-w-md rounded-2xl border-0 p-0 overflow-hidden">
+          <div className="bg-[#25D366] px-6 py-7 text-white">
+            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mb-4">
+              <MessagesSquare size={25} />
+            </div>
+            <DialogHeader className="text-left">
+              <DialogTitle className="text-2xl font-extrabold text-white">Stay updated on WhatsApp</DialogTitle>
+              <DialogDescription className="text-white/90 leading-relaxed">
+                Join the official OpenRadio WhatsApp Channel for product updates, maintenance notices, and downtime alerts.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <DialogFooter className="p-5 pt-1 sm:justify-between sm:space-x-3">
+            <Button variant="ghost" onClick={() => setShowWhatsAppWelcome(false)}>
+              Maybe later
+            </Button>
+            <Button asChild className="bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold">
+              <a
+                href="https://whatsapp.com/channel/0029Vb8mbcnCMY0ABHw7WC0J"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  trackEvent("whatsapp_channel_join_clicked", { source: "signup_welcome" });
+                  setShowWhatsAppWelcome(false);
+                }}
+              >
+                Join WhatsApp Channel
+              </a>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

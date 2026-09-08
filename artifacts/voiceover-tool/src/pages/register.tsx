@@ -73,6 +73,7 @@ export default function RegisterPage() {
         setResendIn(60);
       } else {
         // Verification disabled — account created and logged in right away.
+        try { localStorage.setItem("show-whatsapp-welcome", "1"); } catch { /* continue without the welcome prompt */ }
         await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
         setLocation(redirectPath);
       }
@@ -89,6 +90,7 @@ export default function RegisterPage() {
     setPending(true);
     try {
       await postJson("/api/auth/register/verify", { email, code });
+      try { localStorage.setItem("show-whatsapp-welcome", "1"); } catch { /* continue without the welcome prompt */ }
       await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
       setLocation(redirectPath);
     } catch (err: any) {

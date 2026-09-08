@@ -321,6 +321,7 @@ router.get("/google/callback", async (req, res) => {
     }
 
     let [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+    const isNewUser = !user;
     if (!user) {
       const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
       [user] = await db
@@ -332,7 +333,10 @@ router.get("/google/callback", async (req, res) => {
     // returnTo was already sanitized above; regeneration wipes the old
     // session, so we do not need to carry it forward — redirect directly.
     await loginSession(req, user.id);
-    res.redirect(returnTo);
+    const redirectTo = isNewUser
+      ? `${returnTo}${returnTo.includes("?") ? "&" : "?"}welcome=whatsapp`
+      : returnTo;
+    res.redirect(redirectTo);
   } catch (err) {
     logger.error({ err }, "Google OAuth error");
     res.redirect("/login?error=google");
