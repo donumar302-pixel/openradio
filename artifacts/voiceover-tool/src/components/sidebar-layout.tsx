@@ -290,27 +290,12 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [showWhatsAppWelcome, setShowWhatsAppWelcome] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem("sidebar-collapsed") === "1"; } catch { return false; }
   });
   useEffect(() => {
     try { localStorage.setItem("sidebar-collapsed", collapsed ? "1" : "0"); } catch { /* ignore */ }
   }, [collapsed]);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    let shouldShow = params.get("welcome") === "whatsapp";
-    try {
-      shouldShow = shouldShow || localStorage.getItem("show-whatsapp-welcome") === "1";
-      localStorage.removeItem("show-whatsapp-welcome");
-    } catch { /* ignore unavailable storage */ }
-    if (params.get("welcome") === "whatsapp") {
-      params.delete("welcome");
-      const query = params.toString();
-      window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
-    }
-    setShowWhatsAppWelcome(shouldShow);
-  }, []);
 
   return (
     <div className="h-screen flex bg-white text-foreground overflow-hidden">
@@ -363,6 +348,18 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
 
           {/* Right: bell + plan badge + avatar — always in the header */}
           <div className="flex items-center gap-1">
+            <a
+              href="https://whatsapp.com/channel/0029Vb8mbcnCMY0ABHw7WC0J"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Join our community on WhatsApp"
+              title="Join our community — OpenRadio WhatsApp Channel"
+              className="inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-2 text-green-700 hover:bg-green-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-green-600"
+              onClick={() => trackEvent("whatsapp_channel_join_clicked", { source: "header" })}
+            >
+              <MessagesSquare size={20} aria-hidden="true" />
+              <span className="hidden sm:block text-xs font-bold">Join our community</span>
+            </a>
             <NotificationsBell />
             <TopRightUserBtn user={user} onClick={() => setPanelOpen(v => !v)} />
           </div>
@@ -373,9 +370,40 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
 
       {/* Sliding account panel */}
       {panelOpen && <AccountPanel user={user} logout={logout} onClose={() => setPanelOpen(false)} />}
+    </div>
+  );
+}
 
+// Mounted outside the sidebar so signup redirects to pricing also show it.
+export function WhatsAppWelcome() {
+  const { user } = useAuth();
+  const [showWhatsAppWelcome, setShowWhatsAppWelcome] = useState(false);
+  const handledUser = useRef<number | null>(null);
+  useEffect(() => {
+    if (!user) {
+      handledUser.current = null;
+      setShowWhatsAppWelcome(false);
+      return;
+    }
+    if (handledUser.current === user.id) return;
+    handledUser.current = user.id;
+    const params = new URLSearchParams(window.location.search);
+    let shouldShow = params.get("welcome") === "whatsapp";
+    try {
+      shouldShow = shouldShow || localStorage.getItem("show-whatsapp-welcome") === "1";
+      localStorage.removeItem("show-whatsapp-welcome");
+    } catch { /* The URL flag also works without browser storage. */ }
+    if (params.get("welcome") === "whatsapp") {
+      params.delete("welcome");
+      const query = params.toString();
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+    }
+    if (shouldShow) setShowWhatsAppWelcome(true);
+  }, [user?.id]);
+
+  return (
       <Dialog open={showWhatsAppWelcome} onOpenChange={setShowWhatsAppWelcome}>
-        <DialogContent className="max-w-md rounded-2xl border-0 p-0 overflow-hidden">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-2xl border-0 p-0 overflow-hidden">
           <div className="bg-[#25D366] px-6 py-7 text-white">
             <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mb-4">
               <MessagesSquare size={25} />
@@ -407,6 +435,5 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
   );
 }

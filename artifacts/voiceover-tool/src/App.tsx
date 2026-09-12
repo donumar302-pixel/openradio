@@ -44,7 +44,7 @@ import AiMusicPage from "@/pages/ai-music";
 import ImageStudioPage from "@/pages/image-studio";
 import VoiceCloningPage from "@/pages/voice-cloning";
 import VoiceLibraryPage from "@/pages/voices";
-import { SidebarLayout } from "@/components/sidebar-layout";
+import { SidebarLayout, WhatsAppWelcome } from "@/components/sidebar-layout";
 import { AdminLayout } from "@/components/admin-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
@@ -185,6 +185,7 @@ function App() {
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL?.replace(/\/$/, "") || ""}>
             <AppRoutes />
+            <WhatsAppWelcome />
           </WouterRouter>
           <Toaster />
         </TooltipProvider>
