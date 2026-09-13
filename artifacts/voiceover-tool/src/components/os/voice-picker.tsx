@@ -14,6 +14,7 @@ interface Props {
   onChange: (voiceId: string, name: string) => void;
   placeholder?: string;
   excludeClones?: boolean;
+  initialProvider?: string;
 }
 
 function useDebounced<T>(v: T, ms = 350): T {
@@ -27,9 +28,9 @@ function previewUrl(v: OsVoice): string | null {
 }
 
 /** Searchable, paginated voice picker over the unified OpenSpeaker voice library. */
-export function OsVoicePicker({ value, valueName, onChange, placeholder = "Choose a voice", excludeClones }: Props) {
+export function OsVoicePicker({ value, valueName, onChange, placeholder = "Choose a voice", excludeClones, initialProvider = "elevenlabs" }: Props) {
   const [open, setOpen] = useState(false);
-  const [provider, setProvider] = useState<string>("elevenlabs");
+  const [provider, setProvider] = useState<string>(initialProvider);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebounced(search);

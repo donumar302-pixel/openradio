@@ -1,5 +1,6 @@
 import { MessagesSquare, Loader2, Plus, X, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +17,7 @@ interface Speaker { voiceId: string; name: string }
 const LABELS = "ABCDEFGHIJ".split("");
 
 export default function DialoguePage() {
+  const cloneMode = new URLSearchParams(window.location.search).get("clones") === "1";
   const { toast } = useToast();
   const [text, setText] = useState("A> Hey, have you tried the new AI voices?\nB> I have! They sound incredibly natural now.");
   const [speakers, setSpeakers] = useState<Speaker[]>([
@@ -45,10 +47,14 @@ export default function DialoguePage() {
           <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
             <MessagesSquare size={18} className="text-primary" />
           </div>
-          <h1 className="text-2xl font-extrabold text-foreground">Text to Dialogue</h1>
+          <h1 className="text-2xl font-extrabold text-foreground">{cloneMode ? "Dialogue with Cloned Voices" : "Text to Dialogue"}</h1>
           <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">New</span>
         </div>
-        <p className="text-muted-foreground text-sm sm:ml-12">Create multi-speaker conversations with different AI voices</p>
+        <p className="text-muted-foreground text-sm sm:ml-12">Create a conversation between two people using your cloned voices or voices from the library.</p>
+        <p className="text-sm text-muted-foreground mt-3">
+          Choose a voice for A and B. Select “My Clones” in each voice picker to use your own clones. Only clone voices you own or have permission to use.{" "}
+          <Link href="/voice-cloning" className="text-primary font-semibold hover:underline">Create a voice clone</Link>
+        </p>
       </div>
 
       <div className="space-y-5 bg-white rounded-2xl border border-border p-6 shadow-sm">
@@ -82,7 +88,7 @@ export default function DialoguePage() {
                 {LABELS[i]}
               </span>
               <div className="flex-1 min-w-0">
-                <OsVoicePicker value={s.voiceId} valueName={s.name} onChange={(v, n) => setSpeaker(i, v, n)} placeholder={`Voice for speaker ${LABELS[i]}`} />
+                <OsVoicePicker initialProvider={cloneMode ? "clone" : "elevenlabs"} value={s.voiceId} valueName={s.name} onChange={(v, n) => setSpeaker(i, v, n)} placeholder={`Voice for speaker ${LABELS[i]}`} />
               </div>
               {speakers.length > 2 && (
                 <button onClick={() => setSpeakers((sp) => sp.filter((_, idx) => idx !== i))}

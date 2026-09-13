@@ -1667,7 +1667,7 @@ export function friendlyTaskError(raw: string): string | null {
     return "The selected voice is no longer available. Please choose another voice and try again.";
   }
   if (/voice_clone_empty_sound/i.test(raw)) {
-    return "This cloned voice's sample was too quiet or unclear, so audio could not be generated. Please re-create the clone with a clear 10–30 second voice recording.";
+    return "This cloned voice's sample was too quiet or unclear, so audio could not be generated. Please re-create the clone with a clear 1–30 second voice recording.";
   }
   if (/voice_clone.*not.*found|clone.*not.*exist/i.test(raw)) {
     return "This cloned voice no longer exists. Please create it again.";
@@ -1691,7 +1691,8 @@ async function probeCloneSample(buffer: Buffer): Promise<{ seconds: number; mean
       proc.on("close", code => { clearTimeout(timer); code === 0 ? resolve(out + errOut) : reject(new Error(`${cmd} exited ${code}`)); });
     });
     const probe = await run("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", inPath]);
-    const seconds = parseFloat(probe.trim()) || 0;
+    const seconds = parseFloat(probe.trim());
+    if (!Number.isFinite(seconds) || seconds <= 0) throw new Error("Invalid audio duration");
     let meanDb: number | null = null;
     try {
       const vol = await run("ffmpeg", ["-i", inPath, "-af", "volumedetect", "-f", "null", "-"]);
@@ -1724,7 +1725,7 @@ function cloneNeedsTranscode(file: Express.Multer.File): boolean {
 router.post("/voice-clone", requireGlobalFeature("os-voice-clone"), requirePlanFeature("voice-cloning"), upload.single("audio"), async (req, res) => {
   const name = String(req.body?.name ?? "").trim();
   if (!req.file || !name) {
-    res.status(400).json({ error: "A voice name and a 10–30 second audio sample are required." });
+    res.status(400).json({ error: "A voice name and a 1–30 second audio sample are required." });
     return;
   }
   if (String(req.body?.consent ?? "") !== "true") {
@@ -1748,8 +1749,8 @@ router.post("/voice-clone", requireGlobalFeature("os-voice-clone"), requirePlanF
   // creation and only fails later, at first generation ("voice_clone_empty_sound").
   try {
     const { seconds, meanDb } = await probeCloneSample(req.file.buffer);
-    if (seconds < 10) {
-      res.status(400).json({ error: `Your voice sample is too short (${seconds.toFixed(1)} seconds). Please upload a sample between 10 and 30 seconds.` });
+    if (seconds < 1) {
+      res.status(400).json({ error: `Your voice sample is too short (${seconds.toFixed(1)} seconds). Please upload a sample between 1 and 30 seconds.` });
       return;
     }
     if (seconds > 30) {
@@ -1762,7 +1763,7 @@ router.post("/voice-clone", requireGlobalFeature("os-voice-clone"), requirePlanF
     }
   } catch (err) {
     logger.warn({ err }, "Voice clone sample probe failed");
-    res.status(400).json({ error: "We couldn't verify the audio duration. Please upload a valid MP3, WAV, or M4A sample between 10 and 30 seconds." });
+    res.status(400).json({ error: "We couldn't verify the audio duration. Please upload a valid MP3, WAV, or M4A sample between 1 and 30 seconds." });
     return;
   }
   try {
@@ -1784,7 +1785,12 @@ router.post("/voice-clone", requireGlobalFeature("os-voice-clone"), requirePlanF
     res.json({ id: row.id, voiceId, name: row.name });
   } catch (err: any) {
     if (err instanceof OpenSpeakerError) {
-      res.status(err.status).json({ error: "Voice cloning failed. Please use a clear 10–30 second recording with one speaker and minimal background noise." });
+      logger.warn({ status: err.status }, "Voice clone provider request failed");
+      const temporary = err.status === 429 || err.status >= 500;
+      res.status(temporary ? 503 : 422).json({ error: temporary
+        ? "The voice cloning service is temporarily busy or unavailable. Please try again shortly. Your sample has not been changed."
+        : "The voice cloning service could not accept this sample. Please use a clear 1–30 second recording with one speaker and minimal background noise. Longer clear recordings usually work better."
+      });
       return;
     }
     logger.error({ err }, "OpenSpeaker voice clone error");

@@ -15,3 +15,4 @@
 - [Email, Developer API & Script Writer](platform-notifications-devapi.md) — Resend fail-soft + idempotent expiry reminders; /api/v1 hashed keys reuse the os_tasks credit pipeline; OpenAI script writer refunds on failure.
 - [SEO setup (SPA meta injection)](seo-setup.md) — crawlers get per-route meta from server-rewritten index.html (seo-meta.ts); keep PAGE_META/FAQ in sync with client useSeo/landing.
 - [Longform TTS pipeline](longform-tts.md) — >5k-char scripts chunk+stitch via /api/os/tts-long; parent row has no externalTaskId (needs its own orphan sweep); result blobs reuse os_dub_videos.
+- [Clone provider contract](clone-provider-contract.md) — provider recommends 3–30s despite requested 1–30s uploads; official API supports cloned dialogue.
