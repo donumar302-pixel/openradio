@@ -107,10 +107,11 @@ export function CheckoutDialog({ planId, currency, onClose }: CheckoutDialogProp
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       trackEvent("order_submitted", {
         plan: planId || "unknown",
-        currency,
+        currency: result?.currency || currency,
+        value: Number(result?.amountMinor ?? 0) / 100,
         payment_method: methodId || "unknown",
       });
     },

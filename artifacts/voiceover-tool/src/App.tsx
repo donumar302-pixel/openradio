@@ -48,6 +48,8 @@ import { SidebarLayout, WhatsAppWelcome } from "@/components/sidebar-layout";
 import { AdminLayout } from "@/components/admin-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { trackMetaPageView } from "@/lib/analytics";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -178,12 +180,28 @@ function AppRoutes() {
   );
 }
 
+function MetaPageViewTracker() {
+  const [location] = useLocation();
+  const initialRender = useRef(true);
+
+  useEffect(() => {
+    if (initialRender.current) {
+      initialRender.current = false;
+      return;
+    }
+    trackMetaPageView();
+  }, [location]);
+
+  return null;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="light" forcedTheme="light">
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL?.replace(/\/$/, "") || ""}>
+            <MetaPageViewTracker />
             <AppRoutes />
             <WhatsAppWelcome />
           </WouterRouter>

@@ -135,6 +135,7 @@ export default function PricingPage() {
     trackEvent("plan_selected", {
       plan: plan.id,
       currency,
+      value: price,
       authenticated: isAuthenticated,
     });
 
