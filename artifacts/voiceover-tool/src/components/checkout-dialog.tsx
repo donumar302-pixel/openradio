@@ -309,12 +309,9 @@ export function CheckoutDialog({ planId, currency, onClose }: CheckoutDialogProp
                       </div>
                       <h4 className="text-lg font-bold text-slate-900">Account Required</h4>
                       <p className="text-sm text-slate-500">Please sign in or create an account to continue with your purchase. Your plan selection will be saved.</p>
-                      <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                        <Link href={`/login?returnTo=${encodeURIComponent(authRedirect)}`} className="flex-1 px-4 py-3 rounded-xl bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-bold transition-colors text-center" data-testid="link-signin">
-                          Sign In
-                        </Link>
-                        <Link href={`/register?returnTo=${encodeURIComponent(authRedirect)}`} className="flex-1 px-4 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold transition-colors text-center" data-testid="link-register">
-                          Create Account
+                      <div className="pt-2">
+                        <Link href={`/login?returnTo=${encodeURIComponent(authRedirect)}`} className="block w-full px-4 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold transition-colors text-center" data-testid="link-google-signin">
+                          Continue with Google
                         </Link>
                       </div>
                     </div>
