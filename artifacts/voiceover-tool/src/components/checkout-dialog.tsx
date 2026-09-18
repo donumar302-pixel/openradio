@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { CreditCard, Copy, Check, Upload, Loader2, ArrowRight, X, User } from "lucide-react";
+import { CreditCard, Copy, Check, Upload, Loader2, ArrowRight, X, User, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { trackEvent } from "@/lib/analytics";
@@ -14,6 +14,7 @@ interface CheckoutDialogProps {
 }
 
 export function CheckoutDialog({ planId, currency, onClose }: CheckoutDialogProps) {
+  const paymentSupportUrl = "https://wa.me/923310356428?text=Hi%20OpenRadio%20Support%2C%20I%20need%20help%20with%20my%20payment.";
   const { user, isAuthenticated } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [methodId, setMethodId] = useState<string | null>(null);
@@ -420,6 +421,22 @@ export function CheckoutDialog({ planId, currency, onClose }: CheckoutDialogProp
                        </div>
                     </div>
                   )}
+
+                   <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900" data-testid="payment-support-message">
+                     <MessageCircle size={18} className="mt-0.5 shrink-0 text-green-600" />
+                     <p className="leading-relaxed">
+                       Having an issue with your payment?{" "}
+                       <a
+                         href={paymentSupportUrl}
+                         target="_blank"
+                         rel="noopener noreferrer"
+                         className="font-bold text-green-700 underline underline-offset-2 hover:text-green-800"
+                         data-testid="link-payment-support"
+                       >
+                         Contact us on WhatsApp: +92 331 0356428
+                       </a>
+                     </p>
+                   </div>
                 </div>
               )}
 
@@ -427,7 +444,15 @@ export function CheckoutDialog({ planId, currency, onClose }: CheckoutDialogProp
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                   {submitOrder.isError && (
                     <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-bold mb-4" data-testid="text-submit-error">
-                      {(submitOrder.error as Error)?.message || "Failed to submit order"}
+                       <p>{(submitOrder.error as Error)?.message || "Failed to submit order"}</p>
+                       <a
+                         href={paymentSupportUrl}
+                         target="_blank"
+                         rel="noopener noreferrer"
+                         className="mt-2 inline-block underline underline-offset-2"
+                       >
+                         Get payment help on WhatsApp: +92 331 0356428
+                       </a>
                     </div>
                   )}
 
