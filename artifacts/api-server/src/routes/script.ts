@@ -57,9 +57,13 @@ router.post("/generate", async (req, res) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: integrationKey ? "gpt-5-mini" : "gpt-4o-mini",
-        max_tokens: length.maxTokens,
-        temperature: 0.8,
+        model: integrationKey ? "gpt-5.4-mini" : "gpt-4o-mini",
+        // Current GPT-5 models reject `max_tokens` and non-default
+        // temperatures. Their completion budget also includes reasoning
+        // tokens, so leave enough room for both reasoning and the script.
+        ...(integrationKey
+          ? { max_completion_tokens: length.maxTokens * 4 }
+          : { max_tokens: length.maxTokens, temperature: 0.8 }),
         messages: [
           {
             role: "system",
