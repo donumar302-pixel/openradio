@@ -646,7 +646,7 @@ export default function LandingPage() {
                 <h3 className="text-2xl sm:text-3xl font-black text-white">Voice Library</h3>
               </div>
               <div className="relative z-10 mt-auto pt-24">
-                <span className="text-5xl font-black text-white">1,500+</span>
+                <span className="text-5xl font-black text-white">10,000+</span>
                 <span className="text-white/70 text-lg font-bold ml-2">Voices · 70+ Languages</span>
               </div>
             </div>
