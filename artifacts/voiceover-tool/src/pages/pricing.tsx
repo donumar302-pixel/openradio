@@ -117,7 +117,7 @@ export default function PricingPage() {
       const checkoutParam = searchParams.get("checkout");
       const currencyParam = searchParams.get("currency");
 
-      if (checkoutParam && ["starter", "pro", "max"].includes(checkoutParam)) {
+      if (checkoutParam && ["basic", "starter", "pro", "max"].includes(checkoutParam)) {
         setCheckoutPlanId(checkoutParam);
         if (currencyParam && /^[A-Z]{3}$/.test(currencyParam)) setCurrency(currencyParam);
 
@@ -214,7 +214,7 @@ export default function PricingPage() {
         </section>
 
         {/* ── Plans Grid ─────────────────────────────────────── */}
-        <section className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+        <section className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-32">
           {isLoading && (
             <div className="flex flex-col items-center justify-center py-32 space-y-4">
               <Loader2 className="h-10 w-10 animate-spin text-orange-500" />
@@ -231,7 +231,7 @@ export default function PricingPage() {
           )}
 
           {!isLoading && !isError && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 items-stretch">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 2xl:gap-6 items-stretch">
               {plans.map((plan, i) => {
                 const price = plan.prices[currency] ?? 0;
                 const isHighlighted = plan.highlight;

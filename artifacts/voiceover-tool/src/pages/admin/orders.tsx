@@ -4,6 +4,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 const PLANS = [
+  { value: "basic", label: "Basic", color: "text-cyan-400" },
   { value: "starter", label: "Starter", color: "text-blue-400" },
   { value: "pro", label: "Pro", color: "text-violet-400" },
   { value: "max", label: "Pro Max", color: "text-amber-400" },

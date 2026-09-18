@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 const PLAN_COLORS: Record<string, string> = {
   free: "text-white/50",
+  basic: "text-cyan-400",
   starter: "text-blue-400",
   pro: "text-violet-400",
   enterprise: "text-amber-400",

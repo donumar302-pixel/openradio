@@ -15,6 +15,7 @@ type Analytics = {
 
 const PLAN_PIE_COLORS: Record<string, string> = {
   free: "#8b93a1",
+  basic: "#22d3ee",
   starter: "#60a5fa",
   pro: "#a78bfa",
   enterprise: "#fbbf24",

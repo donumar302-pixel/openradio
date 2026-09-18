@@ -8,7 +8,8 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 const PLANS = [
-  { value: "free", label: "Free", color: "text-white/40", bg: "bg-white/5", credits: 10000 },
+  { value: "free", label: "Free", color: "text-white/40", bg: "bg-white/5", credits: 5000 },
+  { value: "basic", label: "Basic", color: "text-cyan-400", bg: "bg-cyan-500/10", credits: 50000 },
   { value: "starter", label: "Starter", color: "text-blue-400", bg: "bg-blue-500/10", credits: 100000 },
   { value: "pro", label: "Pro", color: "text-violet-400", bg: "bg-violet-500/10", credits: 500000 },
   { value: "enterprise", label: "Enterprise", color: "text-amber-400", bg: "bg-amber-500/10", credits: 2000000 },

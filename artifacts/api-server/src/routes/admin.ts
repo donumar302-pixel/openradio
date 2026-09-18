@@ -372,7 +372,7 @@ router.delete("/users/:id", async (req, res) => {
 
 /* ── Orders ─────────────────────────────────────────────────────────── */
 // Plans that may be purchased/ordered (free is never an order).
-const PAID_PLANS = new Set(["starter", "pro", "max"]);
+const PAID_PLANS = new Set(["basic", "starter", "pro", "max"]);
 
 router.get("/orders", async (_req, res) => {
   // Never select proof_data (bytea) here; expose only a hasProof flag.

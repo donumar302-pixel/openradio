@@ -18,7 +18,7 @@ import {
 
 const router: IRouter = Router();
 
-const PAID_PLANS = new Set<PlanId>(["starter", "pro", "max"]);
+const PAID_PLANS = new Set<PlanId>(["basic", "starter", "pro", "max"]);
 const SUPPORTED_CURRENCIES = new Set(CURRENCIES.map((c) => c.code));
 
 // Proof upload: images only, memory storage, 3MB cap.

@@ -1,7 +1,8 @@
-export type PlanId = "free" | "starter" | "pro" | "max";
+export type PlanId = "free" | "basic" | "starter" | "pro" | "max";
 
 export const PLAN_CREDITS: Record<string, number> = {
   free: 5000,
+  basic: 50000,
   starter: 100000,
   pro: 500000,
   max: 1000000,
@@ -15,6 +16,7 @@ export const PLAN_DURATION_DAYS = 30;
 // Derived from the PKR base prices at 290 PKR = 1 USD.
 export const PLAN_PRICE_USD: Record<PlanId, number> = {
   free: 0,
+  basic: 1.72,   // ₨500 / 290
   starter: 3.96, // ₨1,149 / 290
   pro: 6.89,     // ₨1,999 / 290
   max: 10.86,    // ₨3,149 / 290
@@ -55,6 +57,7 @@ export function addDays(from: Date, days: number): Date {
 // Exact PKR prices (not derived from USD × rate).
 export const PLAN_PRICE_PKR: Record<PlanId, number> = {
   free: 0,
+  basic: 500,
   starter: 1149,
   pro: 1999,
   max: 3149,
@@ -147,7 +150,7 @@ export interface PlanDefinition {
 export const PLAN_DEFINITIONS: PlanDefinition[] = [
   {
     id: "free",
-    name: "Basic",
+    name: "Free",
     credits: PLAN_CREDITS.free,
     durationDays: PLAN_DURATION_DAYS,
     highlight: false,
@@ -166,6 +169,35 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
       "ElevenLabs — v2.5",
       "Fish Audio — S2.1 Pro",
       "Fire TTS — Speech-02 HD",
+    ],
+  },
+  {
+    id: "basic",
+    name: "Basic",
+    credits: PLAN_CREDITS.basic,
+    durationDays: PLAN_DURATION_DAYS,
+    highlight: false,
+    cta: "Choose Basic",
+    features: [
+      `${fmtCredits(PLAN_CREDITS.basic)} characters / 30 days`,
+      "Text to Speech — all models",
+      "Bulk TTS — all models",
+      "ElevenLabs v3 & v2.5 models",
+      "Voice Cloning",
+      "Speech to Speech",
+      "Speech to Text",
+      "Sound Effects",
+      "AI Music — latest Suno AI model",
+      "Pronunciation Dictionary",
+      "Email support",
+    ],
+    more: [
+      "ElevenLabs — v3 & v2.5",
+      "Voice Cloning — Fire TTS engine",
+      "Speech to Speech — ElevenLabs STS v2",
+      "Speech to Text — ElevenLabs Scribe v1",
+      "Sound Effects — ElevenLabs",
+      "AI Music — Suno AI, full songs & background music",
     ],
   },
   {

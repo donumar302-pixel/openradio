@@ -9,12 +9,14 @@ import { cn } from "@/lib/utils";
 
 const PLAN_COLORS: Record<string, string> = {
   free: "text-white/50",
+  basic: "text-cyan-400",
   starter: "text-blue-400",
   pro: "text-violet-400",
   enterprise: "text-amber-400",
 };
 const PLAN_BG: Record<string, string> = {
   free: "bg-white/5",
+  basic: "bg-cyan-500/10",
   starter: "bg-blue-500/10",
   pro: "bg-violet-500/10",
   enterprise: "bg-amber-500/10",
@@ -67,7 +69,7 @@ export default function AdminDashboard() {
 
   const recentUsers = usersEnv?.users ?? [];
   const planCounts: Record<string, number> = stats?.planCounts ?? {};
-  const planKeys = ["free", "starter", "pro", "enterprise"];
+  const planKeys = ["free", "basic", "starter", "pro", "enterprise"];
   const planTotal = planKeys.reduce((acc, p) => acc + (planCounts[p] ?? 0), 0);
 
   const fmt = (n: number | undefined) => (n ?? 0).toLocaleString();
