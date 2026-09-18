@@ -1830,20 +1830,11 @@ router.delete("/voice-clones/:id", requireGlobalFeature("os-voice-clone"), async
  * to ElevenLabs, so they need the RAW ElevenLabs id. The prefixed
  * "elevenlabs_<id>" form used by the /v3 endpoints is accepted at creation but
  * fails during processing with "elevenlabs_voice_not_found" (verified live).
- * Other prefixes are generally passed through unchanged; Voice Changer has a
- * separate adapter below because that legacy task also needs raw clone ids.
+ * Other prefixes are generally passed through unchanged. Cloned voices use the
+ * dedicated v3 Voice Changer contract below rather than this legacy v1 path.
  */
 function rawElevenVoiceId(voiceId: string): string {
   return voiceId.startsWith("elevenlabs_") ? voiceId.slice("elevenlabs_".length) : voiceId;
-}
-
-/**
- * Voice Changer is a legacy /v1 task that forwards provider-backed voices to
- * ElevenLabs. Keep prefixed ids everywhere else for validation and ownership,
- * but submit the raw remote id for both library voices and owned clones.
- */
-function voiceChangerProviderVoiceId(voiceId: string): string {
-  return voiceId.replace(/^(?:elevenlabs|clone)_/, "");
 }
 
 /* ═══════════════ Audio Dubbing ═══════════════ */
@@ -1934,14 +1925,17 @@ router.post("/voice-changer", requireGlobalFeature("os-voice-changer"), requireP
     input: { voiceId, fileName: file.originalname, fileSize: file.size },
     estimate: Math.max(100, Math.ceil(file.size / 10_000)),
     create: async (webhookUrl) => {
+      const isClone = voiceId.startsWith("clone_");
       const form = new FormData();
-      form.append("file", new Blob([file.buffer as any], { type: file.mimetype }), file.originalname || "audio.mp3");
-      form.append("voice_id", voiceChangerProviderVoiceId(voiceId));
+      // The clone-aware v3 contract requires `input` plus the prefixed clone
+      // id. The legacy v1 contract uses `file` and raw ElevenLabs library ids.
+      form.append(isClone ? "input" : "file", new Blob([file.buffer as any], { type: file.mimetype }), file.originalname || "audio.mp3");
+      form.append("voice_id", isClone ? voiceId : rawElevenVoiceId(voiceId));
       form.append("model_id", "eleven_multilingual_sts_v2");
       form.append("voice_settings", JSON.stringify({ stability, similarity_boost: similarity }));
       form.append("remove_background_noise", String(removeNoise));
       if (webhookUrl) form.append("receive_url", webhookUrl);
-      return osPostForm(`/v1/task/voice-changer`, form, "Voice changer");
+      return osPostForm(isClone ? `/v3/text-to-speech/voice-changer` : `/v1/task/voice-changer`, form, "Voice changer");
     },
   });
 });
