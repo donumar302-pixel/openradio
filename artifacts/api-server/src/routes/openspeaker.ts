@@ -7,7 +7,7 @@ import nodePath from "node:path";
 import nodeOs from "node:os";
 import { spawn } from "node:child_process";
 import { db, usersTable, osTasksTable, osDictionariesTable, voiceClonesTable, elVoiceIndexTable, osDubVideosTable, type OsTask } from "@workspace/db";
-import { eq, and, desc, count, sql, gte, lt, isNotNull, notInArray, inArray } from "drizzle-orm";
+import { eq, and, or, desc, count, sql, gte, lt, isNull, isNotNull, notInArray, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { requireActiveUser, isUserAdmin } from "../middleware/require-active-user";
 import { getSetting, setSetting } from "../lib/settings";
@@ -197,11 +197,42 @@ router.post("/webhook", async (req, res) => {
   if (!token) return;
   try {
     const [row] = await db.select().from(osTasksTable).where(eq(osTasksTable.webhookToken, token));
-    if (!row || row.status === "done" || row.status === "error") return;
-    if (!row.externalTaskId) return;
+    if (!row) return;
+    const recoverableUnknown = !row.externalTaskId
+      && !!(row.input as any)?._deferredProviderUnknown;
+    if ((row.status === "done" || row.status === "error") && !recoverableUnknown) return;
+    let tracked = row;
+    if (!tracked.externalTaskId && (tracked.input as any)?._deferredProviderCreate) {
+      // A fast provider can send its webhook before the slow create response
+      // reaches us. The unguessable callback token identifies the local row;
+      // verify the body-supplied id by fetching it from the provider before
+      // attaching it, rather than trusting webhook status/output fields.
+      const candidate = String(req.body?.id ?? req.body?.task_id ?? req.body?.data?.id ?? "");
+      if (!candidate) return;
+      const state = await getTask(candidate);
+      const [attached] = await db.update(osTasksTable)
+        .set({ externalTaskId: candidate, status: "processing", error: null, updatedAt: new Date() })
+        .where(and(
+          eq(osTasksTable.id, tracked.id),
+          isNull(osTasksTable.externalTaskId),
+          or(
+            eq(osTasksTable.status, "processing"),
+            and(
+              eq(osTasksTable.status, "error"),
+              sql`(${osTasksTable.input}::jsonb) ? '_deferredProviderUnknown'`,
+            ),
+          ),
+        ))
+        .returning();
+      if (!attached) return;
+      tracked = attached;
+      await applyTaskState(tracked, state);
+      return;
+    }
+    if (!tracked.externalTaskId) return;
     // Never trust the webhook body — re-fetch the task state from the provider.
-    const state = await getTask(row.externalTaskId);
-    await applyTaskState(row, state);
+    const state = await getTask(tracked.externalTaskId);
+    await applyTaskState(tracked, state);
   } catch (err) {
     logger.warn({ err }, "OpenSpeaker webhook processing failed");
   }
@@ -507,6 +538,7 @@ interface CreateTaskArgs {
   input: Record<string, unknown>;
   estimate: number;
   create: (webhookUrl: string | null) => Promise<{ task_id?: string } & Record<string, any>>;
+  deferProviderCreate?: boolean;
 }
 
 function webhookUrlFor(token: string): string | null {
@@ -518,7 +550,7 @@ function webhookUrlFor(token: string): string | null {
   }
 }
 
-async function runCreateTask({ req, res, tool, title, input, estimate, create }: CreateTaskArgs) {
+async function runCreateTask({ req, res, tool, title, input, estimate, create, deferProviderCreate = false }: CreateTaskArgs) {
   const user = req.appUser!;
   const admin = isUserAdmin(user);
   const reserve = admin ? 0 : Math.max(1, Math.ceil(estimate));
@@ -552,58 +584,125 @@ async function runCreateTask({ req, res, tool, title, input, estimate, create }:
     return;
   }
 
-  // Phase 2 — provider call. On failure the task stays in History as an error
-  // row; applyTaskState refunds the reservation atomically (refund-once lock).
-  let created: { task_id?: string } & Record<string, any>;
-  try {
-    created = await create(webhookUrlFor(token));
-  } catch (err: any) {
-    const message = err instanceof OpenSpeakerError ? err.message : "Internal server error";
+  const finishProviderCreate = async () => {
+    const preserveUnknownOutcome = async () => {
+      const [current] = await db.select().from(osTasksTable).where(eq(osTasksTable.id, row.id));
+      if (!current) return;
+      if (current.externalTaskId) {
+        row = await refreshTask(current);
+        return;
+      }
+      if (!isFinal(current.status)) {
+        const [saved] = await db.update(osTasksTable).set({
+          input: { ...(current.input as any), _deferredProviderUnknown: true },
+          updatedAt: new Date(),
+        }).where(and(eq(osTasksTable.id, current.id), eq(osTasksTable.status, "processing")))
+          .returning();
+        if (saved) row = saved;
+      }
+    };
+
+    // Phase 2 — provider call. On failure the task stays in History as an error
+    // row; applyTaskState refunds the reservation atomically (refund-once lock).
+    let created: { task_id?: string } & Record<string, any>;
     try {
-      await applyTaskState(row, { id: row.externalTaskId ?? "", status: "error", error_message: message });
-    } catch (applyErr: any) {
-      logger.error({ err: applyErr, tool, taskId: row.id }, "Failed to settle errored task; sweep must reconcile");
-    }
-    if (err instanceof OpenSpeakerError) {
-      res.status(err.status).json({ error: err.message });
+      created = await create(webhookUrlFor(token));
+    } catch (err: any) {
+      if (deferProviderCreate && !(err instanceof OpenSpeakerError)) {
+        // Any transport failure after upload has an unknown outcome: timeout,
+        // reset, or disconnect can happen after provider acceptance. Reload
+        // first in case an early webhook already attached the task; otherwise
+        // preserve a recoverable, non-refunded unknown state.
+        logger.warn({ errName: err?.name, tool, taskId: row.id }, "Deferred provider create transport failed with unknown acceptance state");
+        await preserveUnknownOutcome();
+        return;
+      }
+      const message = err instanceof OpenSpeakerError ? err.message : "Internal server error";
+      try {
+        await applyTaskState(row, { id: row.externalTaskId ?? "", status: "error", error_message: message });
+      } catch (applyErr: any) {
+        logger.error({ err: applyErr, tool, taskId: row.id }, "Failed to settle errored task; sweep must reconcile");
+      }
+      if (!res.headersSent) {
+        if (err instanceof OpenSpeakerError) res.status(err.status).json({ error: err.message });
+        else res.status(500).json({ error: "Internal server error" });
+      }
+      if (!(err instanceof OpenSpeakerError)) logger.error({ err, tool }, "OpenSpeaker task create error");
       return;
     }
-    logger.error({ err, tool }, "OpenSpeaker task create error");
-    res.status(500).json({ error: "Internal server error" });
-    return;
-  }
 
-  // A "successful" create without a task id can never be polled or settled by
-  // the webhook — treat it as a failure and refund, instead of leaving a row
-  // stuck in "processing" forever.
-  const externalId = created.task_id ?? null;
-  if (!externalId) {
-    logger.error({ tool, created }, "OpenSpeaker accepted a task but returned no task_id");
-    try {
-      await applyTaskState(row, { id: "", status: "error", error_message: "The provider did not return a task id. Credits refunded." });
-    } catch (applyErr: any) {
-      logger.error({ err: applyErr, tool, taskId: row.id }, "Failed to settle no-task-id task");
+    // A "successful" create without a task id can never be polled or settled by
+    // the webhook — treat it as a failure and refund, instead of leaving a row
+    // stuck in "processing" forever.
+    const externalId = created.task_id ?? null;
+    if (!externalId) {
+      logger.error({ tool, created }, "OpenSpeaker accepted a task but returned no task_id");
+      if (deferProviderCreate) {
+        // A malformed/partial success response is also ambiguous. An early
+        // webhook may already have attached the id; never overwrite or refund.
+        await preserveUnknownOutcome();
+        return;
+      }
+      try {
+        await applyTaskState(row, { id: "", status: "error", error_message: "The provider did not return a task id. Credits refunded." });
+      } catch (applyErr: any) {
+        logger.error({ err: applyErr, tool, taskId: row.id }, "Failed to settle no-task-id task");
+      }
+      if (!res.headersSent) res.status(502).json({ error: "The provider did not accept the task. Please try again." });
+      return;
     }
-    res.status(502).json({ error: "The provider did not accept the task. Please try again." });
+
+    // Phase 3 — attach the provider task id. The provider has accepted (and may
+    // bill) the task, so failures here must NOT refund; they only report a
+    // tracking problem.
+    try {
+      const [updated] = await db.update(osTasksTable)
+        .set({ externalTaskId: externalId, updatedAt: new Date() })
+        .where(and(
+          eq(osTasksTable.id, row.id),
+          eq(osTasksTable.status, "processing"),
+          isNull(osTasksTable.externalTaskId),
+        ))
+        .returning();
+      if (!updated) {
+        const [current] = await db.select().from(osTasksTable).where(eq(osTasksTable.id, row.id));
+        if (current?.externalTaskId === externalId) {
+          // An early webhook already attached this exact provider task (and may
+          // even have settled it). Attachment is idempotent; never delete a
+          // valid result merely because the create response arrived second.
+          row = await refreshTask(current);
+          if (!res.headersSent) res.json({ task: taskJson(row) });
+          return;
+        }
+        // The row was genuinely cancelled/deleted or now tracks a different
+        // task. Do not leave this newly accepted upstream task running.
+        await deleteTasks([externalId]).catch((err) =>
+          logger.warn({ err, tool, externalTaskId: externalId }, "Deferred task was already final; provider cleanup failed"));
+        return;
+      }
+      row = updated;
+      // Immediately sync once — the provider reports credit_cost right away,
+      // which reconciles our reservation to the real cost.
+      row = await refreshTask(row);
+      if (!res.headersSent) res.json({ task: taskJson(row) });
+    } catch (err: any) {
+      logger.error({ err, tool, externalTaskId: externalId }, "OpenSpeaker task accepted but local tracking failed");
+      if (!res.headersSent) {
+        res.status(500).json({ error: "The task was submitted but could not be tracked. Please check your history shortly or contact support." });
+      }
+    }
+  };
+
+  if (deferProviderCreate) {
+    // Some provider uploads take longer than mobile/proxy request timeouts.
+    // Return the locally tracked task immediately; normal client polling will
+    // see the provider id as soon as the background create call completes.
+    res.status(202).json({ task: taskJson(row) });
+    void finishProviderCreate().catch((err) =>
+      logger.error({ err, tool, taskId: row.id }, "Deferred provider create background failure"));
     return;
   }
-
-  // Phase 3 — attach the provider task id. The provider has accepted (and may
-  // bill) the task, so failures here must NOT refund; they only report a
-  // tracking problem.
-  try {
-    const [updated] = await db.update(osTasksTable)
-      .set({ externalTaskId: externalId, updatedAt: new Date() })
-      .where(eq(osTasksTable.id, row.id)).returning();
-    if (updated) row = updated;
-    // Immediately sync once — the provider reports credit_cost right away,
-    // which reconciles our reservation to the real cost.
-    row = await refreshTask(row);
-    res.json({ task: taskJson(row) });
-  } catch (err: any) {
-    logger.error({ err, tool, externalTaskId: externalId }, "OpenSpeaker task accepted but local tracking failed");
-    res.status(500).json({ error: "The task was submitted but could not be tracked. Please check your history shortly or contact support." });
-  }
+  await finishProviderCreate();
 }
 
 /** Verify a dictionary id belongs to the requesting user (IDOR guard). */
@@ -1919,13 +2018,17 @@ router.post("/voice-changer", requireGlobalFeature("os-voice-changer"), requireP
   const similarity = Math.min(1, Math.max(0, Number(req.body?.similarityBoost) || 0.75));
   const removeNoise = String(req.body?.removeNoise ?? "false") === "true";
   const file = req.file;
+  const isClone = voiceId.startsWith("clone_");
   await runCreateTask({
     req, res, tool: "voice-changer",
     title: file.originalname || "Voice change",
-    input: { voiceId, fileName: file.originalname, fileSize: file.size },
+    input: {
+      voiceId, fileName: file.originalname, fileSize: file.size,
+      ...(isClone ? { _deferredProviderCreate: true } : {}),
+    },
     estimate: Math.max(100, Math.ceil(file.size / 10_000)),
+    deferProviderCreate: isClone,
     create: async (webhookUrl) => {
-      const isClone = voiceId.startsWith("clone_");
       const form = new FormData();
       // The clone-aware v3 contract requires `input` plus the prefixed clone
       // id. The legacy v1 contract uses `file` and raw ElevenLabs library ids.
@@ -1935,7 +2038,12 @@ router.post("/voice-changer", requireGlobalFeature("os-voice-changer"), requireP
       form.append("voice_settings", JSON.stringify({ stability, similarity_boost: similarity }));
       form.append("remove_background_noise", String(removeNoise));
       if (webhookUrl) form.append("receive_url", webhookUrl);
-      return osPostForm(isClone ? `/v3/text-to-speech/voice-changer` : `/v1/task/voice-changer`, form, "Voice changer");
+      return osPostForm(
+        isClone ? `/v3/text-to-speech/voice-changer` : `/v1/task/voice-changer`,
+        form,
+        "Voice changer",
+        isClone ? 180_000 : undefined,
+      );
     },
   });
 });
@@ -2464,6 +2572,10 @@ router.post("/tasks/:id/cancel", async (req, res) => {
 
   // Still running upstream: only refund if the provider-side cancel succeeds.
   // If it fails, keep the task running so credits stay reserved for billed work.
+  if (row.status === "processing" && !row.externalTaskId && (row.input as any)?._deferredProviderCreate) {
+    res.status(409).json({ error: "This task is still being submitted. Please try cancelling again shortly." });
+    return;
+  }
   if (row.externalTaskId) {
     try {
       await deleteTasks([row.externalTaskId]);
@@ -2524,6 +2636,14 @@ router.delete("/tasks/:id", async (req, res) => {
   // Sync provider state first so a task that actually finished is settled
   // (charged/refunded) correctly before we decide anything.
   row = await refreshTask(row);
+  if (!row.externalTaskId && (row.input as any)?._deferredProviderUnknown) {
+    res.status(409).json({ error: "This task still needs a provider check and cannot be deleted yet. Please contact support." });
+    return;
+  }
+  if (row.status === "processing" && !row.externalTaskId && (row.input as any)?._deferredProviderCreate) {
+    res.status(409).json({ error: "This task is still being submitted. Please try deleting it again shortly." });
+    return;
+  }
 
   if (!isFinal(row.status) && row.externalTaskId) {
     // Still running upstream: only refund if the provider-side delete succeeds.
@@ -2640,6 +2760,39 @@ export async function sweepStaleOsTasks(): Promise<void> {
       }
     } catch (err) {
       logger.warn({ err }, "Longform TTS orphan sweep failed");
+    }
+    // Deferred provider creation normally finishes within a few minutes. If a
+    // row still has no provider id after 15 minutes, acceptance is unknown: the
+    // provider may have accepted it before a timeout/restart. Keep it
+    // stop the UI spinner with an explicit manual-check state, but retain a
+    // recovery marker so a later verified webhook can still attach and settle
+    // it. Never refund work whose upstream acceptance is unknown.
+    try {
+      const cutoffDeferred = new Date(Date.now() - SWEEP_STALE_AFTER_MS);
+      const orphans = await db.select().from(osTasksTable)
+        .where(and(
+          eq(osTasksTable.status, "processing"),
+          sql`${osTasksTable.externalTaskId} IS NULL`,
+          sql`(${osTasksTable.input}::jsonb) ? '_deferredProviderCreate'`,
+          lt(osTasksTable.updatedAt, cutoffDeferred),
+        ))
+        .limit(10);
+      for (const row of orphans) {
+        logger.warn({ taskId: row.id, tool: row.tool }, "Deferred provider create outcome is unknown — marking for manual check");
+        await db.update(osTasksTable).set({
+          status: "error",
+          error: "We could not confirm whether this generation started. Please contact support so we can check it.",
+          input: { ...(row.input as any), _deferredProviderUnknown: true },
+          updatedAt: new Date(),
+        }).where(and(
+          eq(osTasksTable.id, row.id),
+          eq(osTasksTable.status, "processing"),
+          isNull(osTasksTable.externalTaskId),
+        ))
+          .catch((err) => logger.warn({ err, taskId: row.id }, "Deferred-create orphan recovery marker failed"));
+      }
+    } catch (err) {
+      logger.warn({ err }, "Deferred-create orphan sweep failed");
     }
     const cutoff = new Date(Date.now() - SWEEP_STALE_AFTER_MS);
     const stale = await db.select().from(osTasksTable)

@@ -49,9 +49,9 @@ function apiKey(): string {
   return key;
 }
 
-async function osFetch(path: string, init: RequestInit = {}): Promise<Response> {
+async function osFetch(path: string, init: RequestInit = {}, timeoutMs = TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(`${BASE}${path}`, {
       ...init,
@@ -93,8 +93,13 @@ export async function osPostJson<T = any>(path: string, body: unknown, what = "O
   return parseJson<T>(res, what);
 }
 
-export async function osPostForm<T = any>(path: string, form: FormData, what = "OpenSpeaker request"): Promise<T> {
-  const res = await osFetch(path, { method: "POST", body: form });
+export async function osPostForm<T = any>(
+  path: string,
+  form: FormData,
+  what = "OpenSpeaker request",
+  timeoutMs = TIMEOUT_MS,
+): Promise<T> {
+  const res = await osFetch(path, { method: "POST", body: form }, timeoutMs);
   return parseJson<T>(res, what);
 }
 
