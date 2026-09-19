@@ -209,7 +209,7 @@ router.get("/users", async (req, res) => {
 
   const [totalRow] = await db.select({ n: count() }).from(usersTable).where(where);
   const users = await db.select().from(usersTable).where(where)
-    .orderBy(desc(usersTable.createdAt))
+    .orderBy(desc(usersTable.createdAt), desc(usersTable.id))
     .limit(pageSize).offset((page - 1) * pageSize);
 
   const ids = users.map(u => u.id);

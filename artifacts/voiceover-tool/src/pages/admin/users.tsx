@@ -90,7 +90,15 @@ export default function AdminUsers() {
 
   const { data, isLoading, refetch, isFetching } = useQuery<UsersEnvelope>({
     queryKey: ["admin-users", search, planFilter, statusFilter, page],
-    queryFn: () => fetch(`/api/admin/users?${params.toString()}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/admin/users?${params.toString()}`).then(async r => {
+      const body = await r.json();
+      if (!r.ok) throw new Error(body?.error || "Failed to load users");
+      return body;
+    }),
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchInterval: 10_000,
   });
 
   const users = data?.users ?? [];
