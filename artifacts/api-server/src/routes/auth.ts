@@ -210,6 +210,15 @@ router.post("/login", async (req, res) => {
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
+  const canUsePasswordLogin =
+    user.isReseller ||
+    user.resellerId != null ||
+    user.isAdmin ||
+    isAdminEmail(user.email);
+  if (!canUsePasswordLogin) {
+    res.status(403).json({ error: "Email and password login is only available for reseller accounts. Please continue with Google." });
+    return;
+  }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
