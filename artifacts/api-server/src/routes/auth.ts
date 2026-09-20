@@ -216,7 +216,7 @@ router.post("/login", async (req, res) => {
     user.isAdmin ||
     isAdminEmail(user.email);
   if (!canUsePasswordLogin) {
-    res.status(403).json({ error: "Email and password login is only available for reseller accounts. Please continue with Google." });
+    res.status(403).json({ error: "Email and password login is not available for this account. Please continue with Google." });
     return;
   }
 

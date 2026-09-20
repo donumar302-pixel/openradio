@@ -29,8 +29,8 @@ export default function RegisterPage() {
           <GoogleAuthButton label="Sign up with Google" />
 
           <p className="text-[13px] text-gray-500 text-center mt-6">
-            Have an account from a reseller?{" "}
-            <Link href={`/login${query}`} className="font-bold text-orange-600 hover:underline" data-testid="link-reseller-login">
+            Already have an account?{" "}
+            <Link href={`/login${query}`} className="font-bold text-orange-600 hover:underline" data-testid="link-email-login">
               Log in with email and password
             </Link>
           </p>

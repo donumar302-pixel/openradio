@@ -15,7 +15,7 @@ function safeReturnTo(value: string | null): string {
 export default function LoginPage() {
   useSeo({
     title: "Log In — OpenRadio",
-    description: "Continue with Google or log in to an account provided by an OpenRadio reseller.",
+    description: "Continue with Google or log in with email and password.",
     path: "/login",
     noindex: true,
   });
@@ -65,15 +65,15 @@ export default function LoginPage() {
 
           <div className="flex items-center gap-3 my-5">
             <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Reseller account</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Email and password login</span>
             <div className="flex-1 h-px bg-gray-200" />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="reseller-login-email" className="block text-[13px] font-semibold text-gray-700 mb-1.5">Email</label>
+              <label htmlFor="email-login-email" className="block text-[13px] font-semibold text-gray-700 mb-1.5">Email</label>
               <input
-                id="reseller-login-email"
+                id="email-login-email"
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -86,10 +86,10 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="reseller-login-password" className="block text-[13px] font-semibold text-gray-700 mb-1.5">Password</label>
+              <label htmlFor="email-login-password" className="block text-[13px] font-semibold text-gray-700 mb-1.5">Password</label>
               <div className="relative">
                 <input
-                  id="reseller-login-password"
+                  id="email-login-password"
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
@@ -114,7 +114,7 @@ export default function LoginPage() {
               type="submit"
               disabled={loginPending}
               className="w-full py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-[14px] font-bold transition disabled:opacity-60 flex items-center justify-center gap-2"
-              data-testid="btn-reseller-login"
+              data-testid="btn-email-login"
             >
               {loginPending && <Loader2 size={15} className="animate-spin" />}
               {loginPending ? "Logging in..." : "Log in with Email"}
