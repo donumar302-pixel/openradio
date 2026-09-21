@@ -2043,6 +2043,242 @@ router.post("/dubbing", requireGlobalFeature("os-dubbing"), requirePlanFeature("
 
 /* ═══════════════ Voice Changer ═══════════════ */
 
+const CLONE_REVOICE_POLL_MS = 3_000;
+const CLONE_REVOICE_TIMEOUT_MS = 15 * 60_000;
+const activeCloneRevoiceChildren = new Map<number, string>();
+
+class CloneRevoiceUnknownOutcome extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CloneRevoiceUnknownOutcome";
+  }
+}
+
+async function saveCloneRevoiceProgress(
+  parentId: number,
+  patch: Record<string, unknown>,
+  creditsSpent: number,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [current] = await tx.select().from(osTasksTable)
+      .where(eq(osTasksTable.id, parentId)).for("update");
+    if (!current || current.status !== "processing") return false;
+    await tx.update(osTasksTable).set({
+      input: { ...(current.input as any), ...patch },
+      output: { ...(current.output as any), progress: { credits_spent: creditsSpent } },
+      updatedAt: new Date(),
+    }).where(eq(osTasksTable.id, parentId));
+    return true;
+  });
+}
+
+async function ensureCloneRevoiceReservation(
+  parentId: number,
+  targetCredits: number,
+  admin: boolean,
+): Promise<boolean> {
+  if (admin) return true;
+  return db.transaction(async (tx) => {
+    const [current] = await tx.select().from(osTasksTable)
+      .where(eq(osTasksTable.id, parentId)).for("update");
+    if (!current || current.status !== "processing") return false;
+    const additional = Math.max(0, Math.ceil(targetCredits) - current.creditsCharged);
+    if (additional === 0) return true;
+    const [user] = await tx.select({ credits: usersTable.credits }).from(usersTable)
+      .where(eq(usersTable.id, current.userId)).for("update");
+    if (!user || user.credits < additional) return false;
+    await tx.update(usersTable).set({
+      credits: sql`${usersTable.credits} - ${additional}`,
+      creditsUsed: sql`${usersTable.creditsUsed} + ${additional}`,
+    }).where(eq(usersTable.id, current.userId));
+    await tx.update(osTasksTable).set({
+      creditsCharged: current.creditsCharged + additional,
+      updatedAt: new Date(),
+    }).where(eq(osTasksTable.id, parentId));
+    return true;
+  });
+}
+
+async function waitForCloneRevoiceChild(parentId: number, childId: string): Promise<OsTaskState> {
+  const deadline = Date.now() + CLONE_REVOICE_TIMEOUT_MS;
+  let polls = 0;
+  activeCloneRevoiceChildren.set(parentId, childId);
+  try {
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, CLONE_REVOICE_POLL_MS));
+      const [parent] = await db.select({ status: osTasksTable.status }).from(osTasksTable)
+        .where(eq(osTasksTable.id, parentId));
+      if (!parent || parent.status !== "processing") {
+        try {
+          await deleteTasks([childId]);
+        } catch {
+          throw new CloneRevoiceUnknownOutcome("The provider task could not be cancelled safely.");
+        }
+        throw new Error("Generation cancelled");
+      }
+      const state = await getTask(childId).catch(() => null);
+      if (++polls % 5 === 0) {
+        await db.update(osTasksTable).set({ updatedAt: new Date() })
+          .where(eq(osTasksTable.id, parentId)).catch(() => {});
+      }
+      if (!state) continue;
+      if (state.status === "done") return state;
+      if (state.status === "error") {
+        throw new Error(
+          friendlyTaskError(state.error_message ?? "")
+          || sanitizeProviderText(state.error_message ?? "")
+          || "Generation failed",
+        );
+      }
+    }
+    try {
+      await deleteTasks([childId]);
+    } catch {
+      throw new CloneRevoiceUnknownOutcome(
+        "The voice service stopped responding and the task could not be cancelled safely. Please contact support.",
+      );
+    }
+    throw new Error("Generation timed out. Please try a shorter audio file.");
+  } finally {
+    if (activeCloneRevoiceChildren.get(parentId) === childId) {
+      activeCloneRevoiceChildren.delete(parentId);
+    }
+  }
+}
+
+async function transcriptTextFromTask(state: OsTaskState): Promise<string> {
+  const jsonUrl = String(state.metadata?.json_url ?? "");
+  if (!/^https?:\/\//.test(jsonUrl)) throw new Error("The uploaded audio could not be transcribed.");
+  const response = await fetch(jsonUrl);
+  if (!response.ok) throw new Error("The uploaded audio transcript could not be downloaded.");
+  const payload = await response.json() as unknown;
+  const entries = Array.isArray(payload) ? payload : [payload];
+  const text = entries
+    .map((entry) => typeof (entry as any)?.text === "string" ? (entry as any).text.trim() : "")
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+  if (!text) throw new Error("No clear speech was detected in the uploaded audio.");
+  if (text.length > 60_000) throw new Error("The uploaded audio is too long to re-voice in one generation.");
+  return text;
+}
+
+async function runCloneRevoice(
+  parent: OsTask,
+  file: Express.Multer.File,
+  voiceId: string,
+  admin: boolean,
+): Promise<void> {
+  let creditsSpent = 0;
+  try {
+    const sttForm = new FormData();
+    sttForm.append("file", new Blob([file.buffer as any], { type: file.mimetype }), file.originalname || "audio.mp3");
+    let sttCreated: { task_id?: string };
+    try {
+      sttCreated = await osPostForm<{ task_id?: string }>(
+        "/v1/task/speech-to-text",
+        sttForm,
+        "Speech to text",
+      );
+    } catch (err) {
+      if (!(err instanceof OpenSpeakerError)) {
+        throw new CloneRevoiceUnknownOutcome(
+          "We could not confirm whether transcription started. Please contact support.",
+        );
+      }
+      throw err;
+    }
+    if (!sttCreated.task_id) throw new Error("The transcription service did not accept the audio.");
+    if (!(await saveCloneRevoiceProgress(parent.id, {
+      _cloneRevoicePhase: "transcribing",
+      _cloneRevoiceChildId: sttCreated.task_id,
+    }, creditsSpent))) {
+      try {
+        await deleteTasks([sttCreated.task_id]);
+      } catch {
+        throw new CloneRevoiceUnknownOutcome("The transcription task could not be cancelled safely.");
+      }
+      return;
+    }
+    const sttState = await waitForCloneRevoiceChild(parent.id, sttCreated.task_id);
+    creditsSpent += Math.max(0, Number(sttState.credit_cost) || 0);
+    if (!(await saveCloneRevoiceProgress(parent.id, {
+      _cloneRevoicePhase: "transcribed",
+      _cloneRevoiceChildId: null,
+    }, creditsSpent))) return;
+    const text = await transcriptTextFromTask(sttState);
+
+    if (text.length > LONG_TTS_THRESHOLD) {
+      throw new Error("This audio contains too much speech for clone voice conversion. Please use an audio file up to 4 minutes long.");
+    }
+    if (!(await ensureCloneRevoiceReservation(parent.id, creditsSpent + text.length, admin))) {
+      await settleLongTts(
+        parent.id,
+        "error",
+        creditsSpent,
+        null,
+        "You do not have enough credits to generate the converted voice. The transcription was completed and unused credits were refunded.",
+      );
+      return;
+    }
+
+    if (!(await saveCloneRevoiceProgress(parent.id, {
+      _cloneRevoicePhase: "synthesizing",
+    }, creditsSpent))) return;
+    const ttsForm = new FormData();
+    ttsForm.append("text", text);
+    ttsForm.append("voice_id", voiceId);
+    let ttsCreated: { task_id?: string };
+    try {
+      ttsCreated = await osPostForm<{ task_id?: string }>(
+        "/v3/text-to-speech",
+        ttsForm,
+        "Text to Speech",
+      );
+    } catch (err) {
+      if (!(err instanceof OpenSpeakerError)) {
+        throw new CloneRevoiceUnknownOutcome(
+          "We could not confirm whether voice generation started. Please contact support.",
+        );
+      }
+      throw err;
+    }
+    if (!ttsCreated.task_id) throw new Error("The voice service did not accept the transcript.");
+    if (!(await saveCloneRevoiceProgress(parent.id, {
+      _cloneRevoicePhase: "synthesizing",
+      _cloneRevoiceChildId: ttsCreated.task_id,
+    }, creditsSpent))) {
+      try {
+        await deleteTasks([ttsCreated.task_id]);
+      } catch {
+        throw new CloneRevoiceUnknownOutcome("The voice generation task could not be cancelled safely.");
+      }
+      return;
+    }
+    const ttsState = await waitForCloneRevoiceChild(parent.id, ttsCreated.task_id);
+    creditsSpent += Math.max(0, Number(ttsState.credit_cost) || 0);
+    await saveCloneRevoiceProgress(parent.id, {
+      _cloneRevoicePhase: "complete",
+      _cloneRevoiceChildId: null,
+    }, creditsSpent);
+    await settleLongTts(parent.id, "done", creditsSpent, {
+      ...(ttsState.metadata ?? {}),
+      transcript: text,
+      transcription_based: true,
+    });
+  } catch (err: any) {
+    const [current] = await db.select().from(osTasksTable).where(eq(osTasksTable.id, parent.id));
+    if (!current || isFinal(current.status)) return;
+    const message = err instanceof Error
+      ? sanitizeProviderText(err.message) || "Voice conversion failed"
+      : "Voice conversion failed";
+    const actualCost = err instanceof CloneRevoiceUnknownOutcome
+      ? current.creditsCharged
+      : creditsSpent;
+    await settleLongTts(parent.id, "error", actualCost, null, message);
+  }
+}
+
 router.post("/voice-changer", requireGlobalFeature("os-voice-changer"), requirePlanFeature("speech-to-speech"), upload.single("file"), async (req, res) => {
   const voiceId = String(req.body?.voiceId ?? "").trim();
   if (!req.file || !isValidOsVoiceId(voiceId)) {
@@ -2068,6 +2304,54 @@ router.post("/voice-changer", requireGlobalFeature("os-voice-changer"), requireP
     });
     return;
   }
+  if (isClone) {
+    const user = req.appUser!;
+    const admin = isUserAdmin(user);
+    let durationSeconds: number;
+    try {
+      durationSeconds = (await probeCloneSample(file.buffer)).seconds;
+    } catch {
+      res.status(400).json({ error: "The audio duration could not be read. Please upload a valid audio file." });
+      return;
+    }
+    if (durationSeconds > 240) {
+      res.status(400).json({ error: "Clone voice conversion supports audio files up to 4 minutes long." });
+      return;
+    }
+    const reserve = admin ? 0 : Math.max(100, Math.ceil(file.size / 10_000));
+    if (!admin && !(await reserveCredits(user.id, reserve))) {
+      res.status(402).json({ error: `Not enough credits. This needs about ${reserve} credits but you have ${user.credits}.` });
+      return;
+    }
+    let parent: OsTask;
+    try {
+      [parent] = await db.insert(osTasksTable).values({
+        userId: user.id,
+        tool: "voice-changer",
+        externalTaskId: null,
+        status: "processing",
+        title: file.originalname || "Voice change",
+        input: {
+          voiceId,
+          fileName: file.originalname,
+          fileSize: file.size,
+          durationSeconds,
+          _cloneRevoice: true,
+        },
+        creditsCharged: reserve,
+        webhookToken: crypto.randomBytes(24).toString("hex"),
+      }).returning();
+    } catch (err) {
+      if (!admin) await refundCredits(user.id, reserve);
+      logger.error({ err }, "Clone re-voice parent insert failed");
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
+    res.status(202).json({ task: taskJson(parent) });
+    void runCloneRevoice(parent, file, voiceId, admin).catch((err) =>
+      logger.error({ err, taskId: parent.id }, "Clone re-voice background failure"));
+    return;
+  }
   await runCreateTask({
     req, res, tool: "voice-changer",
     title: file.originalname || "Voice change",
@@ -2076,23 +2360,16 @@ router.post("/voice-changer", requireGlobalFeature("os-voice-changer"), requireP
       ...(isClone ? { _deferredProviderCreate: true } : {}),
     },
     estimate: Math.max(100, Math.ceil(file.size / 10_000)),
-    deferProviderCreate: isClone,
+    deferProviderCreate: false,
     create: async (webhookUrl) => {
       const form = new FormData();
-      // The clone-aware v3 contract requires `input` plus the prefixed clone
-      // id. The legacy v1 contract uses `file` and raw ElevenLabs library ids.
-      form.append(isClone ? "input" : "file", new Blob([file.buffer as any], { type: file.mimetype }), file.originalname || "audio.mp3");
-      form.append("voice_id", isClone ? voiceId : rawElevenVoiceId(voiceId));
+      form.append("file", new Blob([file.buffer as any], { type: file.mimetype }), file.originalname || "audio.mp3");
+      form.append("voice_id", rawElevenVoiceId(voiceId));
       form.append("model_id", "eleven_multilingual_sts_v2");
       form.append("voice_settings", JSON.stringify({ stability, similarity_boost: similarity }));
       form.append("remove_background_noise", String(removeNoise));
       if (webhookUrl) form.append("receive_url", webhookUrl);
-      return osPostForm(
-        isClone ? `/v3/text-to-speech/voice-changer` : `/v1/task/voice-changer`,
-        form,
-        "Voice changer",
-        isClone ? 180_000 : undefined,
-      );
+      return osPostForm("/v1/task/voice-changer", form, "Voice changer");
     },
   });
 });
@@ -2619,6 +2896,13 @@ router.post("/tasks/:id/cancel", async (req, res) => {
   row = await refreshTask(row);
   if (isFinal(row.status)) { res.json({ task: taskJson(row) }); return; }
 
+  if (row.status === "processing" && (row.input as any)?._cloneRevoice) {
+    res.status(409).json({
+      error: "Clone voice conversion cannot be cancelled safely while transcription or voice generation is running.",
+    });
+    return;
+  }
+
   // Still running upstream: only refund if the provider-side cancel succeeds.
   // If it fails, keep the task running so credits stay reserved for billed work.
   if (row.status === "processing" && !row.externalTaskId && (row.input as any)?._deferredProviderCreate) {
@@ -2647,6 +2931,16 @@ router.post("/tasks/:id/cancel", async (req, res) => {
       } catch (err) {
         logger.warn({ err, taskId: row.id, chunkTaskId: chunkExtId },
           "User cancel: active longform chunk delete failed — runner will retry on its next poll");
+      }
+    }
+    const revoiceChildId = activeCloneRevoiceChildren.get(row.id);
+    if (revoiceChildId) {
+      try {
+        await deleteTasks([revoiceChildId]);
+        logger.info({ taskId: row.id, childTaskId: revoiceChildId }, "User cancel: clone re-voice child cancelled");
+      } catch (err) {
+        logger.warn({ err, taskId: row.id, childTaskId: revoiceChildId },
+          "User cancel: clone re-voice child delete failed — runner will stop on its next poll");
       }
     }
   }
@@ -2687,6 +2981,12 @@ router.delete("/tasks/:id", async (req, res) => {
   row = await refreshTask(row);
   if (!row.externalTaskId && (row.input as any)?._deferredProviderUnknown) {
     res.status(409).json({ error: "This task still needs a provider check and cannot be deleted yet. Please contact support." });
+    return;
+  }
+  if (row.status === "processing" && (row.input as any)?._cloneRevoice) {
+    res.status(409).json({
+      error: "Clone voice conversion cannot be deleted safely while transcription or voice generation is running.",
+    });
     return;
   }
   if (row.status === "processing" && !row.externalTaskId && (row.input as any)?._deferredProviderCreate) {
@@ -2809,6 +3109,85 @@ export async function sweepStaleOsTasks(): Promise<void> {
       }
     } catch (err) {
       logger.warn({ err }, "Longform TTS orphan sweep failed");
+    }
+    // Clone re-voice parents run an in-process STT → cloned-TTS pipeline. A
+    // restart loses that runner, so settle stale parents instead of leaving
+    // credits reserved and the History spinner running forever.
+    try {
+      const cutoffCloneRevoice = new Date(Date.now() - LONG_TTS_ORPHAN_MS);
+      const cloneRevoiceOrphans = await db.select().from(osTasksTable)
+        .where(and(
+          eq(osTasksTable.status, "processing"),
+          isNull(osTasksTable.externalTaskId),
+          sql`(${osTasksTable.input}::jsonb) ? '_cloneRevoice'`,
+          lt(osTasksTable.updatedAt, cutoffCloneRevoice),
+        ))
+        .limit(10);
+      for (const row of cloneRevoiceOrphans) {
+        logger.warn({ taskId: row.id }, "Clone re-voice task orphaned by a restart — reconciling provider child");
+        const progress = ((row.output as any)?.progress ?? {}) as Record<string, unknown>;
+        const spent = typeof progress.credits_spent === "number" ? progress.credits_spent : 0;
+        const childId = String((row.input as any)?._cloneRevoiceChildId ?? "");
+        const phase = String((row.input as any)?._cloneRevoicePhase ?? "");
+        if (childId) {
+          let childState: OsTaskState | null = null;
+          try {
+            childState = await getTask(childId);
+          } catch {
+            await settleLongTts(
+              row.id,
+              "error",
+              row.creditsCharged,
+              null,
+              "We could not confirm the provider task after a server restart. Please contact support.",
+            );
+            continue;
+          }
+          if (childState.status === "done") {
+            const childCost = Math.max(0, Number(childState.credit_cost) || 0);
+            if (phase === "synthesizing") {
+              await settleLongTts(row.id, "done", spent + childCost, {
+                ...(childState.metadata ?? {}),
+                transcription_based: true,
+              });
+            } else {
+              await settleLongTts(
+                row.id,
+                "error",
+                spent + childCost,
+                null,
+                "Voice conversion was interrupted after a provider step completed. Unused credits refunded. Please try again.",
+              );
+            }
+            continue;
+          }
+          if (childState.status !== "error") {
+            try {
+              await deleteTasks([childId]);
+            } catch {
+              await settleLongTts(
+                row.id,
+                "error",
+                row.creditsCharged,
+                null,
+                "The provider task could not be cancelled safely after a server restart. Please contact support.",
+              );
+              continue;
+            }
+          }
+        }
+        await settleLongTts(
+          row.id,
+          "error",
+          spent,
+          null,
+          spent > 0
+            ? "Voice conversion was interrupted by a server restart. Unused credits refunded. Please try again."
+            : "Voice conversion was interrupted by a server restart. Credits refunded. Please try again.",
+        ).catch((err) => logger.warn({ err, taskId: row.id }, "Clone re-voice orphan settle failed"));
+      }
+    } catch (err) {
+      logger.warn({ err }, "Clone re-voice orphan sweep failed");
     }
     // Deferred provider creation normally finishes within a few minutes. If a
     // row still has no provider id after 15 minutes, acceptance is unknown: the
