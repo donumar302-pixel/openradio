@@ -721,6 +721,47 @@ export async function assertCloneOwnership(req: any, voiceId: string): Promise<b
   return !!own;
 }
 
+type ProviderCloneVoice = { voice_id?: string };
+let providerCloneIdsCache: { ids: Set<string>; expiresAt: number } | null = null;
+
+async function providerCloneIds(forceRefresh = false): Promise<Set<string>> {
+  if (!forceRefresh && providerCloneIdsCache && providerCloneIdsCache.expiresAt > Date.now()) {
+    return providerCloneIdsCache.ids;
+  }
+
+  const ids = new Set<string>();
+  const pageSize = 100;
+  let page = 1;
+  let total = Infinity;
+
+  while (ids.size < total && page <= 20) {
+    const result = await osGetJson<{
+      data?: ProviderCloneVoice[];
+      pagination?: { total?: number };
+    }>(`/v3/voices?provider=clone&page=${page}&page_size=${pageSize}`, "Clone voice lookup");
+    const voices = Array.isArray(result?.data) ? result.data : [];
+    for (const voice of voices) {
+      const id = String(voice?.voice_id ?? "");
+      if (id.startsWith("clone_")) ids.add(id);
+    }
+    total = Number(result?.pagination?.total);
+    if (!Number.isFinite(total)) total = ids.size;
+    if (voices.length < pageSize) break;
+    page += 1;
+  }
+
+  providerCloneIdsCache = { ids, expiresAt: Date.now() + 60_000 };
+  return ids;
+}
+
+async function isProviderCloneAvailable(voiceId: string): Promise<boolean> {
+  const cached = await providerCloneIds();
+  if (cached.has(voiceId)) return true;
+  // A clone created during the cache window may not be present yet. Refresh
+  // once before declaring it unavailable.
+  return (await providerCloneIds(true)).has(voiceId);
+}
+
 /* ═══════════════ Voice library ═══════════════ */
 
 router.get("/voices", async (req, res) => {
@@ -734,10 +775,12 @@ router.get("/voices", async (req, res) => {
       // Clones are account-wide upstream — only expose the user's own.
       // Search is applied locally; gender/language metadata doesn't exist for clones.
       const cloneSearch = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
-      const clones = (await db.select().from(voiceClonesTable)
+      const storedClones = (await db.select().from(voiceClonesTable)
         .where(and(eq(voiceClonesTable.userId, req.appUser!.id), eq(voiceClonesTable.provider, "openspeaker")))
         .orderBy(desc(voiceClonesTable.createdAt)))
         .filter((c) => !cloneSearch || c.name.toLowerCase().includes(cloneSearch) || (c.description ?? "").toLowerCase().includes(cloneSearch));
+      const availableIds = await providerCloneIds();
+      const clones = storedClones.filter((c) => availableIds.has(c.voiceId));
       res.json({
         success: true,
         data: clones.map((c) => ({ voice_id: c.voiceId, name: c.name, description: c.description ?? "", provider: "clone" })),
@@ -2019,6 +2062,12 @@ router.post("/voice-changer", requireGlobalFeature("os-voice-changer"), requireP
   const removeNoise = String(req.body?.removeNoise ?? "false") === "true";
   const file = req.file;
   const isClone = voiceId.startsWith("clone_");
+  if (isClone && !(await isProviderCloneAvailable(voiceId))) {
+    res.status(409).json({
+      error: "This cloned voice is no longer available. Please create it again from the Voice Cloning page.",
+    });
+    return;
+  }
   await runCreateTask({
     req, res, tool: "voice-changer",
     title: file.originalname || "Voice change",
