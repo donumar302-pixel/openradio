@@ -31,6 +31,7 @@ os_tasks rows are inserted BEFORE the provider call (status processing, external
 
 ## Dubbing: provider accepts audio only
 OpenSpeaker /v1/task/dubbing rejects video files with "Invalid file" (verified live); it also requires receive_url or errors "expected string, received undefined". The api-server extracts the audio track from video uploads with system ffmpeg before submitting.
+The provider bills about 67 credits/second and rejects a single task above 20,000 provider credits (roughly five minutes). Long media must use the local chunked-dubbing parent pipeline with sub-cap segments, cumulative cost settlement, stitched audio, and optional video remux; byte-size estimates are invalid for compressed WhatsApp media.
 **Why:** the UI advertises MP4/MOV support, so video must keep working even though the provider is audio-only.
 **How to apply:** ffmpeg must exist in the Railway Docker image (apk add ffmpeg in the root Dockerfile) — removing it silently breaks video dubbing in prod only.
 

@@ -19,9 +19,10 @@ export function estimateDialogueCost(text: string): number {
   return text.length;
 }
 
-/** Dubbing: max(500, fileSize/20,000) — reconciled to real cost after creation. */
-export function estimateDubbingCost(fileSize: number): number {
-  return Math.max(500, Math.ceil(fileSize / 20_000));
+/** Dubbing: provider bills by media duration, approximately 67 credits/second.
+ * Reserve at 70/second to avoid underquoting; server ffprobe is authoritative. */
+export function estimateDubbingCost(durationSeconds: number): number {
+  return Math.max(500, Math.ceil(durationSeconds * 70));
 }
 
 /** Voice changer: max(100, fileSize/10,000). */

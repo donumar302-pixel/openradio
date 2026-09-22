@@ -123,6 +123,16 @@ async function saveDubbedVideo(taskId: number, data: Buffer): Promise<void> {
     });
 }
 
+/** Store stitched chunked-dubbing audio separately from a muxed video result. */
+async function saveDubbedAudio(taskId: number, data: Buffer): Promise<void> {
+  await db.insert(osDubVideosTable)
+    .values({ taskId, kind: "audio", data, size: data.length })
+    .onConflictDoUpdate({
+      target: [osDubVideosTable.taskId, osDubVideosTable.kind],
+      set: { data, size: data.length, createdAt: new Date() },
+    });
+}
+
 /** Tag an error as terminal for dub finalization: fall back to audio-only instead of retrying. */
 function dubTerminal(err: unknown): Error {
   const e = err instanceof Error ? err : new Error(String(err));
@@ -132,6 +142,16 @@ function dubTerminal(err: unknown): Error {
 
 /** Download the dubbed audio and mux it into the retained source video (video stream copied). */
 async function muxDubbedVideo(srcVideo: Buffer, srcFileName: string | null, audioUrl: string): Promise<Buffer> {
+  const resp = await fetch(audioUrl);
+  if (!resp.ok) throw new Error(`dubbed audio download failed with HTTP ${resp.status}`);
+  return muxDubbedVideoBuffer(srcVideo, srcFileName, Buffer.from(await resp.arrayBuffer()));
+}
+
+async function muxDubbedVideoBuffer(
+  srcVideo: Buffer,
+  srcFileName: string | null,
+  dubbedAudio: Buffer,
+): Promise<Buffer> {
   const dir = await fsp.mkdtemp(nodePath.join(nodeOs.tmpdir(), "dubmux-"));
   // Keep the original extension as an ffmpeg container-detection hint.
   const ext = nodePath.extname(srcFileName || "").slice(0, 8) || ".mp4";
@@ -139,11 +159,8 @@ async function muxDubbedVideo(srcVideo: Buffer, srcFileName: string | null, audi
   const audioPath = nodePath.join(dir, "dubbed-audio");
   const tmpOut = nodePath.join(dir, "out.mp4");
   try {
-    // Audio-download failures are treated as transient (retried by the sweep).
-    const resp = await fetch(audioUrl);
-    if (!resp.ok) throw new Error(`dubbed audio download failed with HTTP ${resp.status}`);
     await fsp.writeFile(srcPath, srcVideo);
-    await fsp.writeFile(audioPath, Buffer.from(await resp.arrayBuffer()));
+    await fsp.writeFile(audioPath, dubbedAudio);
     try {
       await runFfmpeg([
         "-y", "-i", srcPath, "-i", audioPath,
@@ -170,7 +187,7 @@ async function cleanupDubVideos(): Promise<void> {
     lt(osDubVideosTable.createdAt, new Date(now - DUB_SRC_MAX_AGE_MS)),
   ));
   await db.delete(osDubVideosTable).where(and(
-    eq(osDubVideosTable.kind, "out"),
+    inArray(osDubVideosTable.kind, ["out", "audio"]),
     lt(osDubVideosTable.createdAt, new Date(now - DUB_OUT_MAX_AGE_MS)),
   ));
   // Legacy: age out files from the old on-disk store (pre-durable-storage deploys).
@@ -202,6 +219,33 @@ router.post("/webhook", async (req, res) => {
       && !!(row.input as any)?._deferredProviderUnknown;
     if ((row.status === "done" || row.status === "error") && !recoverableUnknown) return;
     let tracked = row;
+    if (!tracked.externalTaskId && (tracked.input as any)?._chunkedDubbingCreating) {
+      const candidate = String(
+        req.body?.id
+        ?? req.body?.task_id
+        ?? req.body?.data?.id
+        ?? req.body?.data?.task_id
+        ?? "",
+      );
+      if (!candidate) return;
+      await getTask(candidate); // verify the body-supplied id belongs to the provider
+      await db.transaction(async (tx) => {
+        const [current] = await tx.select().from(osTasksTable)
+          .where(eq(osTasksTable.id, tracked.id)).for("update");
+        if (!current || current.status !== "processing") return;
+        const currentInput = (current.input ?? {}) as Record<string, unknown>;
+        if (!currentInput._chunkedDubbingCreating) return;
+        await tx.update(osTasksTable).set({
+          input: {
+            ...currentInput,
+            _chunkedDubbingChildId: candidate,
+            _chunkedDubbingCreating: false,
+          },
+          updatedAt: new Date(),
+        }).where(eq(osTasksTable.id, current.id));
+      });
+      return;
+    }
     if (!tracked.externalTaskId && (tracked.input as any)?._deferredProviderCreate) {
       // A fast provider can send its webhook before the slow create response
       // reaches us. The unguessable callback token identifies the local row;
@@ -1981,6 +2025,325 @@ function rawElevenVoiceId(voiceId: string): string {
 
 /* ═══════════════ Audio Dubbing ═══════════════ */
 
+const DUB_CHUNK_SECONDS = 210;
+const DUB_CREDITS_PER_SECOND_RESERVE = 70;
+const DUB_CHUNK_POLL_MS = 4_000;
+const DUB_CHUNK_TIMEOUT_MS = 20 * 60_000;
+
+class DubbingUnknownOutcome extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DubbingUnknownOutcome";
+  }
+}
+
+class DubbingPendingUnknown extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DubbingPendingUnknown";
+  }
+}
+
+async function waitForAttachedDubbingChild(
+  parentId: number,
+  timeoutMs: number,
+): Promise<string | null> {
+  const deadline = Date.now() + timeoutMs;
+  do {
+    const [current] = await db.select({ input: osTasksTable.input }).from(osTasksTable)
+      .where(eq(osTasksTable.id, parentId));
+    const childId = String((current?.input as any)?._chunkedDubbingChildId ?? "");
+    if (childId) return childId;
+    if (Date.now() >= deadline) break;
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  } while (true);
+  return null;
+}
+
+async function saveChunkedDubbingProgress(
+  parentId: number,
+  patch: Record<string, unknown>,
+  creditsSpent: number,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [current] = await tx.select().from(osTasksTable)
+      .where(eq(osTasksTable.id, parentId)).for("update");
+    if (!current || current.status !== "processing") return false;
+    await tx.update(osTasksTable).set({
+      input: { ...(current.input as any), ...patch },
+      output: {
+        ...(current.output as any),
+        progress: {
+          ...((current.output as any)?.progress ?? {}),
+          credits_spent: creditsSpent,
+        },
+      },
+      updatedAt: new Date(),
+    }).where(eq(osTasksTable.id, parentId));
+    return true;
+  });
+}
+
+async function prepareChunkedDubbingCreate(
+  parentId: number,
+  part: number,
+  total: number,
+  creditsSpent: number,
+): Promise<string | null> {
+  const token = crypto.randomBytes(24).toString("hex");
+  return db.transaction(async (tx) => {
+    const [current] = await tx.select().from(osTasksTable)
+      .where(eq(osTasksTable.id, parentId)).for("update");
+    if (!current || current.status !== "processing") return null;
+    await tx.update(osTasksTable).set({
+      webhookToken: token,
+      input: {
+        ...(current.input as any),
+        _chunkedDubbingCreating: true,
+        _chunkedDubbingChildId: null,
+        _chunkedDubbingPart: part,
+        _chunkedDubbingParts: total,
+      },
+      output: {
+        ...(current.output as any),
+        progress: {
+          ...((current.output as any)?.progress ?? {}),
+          credits_spent: creditsSpent,
+        },
+      },
+      updatedAt: new Date(),
+    }).where(eq(osTasksTable.id, parentId));
+    return token;
+  });
+}
+
+async function waitForDubbingChild(parentId: number, childId: string): Promise<OsTaskState> {
+  const deadline = Date.now() + DUB_CHUNK_TIMEOUT_MS;
+  let polls = 0;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, DUB_CHUNK_POLL_MS));
+    const [parent] = await db.select({ status: osTasksTable.status }).from(osTasksTable)
+      .where(eq(osTasksTable.id, parentId));
+    if (!parent || parent.status !== "processing") {
+      try {
+        await deleteTasks([childId]);
+      } catch {
+        throw new DubbingUnknownOutcome("The active dubbing task could not be cancelled safely.");
+      }
+      throw new Error("Dubbing cancelled");
+    }
+    const state = await getTask(childId).catch(() => null);
+    if (++polls % 4 === 0) {
+      await db.update(osTasksTable).set({ updatedAt: new Date() })
+        .where(eq(osTasksTable.id, parentId)).catch(() => {});
+    }
+    if (!state) continue;
+    if (state.status === "done") return state;
+    if (state.status === "error") {
+      throw new Error(
+        friendlyTaskError(state.error_message ?? "")
+        || sanitizeProviderText(state.error_message ?? "")
+        || "Dubbing failed",
+      );
+    }
+  }
+  try {
+    await deleteTasks([childId]);
+  } catch {
+    throw new DubbingUnknownOutcome(
+      "The dubbing service stopped responding and the active task could not be cancelled safely. Please contact support.",
+    );
+  }
+  throw new Error("Dubbing timed out. Please try again.");
+}
+
+async function downloadProviderAudio(url: unknown): Promise<Buffer> {
+  if (typeof url !== "string" || !/^https?:\/\//.test(url)) {
+    throw new Error("The dubbing provider returned no audio.");
+  }
+  let lastStatus = 0;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await fetch(url);
+      lastStatus = response.status;
+      if (response.ok) {
+        const data = Buffer.from(await response.arrayBuffer());
+        if (data.length >= 200) return data;
+      }
+    } catch {
+      // Retry downloading the already-completed child; never regenerate it.
+    }
+    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+  throw new Error(lastStatus
+    ? `The dubbed audio could not be downloaded (HTTP ${lastStatus}).`
+    : "The dubbed audio could not be downloaded.");
+}
+
+interface ChunkedDubbingOptions {
+  sourceLang: string;
+  targetLang: string;
+  numSpeakers: number;
+  voiceId: string;
+  durationSeconds: number;
+  sourceVideoId: number | null;
+  sourceVideoName: string | null;
+}
+
+async function runChunkedDubbing(
+  parent: OsTask,
+  audioFile: Express.Multer.File,
+  options: ChunkedDubbingOptions,
+): Promise<void> {
+  const dir = await fsp.mkdtemp(nodePath.join(nodeOs.tmpdir(), "dub-chunks-"));
+  const inputPath = nodePath.join(dir, "source-audio");
+  let creditsSpent = 0;
+  let preserveSourceForReconciliation = false;
+  try {
+    await fsp.writeFile(inputPath, audioFile.buffer);
+    const chunkCount = Math.ceil(options.durationSeconds / DUB_CHUNK_SECONDS);
+    const dubbedParts: string[] = [];
+
+    for (let index = 0; index < chunkCount; index++) {
+      const start = index * DUB_CHUNK_SECONDS;
+      const seconds = Math.min(DUB_CHUNK_SECONDS, options.durationSeconds - start);
+      const sourcePart = nodePath.join(dir, `source-${String(index).padStart(3, "0")}.mp3`);
+      await runFfmpeg([
+        "-y", "-ss", String(start), "-t", String(seconds), "-i", inputPath,
+        "-vn", "-ac", "2", "-ar", "44100", "-c:a", "libmp3lame", "-b:a", "128k",
+        sourcePart,
+      ], 180_000);
+      const chunk = await fsp.readFile(sourcePart);
+      const callbackToken = await prepareChunkedDubbingCreate(
+        parent.id,
+        index + 1,
+        chunkCount,
+        creditsSpent,
+      );
+      if (!callbackToken) return;
+      const form = new FormData();
+      form.append("file", new Blob([chunk as any], { type: "audio/mpeg" }), `part-${index + 1}.mp3`);
+      form.append("num_speakers", String(options.numSpeakers));
+      form.append("source_lang", options.sourceLang);
+      form.append("target_lang", options.targetLang);
+      if (options.voiceId) form.append("voice_id", rawElevenVoiceId(options.voiceId));
+      const callback = webhookUrlFor(callbackToken);
+      if (callback) form.append("receive_url", callback);
+
+      let childId: string | null = null;
+      try {
+        const created = await osPostForm<{ task_id?: string }>(
+          "/v1/task/dubbing",
+          form,
+          "Dubbing",
+          180_000,
+        );
+        childId = created.task_id ?? null;
+      } catch (err) {
+        if (!(err instanceof OpenSpeakerError)) {
+          childId = await waitForAttachedDubbingChild(parent.id, 30_000);
+          if (!childId) {
+            throw new DubbingPendingUnknown(
+              "We could not confirm whether a dubbing part started. Waiting for provider reconciliation.",
+            );
+          }
+        } else {
+          throw err;
+        }
+      }
+      if (!childId) {
+        childId = await waitForAttachedDubbingChild(parent.id, 10_000);
+      }
+      if (!childId) {
+        throw new DubbingPendingUnknown(
+          "The provider accepted a dubbing part without a task id. Waiting for provider reconciliation.",
+        );
+      }
+      try {
+        if (!(await saveChunkedDubbingProgress(parent.id, {
+        _chunkedDubbingCreating: false,
+        _chunkedDubbingChildId: childId,
+        _chunkedDubbingPart: index + 1,
+        _chunkedDubbingParts: chunkCount,
+        }, creditsSpent))) {
+          try {
+            await deleteTasks([childId]);
+          } catch {
+            throw new DubbingUnknownOutcome("The accepted dubbing part could not be cancelled safely.");
+          }
+          return;
+        }
+      } catch (err) {
+        if (err instanceof DubbingUnknownOutcome) throw err;
+        throw new DubbingUnknownOutcome(
+          "The provider accepted a dubbing part but local tracking could not be saved. Please contact support.",
+        );
+      }
+
+      const state = await waitForDubbingChild(parent.id, childId);
+      creditsSpent += Math.max(0, Number(state.credit_cost) || 0);
+      await saveChunkedDubbingProgress(parent.id, {
+        _chunkedDubbingChildId: null,
+        _chunkedDubbingPart: index + 1,
+        _chunkedDubbingParts: chunkCount,
+      }, creditsSpent);
+      const audio = await downloadProviderAudio(state.metadata?.audio_url);
+      const partPath = nodePath.join(dir, `dubbed-${String(index).padStart(3, "0")}.m4a`);
+      await fsp.writeFile(partPath, audio);
+      dubbedParts.push(partPath);
+    }
+
+    const listPath = nodePath.join(dir, "parts.txt");
+    await fsp.writeFile(listPath, dubbedParts.map((part) => `file '${part}'`).join("\n"));
+    const stitchedPath = nodePath.join(dir, "dubbed.mp3");
+    await runFfmpeg([
+      "-y", "-f", "concat", "-safe", "0", "-i", listPath,
+      "-c:a", "libmp3lame", "-b:a", "192k", stitchedPath,
+    ], 300_000);
+    const stitched = await fsp.readFile(stitchedPath);
+    if (stitched.length < 200) throw new Error("The stitched dubbed audio is empty.");
+    await saveDubbedAudio(parent.id, stitched);
+
+    const output: Record<string, unknown> = {
+      audio_url: `/api/os/tasks/${parent.id}/audio`,
+      chunked: true,
+    };
+    if (options.sourceVideoId !== null) {
+      try {
+        const source = await loadRetainedSource(options.sourceVideoId);
+        const video = await muxDubbedVideoBuffer(source.data, source.fileName ?? options.sourceVideoName, stitched);
+        await saveDubbedVideo(parent.id, video);
+        output.dubbed_video_url = `/api/os/tasks/${parent.id}/video`;
+      } catch (err) {
+        logger.error({ err, taskId: parent.id }, "Chunked dubbing: video mux failed; keeping audio result");
+      }
+    }
+    await settleLongTts(parent.id, "done", creditsSpent, output);
+  } catch (err: any) {
+    if (err instanceof DubbingPendingUnknown) {
+      preserveSourceForReconciliation = true;
+      logger.warn({ taskId: parent.id }, err.message);
+      return;
+    }
+    const [current] = await db.select().from(osTasksTable).where(eq(osTasksTable.id, parent.id));
+    if (!current || isFinal(current.status)) return;
+    const message = err instanceof Error
+      ? sanitizeProviderText(err.message) || "Dubbing failed"
+      : "Dubbing failed";
+    const actualCost = err instanceof DubbingUnknownOutcome
+      ? current.creditsCharged
+      : creditsSpent;
+    await settleLongTts(parent.id, "error", actualCost, null, message);
+  } finally {
+    if (options.sourceVideoId !== null && !preserveSourceForReconciliation) {
+      await db.delete(osDubVideosTable)
+        .where(and(eq(osDubVideosTable.id, options.sourceVideoId), eq(osDubVideosTable.kind, "src")))
+        .catch(() => {});
+    }
+    await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 router.post("/dubbing", requireGlobalFeature("os-dubbing"), requirePlanFeature("dubbing"), upload.single("file"), async (req, res) => {
   const targetLang = String(req.body?.targetLang ?? "").trim();
   const sourceLang = String(req.body?.sourceLang ?? "auto").trim() || "auto";
@@ -2019,6 +2382,85 @@ router.post("/dubbing", requireGlobalFeature("os-dubbing"), requirePlanFeature("
       logger.warn({ err, fileName: req.file.originalname }, "Dubbing: could not retain the source video — the result will be audio-only");
     }
   }
+  let durationSeconds: number;
+  try {
+    durationSeconds = (await probeCloneSample(file.buffer)).seconds;
+  } catch {
+    if (sourceVideoId !== null) {
+      await db.delete(osDubVideosTable)
+        .where(and(eq(osDubVideosTable.id, sourceVideoId), eq(osDubVideosTable.kind, "src")))
+        .catch(() => {});
+    }
+    res.status(400).json({ error: "The media duration could not be read. Please upload a valid audio or video file." });
+    return;
+  }
+  const durationEstimate = Math.max(
+    500,
+    Math.ceil(durationSeconds * DUB_CREDITS_PER_SECOND_RESERVE),
+  );
+
+  if (durationSeconds > DUB_CHUNK_SECONDS) {
+    const user = req.appUser!;
+    const admin = isUserAdmin(user);
+    const reserve = admin ? 0 : durationEstimate;
+    if (!admin && !(await reserveCredits(user.id, reserve))) {
+      if (sourceVideoId !== null) {
+        await db.delete(osDubVideosTable)
+          .where(and(eq(osDubVideosTable.id, sourceVideoId), eq(osDubVideosTable.kind, "src")))
+          .catch(() => {});
+      }
+      res.status(402).json({
+        error: `Not enough credits. This needs about ${reserve} credits but you have ${user.credits}.`,
+      });
+      return;
+    }
+    let parent: OsTask;
+    try {
+      [parent] = await db.insert(osTasksTable).values({
+        userId: user.id,
+        tool: "dubbing",
+        externalTaskId: null,
+        status: "processing",
+        title: `${req.file.originalname || "audio"} → ${targetLang}`.slice(0, 120),
+        input: {
+          targetLang,
+          sourceLang,
+          numSpeakers,
+          voiceId: voiceId || undefined,
+          fileName: req.file.originalname,
+          fileSize: req.file.size,
+          durationSeconds,
+          _chunkedDubbing: true,
+          _chunkedDubbingPart: 0,
+          _chunkedDubbingParts: Math.ceil(durationSeconds / DUB_CHUNK_SECONDS),
+          ...(sourceVideoId !== null ? { _sourceVideoId: sourceVideoId } : {}),
+        },
+        creditsCharged: reserve,
+        webhookToken: crypto.randomBytes(24).toString("hex"),
+      }).returning();
+    } catch (err) {
+      if (!admin) await refundCredits(user.id, reserve);
+      if (sourceVideoId !== null) {
+        await db.delete(osDubVideosTable)
+          .where(and(eq(osDubVideosTable.id, sourceVideoId), eq(osDubVideosTable.kind, "src")))
+          .catch(() => {});
+      }
+      logger.error({ err }, "Chunked dubbing parent insert failed");
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
+    res.status(202).json({ task: taskJson(parent) });
+    void runChunkedDubbing(parent, file, {
+      sourceLang,
+      targetLang,
+      numSpeakers,
+      voiceId,
+      durationSeconds,
+      sourceVideoId,
+      sourceVideoName: req.file.originalname || null,
+    }).catch((err) => logger.error({ err, taskId: parent.id }, "Chunked dubbing background failure"));
+    return;
+  }
 
   await runCreateTask({
     req, res, tool: "dubbing",
@@ -2027,7 +2469,7 @@ router.post("/dubbing", requireGlobalFeature("os-dubbing"), requirePlanFeature("
       targetLang, sourceLang, numSpeakers, fileName: req.file.originalname, fileSize: req.file.size,
       ...(sourceVideoId !== null ? { _sourceVideoId: sourceVideoId } : {}),
     },
-    estimate: Math.max(500, Math.ceil(file.size / 20_000)), // reconciled to real cost right after creation
+    estimate: durationEstimate, // duration-based; provider bills dubbing by media length
     create: async (webhookUrl) => {
       const form = new FormData();
       form.append("file", new Blob([file.buffer as any], { type: file.mimetype }), file.originalname || "audio.mp3");
@@ -2827,19 +3269,21 @@ router.get("/tasks/:id/video", async (req, res) => {
   res.send(vid.data);
 });
 
-/** Download/stream the stitched longform TTS audio (stored server-side). */
+/** Download/stream stitched server-side audio (longform TTS or chunked dubbing). */
 router.get("/tasks/:id/audio", async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [row] = await db.select().from(osTasksTable)
     .where(and(eq(osTasksTable.id, id), eq(osTasksTable.userId, req.appUser!.id)));
-  if (!row || row.tool !== "tts" || row.status !== "done") {
+  const isChunkedDub = row?.tool === "dubbing" && !!(row.input as any)?._chunkedDubbing;
+  if (!row || (row.tool !== "tts" && !isChunkedDub) || row.status !== "done") {
     res.status(404).json({ error: "Task not found" });
     return;
   }
+  const blobKind = isChunkedDub ? "audio" : "out";
   const [blob] = await db.select({ data: osDubVideosTable.data })
     .from(osDubVideosTable)
-    .where(and(eq(osDubVideosTable.taskId, row.id), eq(osDubVideosTable.kind, "out")));
+    .where(and(eq(osDubVideosTable.taskId, row.id), eq(osDubVideosTable.kind, blobKind)));
   if (!blob) {
     res.status(410).json({ error: "This audio is no longer available. Please generate it again." });
     return;
@@ -2847,7 +3291,9 @@ router.get("/tasks/:id/audio", async (req, res) => {
   const buf = blob.data;
   res.setHeader("Accept-Ranges", "bytes");
   res.type("audio/mpeg");
-  if (String(req.query.dl) === "1") res.attachment(`voiceover-${row.id}.mp3`);
+  if (String(req.query.dl) === "1") {
+    res.attachment(isChunkedDub ? `dubbed-audio-${row.id}.mp3` : `voiceover-${row.id}.mp3`);
+  }
   // Basic byte-range support so <audio> seeking works on 10-30 min files.
   const m = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ""));
   if (m && (m[1] || m[2])) {
@@ -2899,6 +3345,12 @@ router.post("/tasks/:id/cancel", async (req, res) => {
   if (row.status === "processing" && (row.input as any)?._cloneRevoice) {
     res.status(409).json({
       error: "Clone voice conversion cannot be cancelled safely while transcription or voice generation is running.",
+    });
+    return;
+  }
+  if (row.status === "processing" && (row.input as any)?._chunkedDubbing) {
+    res.status(409).json({
+      error: "Long dubbing cannot be cancelled safely while a provider segment is running.",
     });
     return;
   }
@@ -2989,6 +3441,12 @@ router.delete("/tasks/:id", async (req, res) => {
     });
     return;
   }
+  if (row.status === "processing" && (row.input as any)?._chunkedDubbing) {
+    res.status(409).json({
+      error: "Long dubbing cannot be deleted safely while a provider segment is running.",
+    });
+    return;
+  }
   if (row.status === "processing" && !row.externalTaskId && (row.input as any)?._deferredProviderCreate) {
     res.status(409).json({ error: "This task is still being submitted. Please try deleting it again shortly." });
     return;
@@ -3021,7 +3479,7 @@ router.delete("/tasks/:id", async (req, res) => {
   await db.delete(osTasksTable).where(eq(osTasksTable.id, row.id));
   // Remove any stored result blob (stitched longform audio, muxed dubbed video).
   await db.delete(osDubVideosTable)
-    .where(and(eq(osDubVideosTable.taskId, row.id), eq(osDubVideosTable.kind, "out")))
+    .where(and(eq(osDubVideosTable.taskId, row.id), inArray(osDubVideosTable.kind, ["out", "audio"])))
     .catch(() => {});
   // Remove any retained source video for this task.
   if (row.tool === "dubbing") {
@@ -3109,6 +3567,77 @@ export async function sweepStaleOsTasks(): Promise<void> {
       }
     } catch (err) {
       logger.warn({ err }, "Longform TTS orphan sweep failed");
+    }
+    // Chunked dubbing parents also run in-process. Reconcile the durably stored
+    // active child before refunding anything after a restart.
+    try {
+      const cutoffChunkedDub = new Date(Date.now() - LONG_TTS_ORPHAN_MS);
+      const chunkedDubOrphans = await db.select().from(osTasksTable)
+        .where(and(
+          eq(osTasksTable.status, "processing"),
+          isNull(osTasksTable.externalTaskId),
+          sql`(${osTasksTable.input}::jsonb) ? '_chunkedDubbing'`,
+          lt(osTasksTable.updatedAt, cutoffChunkedDub),
+        ))
+        .limit(10);
+      for (const row of chunkedDubOrphans) {
+        const progress = ((row.output as any)?.progress ?? {}) as Record<string, unknown>;
+        let spent = typeof progress.credits_spent === "number" ? progress.credits_spent : 0;
+        const childId = String((row.input as any)?._chunkedDubbingChildId ?? "");
+        const creating = !!(row.input as any)?._chunkedDubbingCreating;
+        if (!childId && creating) {
+          await settleLongTts(
+            row.id,
+            "error",
+            row.creditsCharged,
+            null,
+            "We could not confirm whether the active dubbing segment started. Please contact support.",
+          );
+          continue;
+        }
+        if (childId) {
+          let childState: OsTaskState | null = null;
+          try {
+            childState = await getTask(childId);
+          } catch {
+            await settleLongTts(
+              row.id,
+              "error",
+              row.creditsCharged,
+              null,
+              "We could not confirm the active dubbing segment after a server restart. Please contact support.",
+            );
+            continue;
+          }
+          if (childState.status === "done") {
+            spent += Math.max(0, Number(childState.credit_cost) || 0);
+          } else if (childState.status !== "error") {
+            try {
+              await deleteTasks([childId]);
+            } catch {
+              await settleLongTts(
+                row.id,
+                "error",
+                row.creditsCharged,
+                null,
+                "The active dubbing segment could not be cancelled safely after a server restart. Please contact support.",
+              );
+              continue;
+            }
+          }
+        }
+        const done = Number((row.input as any)?._chunkedDubbingPart) || 0;
+        const total = Number((row.input as any)?._chunkedDubbingParts) || 0;
+        await settleLongTts(
+          row.id,
+          "error",
+          spent,
+          null,
+          `Long dubbing was interrupted by a server restart (${done} of ${total} parts finished — unused credits refunded). Please try again.`,
+        );
+      }
+    } catch (err) {
+      logger.warn({ err }, "Chunked dubbing orphan sweep failed");
     }
     // Clone re-voice parents run an in-process STT → cloned-TTS pipeline. A
     // restart loses that runner, so settle stale parents instead of leaving

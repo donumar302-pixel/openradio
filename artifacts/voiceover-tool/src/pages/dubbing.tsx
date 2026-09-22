@@ -1,5 +1,5 @@
 import { Languages, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -35,12 +35,41 @@ const LANGUAGES = [
 export default function DubbingPage() {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
+  const [durationSeconds, setDurationSeconds] = useState<number | null>(null);
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("es");
   const [numSpeakers, setNumSpeakers] = useState("0");
   const { task, submitting, run, working, cancel, cancelling } = useOsTask("dubbing");
-  const estimate = file ? estimateDubbingCost(file.size) : null;
+  const estimate = file && durationSeconds ? estimateDubbingCost(durationSeconds) : null;
   const insufficient = useOsInsufficientCredits(estimate);
+
+  useEffect(() => {
+    setDurationSeconds(null);
+    if (!file) return;
+    let cancelled = false;
+    const url = URL.createObjectURL(file);
+    const media = document.createElement(file.type.startsWith("video/") ? "video" : "audio");
+    const cleanup = () => {
+      media.onloadedmetadata = null;
+      media.onerror = null;
+      media.removeAttribute("src");
+      media.load();
+      URL.revokeObjectURL(url);
+    };
+    media.preload = "metadata";
+    media.onloadedmetadata = () => {
+      if (!cancelled) {
+        setDurationSeconds(Number.isFinite(media.duration) && media.duration > 0 ? media.duration : null);
+      }
+      cleanup();
+    };
+    media.onerror = cleanup;
+    media.src = url;
+    return () => {
+      cancelled = true;
+      cleanup();
+    };
+  }, [file]);
 
   const handleSubmit = () => {
     if (!file) {
@@ -111,7 +140,7 @@ export default function DubbingPage() {
 
         <Button
           onClick={handleSubmit}
-          disabled={working || !file || sourceLang === targetLang || insufficient}
+          disabled={working || !file || durationSeconds === null || sourceLang === targetLang || insufficient}
           className="w-full bg-primary hover:bg-primary/90 font-bold"
         >
           {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : insufficient ? <>Not enough credits</> : <><Languages className="mr-2 h-4 w-4" />Start Dubbing</>}
