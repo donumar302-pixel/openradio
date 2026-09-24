@@ -18,6 +18,7 @@ import {
   getTask, deleteTasks, OpenSpeakerError, sanitizeProviderText,
   isOsVoiceProvider, isValidOsVoiceId, type OsTaskState,
 } from "../lib/openspeaker";
+import { getDirectEdgeVoice, isDirectEdgeVoice, listDirectEdgeVoices, synthesizeDirectEdge } from "../lib/direct-edge-tts";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
@@ -815,6 +816,18 @@ router.get("/voices", async (req, res) => {
     return;
   }
   try {
+    if (provider === "edge") {
+      const page = Math.max(1, parseInt(String(req.query.page ?? "1")) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(String(req.query.page_size ?? "24")) || 24));
+      const list = await listDirectEdgeVoices({
+        search: String(req.query.search ?? ""),
+        language: String(req.query.language ?? ""),
+        gender: String(req.query.gender ?? ""),
+      });
+      res.json({ success: true, data: list.slice((page - 1) * pageSize, page * pageSize),
+        pagination: { page, page_size: pageSize, total: list.length } });
+      return;
+    }
     if (provider === "clone") {
       // Clones are account-wide upstream — only expose the user's own.
       // Search is applied locally; gender/language metadata doesn't exist for clones.
@@ -1186,6 +1199,7 @@ function elIndexing(): boolean {
 
 async function aggProviderTotal(provider: string, f: AggFilters): Promise<number> {
   if (provider === "elevenlabs") return (await elLocalQuery(f)).length;
+  if (provider === "edge") return (await listDirectEdgeVoices(f)).length;
   const key = `${provider}|${f.search}|${f.language}|${f.gender}`;
   const hit = aggTotalCache.get(key);
   if (hit && Date.now() - hit.at < AGG_TOTAL_TTL) return hit.total;
@@ -1203,6 +1217,9 @@ async function aggProviderTotal(provider: string, f: AggFilters): Promise<number
 async function aggProviderPage(provider: string, f: AggFilters, page: number, pageSize: number): Promise<any[]> {
   if (provider === "elevenlabs") {
     return (await elLocalQuery(f)).slice((page - 1) * pageSize, page * pageSize);
+  }
+  if (provider === "edge") {
+    return (await listDirectEdgeVoices(f)).slice((page - 1) * pageSize, page * pageSize);
   }
   const key = `${provider}|${f.search}|${f.language}|${f.gender}|${page}|${pageSize}`;
   const hit = aggPageCache.get(key);
@@ -1294,6 +1311,7 @@ const EL_TTS_MODELS = new Set(["eleven_turbo_v2_5", "eleven_v3"]);
  *  mirror in voiceover-tool/src/lib/os-cost.ts. */
 const EL_TTS_COST_MULTIPLIER = 1.2;
 function ttsEstimateFor(voiceId: string, characters: number): number {
+  if (isDirectEdgeVoice(voiceId)) return 0;
   return voiceId.startsWith("elevenlabs_")
     ? Math.ceil(characters * EL_TTS_COST_MULTIPLIER)
     : characters;
@@ -1306,10 +1324,96 @@ function elModelFor(voiceId: string, model: unknown): string | undefined {
   return EL_TTS_MODELS.has(model) ? model : undefined;
 }
 
+const activeDirectEdgeTasks = new Map<number, AbortController>();
+
+async function runDirectEdgeTask(row: OsTask, text: string, voiceId: string, speed?: number): Promise<void> {
+  let dir: string | null = null;
+  const controller = new AbortController();
+  activeDirectEdgeTasks.set(row.id, controller);
+  try {
+    dir = await fsp.mkdtemp(nodePath.join(nodeOs.tmpdir(), "direct-edge-"));
+    const chunks = splitScriptIntoChunks(text, 4_500);
+    if (!chunks.length) throw new Error("Please enter text.");
+    const files: string[] = [];
+    for (let i = 0; i < chunks.length; i++) {
+      const [current] = await db.select({ status: osTasksTable.status }).from(osTasksTable)
+        .where(eq(osTasksTable.id, row.id));
+      if (!current || current.status !== "processing") return;
+      const audio = await synthesizeDirectEdge(chunks[i], voiceId, speed, controller.signal);
+      const part = nodePath.join(dir, `part-${String(i).padStart(3, "0")}.mp3`);
+      await fsp.writeFile(part, audio);
+      files.push(part);
+      await db.update(osTasksTable).set({
+        output: { progress: { done: i + 1, total: chunks.length } },
+        updatedAt: new Date(),
+      }).where(and(eq(osTasksTable.id, row.id), eq(osTasksTable.status, "processing")));
+    }
+    let result: Buffer;
+    if (files.length === 1) result = await fsp.readFile(files[0]);
+    else {
+      const listPath = nodePath.join(dir, "parts.txt");
+      const resultPath = nodePath.join(dir, "result.mp3");
+      await fsp.writeFile(listPath, files.map((file) => `file '${file}'`).join("\n"));
+      await runFfmpeg(["-y", "-f", "concat", "-safe", "0", "-i", listPath,
+        "-c:a", "libmp3lame", "-b:a", "128k", resultPath], 300_000);
+      result = await fsp.readFile(resultPath);
+    }
+    const [current] = await db.select({ status: osTasksTable.status }).from(osTasksTable)
+      .where(eq(osTasksTable.id, row.id));
+    if (!current || current.status !== "processing") return;
+    await saveDubbedVideo(row.id, result);
+    await db.update(osTasksTable).set({
+      status: "done", output: { audio_url: `/api/os/tasks/${row.id}/audio` },
+      updatedAt: new Date(),
+    }).where(and(eq(osTasksTable.id, row.id), eq(osTasksTable.status, "processing")));
+  } catch (err) {
+    logger.warn({ err, taskId: row.id }, "Direct Edge TTS generation failed");
+    await db.update(osTasksTable).set({
+      status: "error", error: "Edge voice generation failed. Please try again.",
+      updatedAt: new Date(),
+    }).where(and(eq(osTasksTable.id, row.id), eq(osTasksTable.status, "processing")))
+      .catch((e) => logger.error({ err: e, taskId: row.id }, "Direct Edge task settlement failed"));
+  } finally {
+    activeDirectEdgeTasks.delete(row.id);
+    if (dir) await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+export async function startDirectEdgeTask(
+  userId: number, text: string, voiceId: string, speed?: number, via?: string,
+): Promise<OsTask> {
+  const [row] = await db.insert(osTasksTable).values({
+    userId,
+    tool: "tts",
+    externalTaskId: null,
+    status: "processing",
+    title: text.slice(0, 120),
+    input: { voiceId, speed: speed ?? 1, characters: text.length, _directEdge: true, ...(via ? { via } : {}) },
+    creditsCharged: 0,
+  }).returning();
+  if (!row) throw new Error("Could not create Edge task.");
+  void runDirectEdgeTask(row, text, voiceId, speed)
+    .catch((err) => logger.error({ err, taskId: row.id }, "Direct Edge background task crashed"));
+  return row;
+}
+
 router.post("/tts", requireGlobalFeature("os-tts"), requirePlanFeature("tts"), async (req, res) => {
   const { text, voiceId, speed, dictionaryId, model } = req.body ?? {};
   if (typeof text !== "string" || !text.trim() || text.length > 1_000_000) {
     res.status(400).json({ error: "Please enter text (up to 1,000,000 characters)." });
+    return;
+  }
+  if (typeof voiceId === "string" && voiceId.startsWith("edge_")) {
+    if (text.length > LONG_TTS_MAX_CHARS) {
+      res.status(400).json({ error: "Edge TTS supports up to 60,000 characters." });
+      return;
+    }
+    if (!(await getDirectEdgeVoice(voiceId))) {
+      res.status(400).json({ error: "Please choose an available Edge voice." });
+      return;
+    }
+    const row = await startDirectEdgeTask(req.appUser!.id, text, voiceId, Number(speed));
+    res.status(202).json({ task: taskJson(row) });
     return;
   }
   if (!isValidOsVoiceId(voiceId)) {
@@ -1607,6 +1711,15 @@ router.post("/tts-long", requireGlobalFeature("os-tts"), requirePlanFeature("tts
     res.status(400).json({ error: `Please enter text (up to ${LONG_TTS_MAX_CHARS.toLocaleString()} characters).` });
     return;
   }
+  if (typeof voiceId === "string" && voiceId.startsWith("edge_")) {
+    if (!(await getDirectEdgeVoice(voiceId))) {
+      res.status(400).json({ error: "Please choose an available Edge voice." });
+      return;
+    }
+    const row = await startDirectEdgeTask(req.appUser!.id, text, voiceId, Number(speed));
+    res.status(202).json({ task: taskJson(row) });
+    return;
+  }
   if (!isValidOsVoiceId(voiceId)) {
     res.status(400).json({ error: "Please choose a valid voice." });
     return;
@@ -1674,6 +1787,10 @@ router.post("/dialogue", requireGlobalFeature("os-dialogue"), requirePlanFeature
   const cleanSpeakers: { voice_id: string; speed?: number }[] = [];
   for (const s of speakers) {
     const vid = s?.voiceId ?? s?.voice_id;
+    if (typeof vid === "string" && vid.startsWith("edge_")) {
+      res.status(400).json({ error: "Direct Edge voices are available for text-to-speech only. Choose another voice for dialogue." });
+      return;
+    }
     if (!isValidOsVoiceId(vid)) {
       res.status(400).json({ error: "Every speaker needs a valid voice." });
       return;
@@ -2349,6 +2466,10 @@ router.post("/dubbing", requireGlobalFeature("os-dubbing"), requirePlanFeature("
   const sourceLang = String(req.body?.sourceLang ?? "auto").trim() || "auto";
   const numSpeakers = Math.min(9, Math.max(0, parseInt(String(req.body?.numSpeakers ?? "0")) || 0));
   const voiceId = String(req.body?.voiceId ?? "").trim();
+  if (voiceId.startsWith("edge_")) {
+    res.status(400).json({ error: "Direct Edge voices are available for text-to-speech only. Choose another dubbing voice." });
+    return;
+  }
   if (!req.file || !targetLang) {
     res.status(400).json({ error: "An audio file and target language are required." });
     return;
@@ -2723,6 +2844,10 @@ async function runCloneRevoice(
 
 router.post("/voice-changer", requireGlobalFeature("os-voice-changer"), requirePlanFeature("speech-to-speech"), upload.single("file"), async (req, res) => {
   const voiceId = String(req.body?.voiceId ?? "").trim();
+  if (voiceId.startsWith("edge_")) {
+    res.status(400).json({ error: "Direct Edge voices are available for text-to-speech only. Choose another voice." });
+    return;
+  }
   if (!req.file || !isValidOsVoiceId(voiceId)) {
     res.status(400).json({ error: "An audio file and a valid voice are required." });
     return;
@@ -3418,6 +3543,7 @@ router.post("/tasks/:id/cancel", async (req, res) => {
     }).where(eq(osTasksTable.id, current.id)).returning();
     return updated ?? current;
   });
+  if ((row.input as any)?._directEdge) activeDirectEdgeTasks.get(row.id)?.abort();
   res.json({ task: taskJson(saved) });
 });
 
@@ -3477,6 +3603,7 @@ router.delete("/tasks/:id", async (req, res) => {
     if (updated.length > 0) await refundCredits(row.userId, row.creditsCharged);
   }
   await db.delete(osTasksTable).where(eq(osTasksTable.id, row.id));
+  if ((row.input as any)?._directEdge) activeDirectEdgeTasks.get(row.id)?.abort();
   // Remove any stored result blob (stitched longform audio, muxed dubbed video).
   await db.delete(osDubVideosTable)
     .where(and(eq(osDubVideosTable.taskId, row.id), inArray(osDubVideosTable.kind, ["out", "audio"])))
@@ -3567,6 +3694,22 @@ export async function sweepStaleOsTasks(): Promise<void> {
       }
     } catch (err) {
       logger.warn({ err }, "Longform TTS orphan sweep failed");
+    }
+    // Direct Edge synthesis is local and has no external task ID. A process
+    // restart kills its runner; mark stale jobs failed rather than spin forever.
+    try {
+      await db.update(osTasksTable).set({
+        status: "error",
+        error: "Edge voice generation was interrupted. Please try again.",
+        updatedAt: new Date(),
+      }).where(and(
+        eq(osTasksTable.status, "processing"),
+        isNull(osTasksTable.externalTaskId),
+        sql`(${osTasksTable.input}::jsonb) ? '_directEdge'`,
+        lt(osTasksTable.updatedAt, new Date(Date.now() - LONG_TTS_ORPHAN_MS)),
+      ));
+    } catch (err) {
+      logger.warn({ err }, "Direct Edge task recovery sweep failed");
     }
     // Chunked dubbing parents also run in-process. Reconcile the durably stored
     // active child before refunding anything after a restart.

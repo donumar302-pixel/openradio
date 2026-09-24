@@ -1,20 +1,21 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, userApiKeysTable, osTasksTable, voiceClonesTable } from "@workspace/db";
+import { db, usersTable, userApiKeysTable, osTasksTable, osDubVideosTable, voiceClonesTable } from "@workspace/db";
 import { and, eq, isNull, desc } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { isUserAdmin } from "../middleware/require-active-user";
 import { osPostForm, osGetJson, OpenSpeakerError, isValidOsVoiceId, isOsVoiceProvider } from "../lib/openspeaker";
 import {
   reserveCredits, refundCredits, refreshTask, taskJson,
-  elLocalQuery, assertCloneOwnership,
+  elLocalQuery, assertCloneOwnership, startDirectEdgeTask,
 } from "./openspeaker";
+import { getDirectEdgeVoice, listDirectEdgeVoices } from "../lib/direct-edge-tts";
 import { hashApiKey } from "./api-keys";
 
 /**
  * Public Developer API (v1). Authenticated with per-user API keys
  * (`Authorization: Bearer orv_...`) — no session/cookies. Paid plans only.
- * Generation goes through the same OpenSpeaker task pipeline as the web app,
- * so credits, history, webhooks and the abandoned-task sweep all apply.
+ * Paid engines use the existing provider task pipeline; direct Edge TTS is
+ * free and shares the same persistent task history and download lifecycle.
  */
 
 const router: IRouter = Router();
@@ -90,10 +91,12 @@ router.use((req: any, res, next) => {
 
 function apiTaskJson(t: ReturnType<typeof taskJson>) {
   const out: any = t.output ?? null;
+  const localEdgeUrl = out?.audio_url === `/api/os/tasks/${t.id}/audio`
+    ? `/api/v1/tasks/${t.id}/audio` : null;
   return {
     id: t.id,
     status: t.status,
-    audio_url: out?.audio_url ?? out?.dubbed_audio_url ?? out?.output_audio_url ?? null,
+    audio_url: localEdgeUrl ?? out?.audio_url ?? out?.dubbed_audio_url ?? out?.output_audio_url ?? null,
     credits_charged: t.creditsCharged,
     error: t.error,
     created_at: t.createdAt,
@@ -132,6 +135,14 @@ router.get("/voices", async (req: any, res) => {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const page = Math.max(1, parseInt(String(req.query.page ?? "1")) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(String(req.query.page_size ?? "24")) || 24));
+    if (provider === "edge") {
+      const list = await listDirectEdgeVoices({
+        search, language: String(req.query.language ?? ""), gender: String(req.query.gender ?? ""),
+      });
+      res.json({ data: list.slice((page - 1) * pageSize, page * pageSize),
+        total: list.length, page, page_size: pageSize });
+      return;
+    }
     if (provider === "elevenlabs") {
       const list = await elLocalQuery({
         search,
@@ -161,6 +172,27 @@ router.post("/tts", async (req: any, res) => {
   const voiceId = voiceIdSnake ?? voiceIdCamel;
   if (typeof text !== "string" || !text.trim() || text.length > 20_000) {
     res.status(400).json({ error: "Provide 'text' (1 to 20,000 characters)." });
+    return;
+  }
+  if (typeof voiceId === "string" && voiceId.startsWith("edge_")) {
+    if (!(await getDirectEdgeVoice(voiceId))) {
+      res.status(400).json({ error: "Please choose an available Edge voice." });
+      return;
+    }
+    let row = await startDirectEdgeTask(req.appUser.id, text, voiceId, Number(speed), "api");
+    const deadline = Date.now() + SYNC_WAIT_MS;
+    while (row.status === "processing" && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, POLL_MS));
+      const [fresh] = await db.select().from(osTasksTable).where(eq(osTasksTable.id, row.id));
+      if (!fresh) break;
+      row = fresh;
+    }
+    const body = apiTaskJson(taskJson(row));
+    if (row.status === "processing") {
+      res.status(202).json({ ...body, message: "Still processing — poll GET /api/v1/tasks/{id} for the result." });
+      return;
+    }
+    res.status(row.status === "error" ? 422 : 200).json(body);
     return;
   }
   if (!isValidOsVoiceId(voiceId)) {
@@ -235,6 +267,24 @@ router.get("/tasks/:id", async (req: any, res) => {
   if (!row) { res.status(404).json({ error: "Task not found" }); return; }
   row = await refreshTask(row);
   res.json(apiTaskJson(taskJson(row)));
+});
+
+router.get("/tasks/:id/audio", async (req: any, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [task] = await db.select().from(osTasksTable)
+    .where(and(eq(osTasksTable.id, id), eq(osTasksTable.userId, req.appUser.id)));
+  if (!task || task.tool !== "tts" || !(task.input as any)?._directEdge || task.status !== "done") {
+    res.status(404).json({ error: "Audio not found" });
+    return;
+  }
+  const [blob] = await db.select({ data: osDubVideosTable.data }).from(osDubVideosTable)
+    .where(and(eq(osDubVideosTable.taskId, id), eq(osDubVideosTable.kind, "out")));
+  if (!blob) { res.status(410).json({ error: "Audio is no longer available." }); return; }
+  res.type("audio/mpeg").attachment(`voiceover-${id}.mp3`).send(blob.data);
 });
 
 export default router;

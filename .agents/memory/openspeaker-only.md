@@ -1,16 +1,16 @@
 ---
-name: OpenSpeaker-only policy
-description: User directive — all TTS/voice features must route through the OpenSpeaker proxy, never direct provider APIs.
+name: Voice routing policy
+description: Paid voice engines use OpenSpeaker; Edge TTS is a direct, zero-credit exception.
 ---
 
-# OpenSpeaker-only policy (user directive, Aug 2026)
+# Voice routing policy (updated Sep 2026)
 
-**Rule:** Every voice feature in the frontend (voice listing, TTS generation, history, voice cloning) must go through the OpenSpeaker proxy routes (`/api/os/*`). Never call the direct provider routes (`/api/minimax/*`, `/api/fishaudio/*`, `/api/edge-tts`, direct EL `/api/tts`) from any page.
+**Rule:** Paid voice features use the OpenSpeaker proxy routes (`/api/os/*`); direct Edge TTS is the sole exception (newer user directive). Do not route Edge voice listing or Edge TTS generation through OpenSpeaker. Never call direct MiniMax/Fish/ElevenLabs APIs from the frontend.
 
-**Why:** Direct MiniMax account ran out of balance; user then decided ("sirf OpenSpeaker hi use karna hai hamesha") that OpenSpeaker is the single upstream for everything — one billing path, persistent task history, one voice catalog.
+**Why:** Direct MiniMax account ran out of balance; the user originally chose OpenSpeaker for all voices. They later explicitly changed only Edge TTS to direct Microsoft Edge Read Aloud at zero user credits, leaving the other engines alone.
 
 **How to apply:**
-- Studio platforms (ElevenLabs / Fire TTS / Fish Audio / Edge TTS) are just OS provider filters (`/voices?provider=elevenlabs|minimax|fishaudio|edge`); generation is always `POST /api/os/tts` (1 credit/char, speed clamped 0.5–1.5).
+- Studio still uses `/api/os/*` for unified task history; Edge voice listing and TTS there are direct Microsoft-backed branches with no OpenSpeaker upstream and zero credit charge. Other engines remain provider-backed with their existing prices.
 - Voice Library "Fire TTS" tab = OS minimax catalog (no separate local tab); clones come from `/api/os/voice-clones` only.
 - Backend direct routes still exist in api-server but are legacy/unused by the frontend — don't wire new UI to them.
 - Deep-link prefixes `mm:`/`fa:`/`edge:` are mapped to OS-prefixed ids (`minimax_x` etc.); OS ids use `os:`.

@@ -161,11 +161,11 @@ export default function BatchTtsPage() {
     } catch { /* storage full/blocked — non-fatal */ }
   }, [lines, voiceId, voiceName, storageKey]);
 
-  // Total cost of the lines that still need generating (1 credit/char via OpenSpeaker; ElevenLabs ~1.2×).
+  // Edge is free; other voices keep their existing per-character cost.
   const isElVoice = voiceId.startsWith("elevenlabs_");
   const remainingCost = lines
     .filter(l => l.state !== "done")
-    .reduce((sum, l) => sum + estimateTtsCost(l.text, isElVoice), 0);
+    .reduce((sum, l) => sum + (voiceId.startsWith("edge_") ? 0 : estimateTtsCost(l.text, isElVoice)), 0);
   const insufficientCredits = useOsInsufficientCredits(lines.length > 0 ? remainingCost : null);
 
   const loadFile = useCallback((file: File) => {
@@ -385,9 +385,12 @@ export default function BatchTtsPage() {
         </div>
       )}
 
-      {/* Cost estimate — mirrors the server's 1 credit/char OpenSpeaker charge */}
+      {/* Cost estimate — Edge is free; other voices keep their usual rates. */}
       {lines.length > 0 && doneCnt < totalCnt && (
-        <OsCostEstimate estimate={remainingCost} />
+        <OsCostEstimate
+          estimate={remainingCost}
+          footnote={voiceId.startsWith("edge_") ? "Edge TTS is free. No credits will be deducted." : undefined}
+        />
       )}
 
       {/* Progress bar */}

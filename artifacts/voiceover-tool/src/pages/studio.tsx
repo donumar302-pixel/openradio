@@ -27,8 +27,8 @@ const PROVIDER_LOGOS: Record<string, string> = {
   fishaudio: asset("providers/fishaudio.png"),
 };
 
-// Every Studio platform is served by the OpenSpeaker library — voices, generation
-// and history all go through /api/os (never direct provider APIs).
+// Edge voices and synthesis are handled directly on our server; other platforms
+// retain their existing provider route and all platforms share task history.
 const OS_PROVIDER_OF = {
   el: "elevenlabs",
   minimax: "minimax",
@@ -298,9 +298,11 @@ export default function StudioPage() {
   const selectedEngine = voiceProvider === "os" ? healthEngineOfVoiceId(voiceId) : OS_PROVIDER_OF[voiceProvider];
   const selectedEngineSlow = isEngineSlow(engineHealth, selectedEngine);
   const selectedEngineMedianMs = engineMedianMs(engineHealth, selectedEngine);
-  // Mirrors the server's charge: 1 credit/char via OpenSpeaker; ElevenLabs voices ~1.2×.
+  // Edge is free; other engines retain their existing per-character pricing.
   const isElVoiceSelected = voiceProvider === "el" || voiceId.startsWith("elevenlabs_");
-  const costEstimate = text.trim() ? estimateTtsCost(text, isElVoiceSelected) : null;
+  const costEstimate = text.trim()
+    ? (voiceId.startsWith("edge_") || voiceProvider === "edge" ? 0 : estimateTtsCost(text, isElVoiceSelected))
+    : null;
   const insufficientCredits = useOsInsufficientCredits(costEstimate);
   const expressionEnabled = voiceProvider === "minimax";
 
@@ -779,12 +781,13 @@ export default function StudioPage() {
             </div>
           )}
 
-          {/* Cost estimate — every engine charges credits (per character; Edge per 500 chars) */}
+          {/* Cost estimate — Edge is free; other engines retain their usual rates. */}
           <div className="px-4 sm:px-7 pb-3 shrink-0">
             <OsCostEstimate
               estimate={costEstimate}
               footnote={isElVoiceSelected
                 ? "ElevenLabs voices cost 1.2× the character count. Charged when generation starts — refunded automatically if it fails."
+                : costEstimate === 0 ? "Edge TTS is free. No credits will be deducted."
                 : voiceProvider === "os" ? undefined : "Charged when generation starts — refunded automatically if it fails."}
             />
           </div>
