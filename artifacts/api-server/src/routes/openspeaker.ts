@@ -19,6 +19,7 @@ import {
   isOsVoiceProvider, isValidOsVoiceId, type OsTaskState,
 } from "../lib/openspeaker";
 import { getDirectEdgeVoice, isDirectEdgeVoice, listDirectEdgeVoices, synthesizeDirectEdge } from "../lib/direct-edge-tts";
+import { appendDubbingSourceLanguage } from "../lib/dubbing-params";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
@@ -1966,6 +1967,9 @@ router.post("/dictionaries/preview", ...dictGate, async (req, res) => {
 /** Map raw provider error codes to plain-English messages users can act on.
  *  Falls back to the sanitized provider text handled by callers. */
 export function friendlyTaskError(raw: string): string | null {
+  if (/dubbing_invalid_parameters/i.test(raw)) {
+    return "Dubbing could not process these language settings. Check that the audio is in a different language from the target, or select its source language explicitly and try again. Credits were refunded.";
+  }
   if (/elevenlabs_voice_not_found|elevenlabs.*voice.*not.*found/i.test(raw)) {
     return "The selected voice is no longer available. Please choose another voice and try again.";
   }
@@ -2341,7 +2345,7 @@ async function runChunkedDubbing(
       const form = new FormData();
       form.append("file", new Blob([chunk as any], { type: "audio/mpeg" }), `part-${index + 1}.mp3`);
       form.append("num_speakers", String(options.numSpeakers));
-      form.append("source_lang", options.sourceLang);
+      appendDubbingSourceLanguage(form, options.sourceLang);
       form.append("target_lang", options.targetLang);
       if (options.voiceId) form.append("voice_id", rawElevenVoiceId(options.voiceId));
       const callback = webhookUrlFor(callbackToken);
@@ -2474,6 +2478,10 @@ router.post("/dubbing", requireGlobalFeature("os-dubbing"), requirePlanFeature("
     res.status(400).json({ error: "An audio file and target language are required." });
     return;
   }
+  if (sourceLang === targetLang) {
+    res.status(400).json({ error: "Source and target languages must be different." });
+    return;
+  }
   {
     const bad = badUpload(req.file, "media", 200);
     if (bad) { res.status(400).json({ error: bad }); return; }
@@ -2595,7 +2603,7 @@ router.post("/dubbing", requireGlobalFeature("os-dubbing"), requirePlanFeature("
       const form = new FormData();
       form.append("file", new Blob([file.buffer as any], { type: file.mimetype }), file.originalname || "audio.mp3");
       form.append("num_speakers", String(numSpeakers));
-      form.append("source_lang", sourceLang);
+      appendDubbingSourceLanguage(form, sourceLang);
       form.append("target_lang", targetLang);
       if (voiceId) form.append("voice_id", rawElevenVoiceId(voiceId));
       if (webhookUrl) form.append("receive_url", webhookUrl);
